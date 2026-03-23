@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "openresearch"
+version = "0.1.0"
+description = ""
+authors = ["Yang-Hyun-Jun <sugumy@naver.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.poetry.scripts]
+hypoevolve = "hypoevolve.cli:main"

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtualenvs
+.venv/
+venv/
+
+# Runtime outputs
+.hypoevolve/
+.omx/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Test / coverage
+.coverage
+.pytest_cache/
+
+# Keep vendored reference project out of this repo
+openevolve/
