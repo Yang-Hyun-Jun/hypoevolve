@@ -4,7 +4,6 @@ llm:
   max_tokens: 2000
 parser:
   retries: 1
-  mode: fallback
 search:
   iterations: 5
   random_seed: 42

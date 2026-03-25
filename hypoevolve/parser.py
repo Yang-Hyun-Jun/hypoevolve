@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
+from elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
+from hypoevolve.llm import LLMClient
+from hypoevolve.prompts import load_prompt
 
 
 class ParseError(ValueError):
@@ -15,46 +16,79 @@ class ParseError(ValueError):
 ParserCallable = Callable[[str], Hypothesis]
 
 
+PARSER_SYSTEM_PROMPT = load_prompt("parser", "system.md")
+PARSER_RETRY_PROMPT = load_prompt("parser", "retry.md")
+
+
 def parse_hypothesis_text(
     text: str,
-    parser: Optional[ParserCallable] = None,
+    llm: LLMClient,
     retries: int = 1,
+) -> Hypothesis:
+    return llm_parse_hypothesis(text, llm=llm, retries=retries)
+
+
+def llm_parse_hypothesis(
+    text: str,
+    llm: LLMClient,
+    retries: int = 2,
 ) -> Hypothesis:
     if not text or not text.strip():
         raise ParseError("Hypothesis text must be non-empty")
-
-    if parser is None:
-        return fallback_parse_hypothesis(text)
 
     errors: List[str] = []
     attempts = retries + 1
     for attempt in range(1, attempts + 1):
         try:
-            result = parser(text)
-            if not isinstance(result, Hypothesis):
-                raise TypeError(f"Parser returned {type(result)!r}, expected Hypothesis")
-            return result
+            system_prompt = (
+                PARSER_SYSTEM_PROMPT
+                if attempt == 1
+                else f"{PARSER_SYSTEM_PROMPT}\n\n{PARSER_RETRY_PROMPT}"
+            )
+            payload = llm.generate_json(
+                system_prompt,
+                f"Convert this natural-language hypothesis into ELG JSON root node:\\n\\n{text}",
+                json_retries=0,
+            )
+            _validate_parser_payload(payload)
+            hypothesis = hypothesis_from_dict({"root": payload, "params": {}})
+            return normalize_hypothesis(hypothesis)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"attempt {attempt}: {exc}")
-    raise ParseError("Failed to convert natural-language hypothesis to ELG", errors=errors)
+    raise ParseError(
+        "Failed to convert natural-language hypothesis to ELG via LLM", errors=errors
+    )
+def _validate_parser_payload(payload: Dict[str, Any]) -> None:
+    if not isinstance(payload, dict):
+        raise ParseError("Parser payload must be a JSON object")
 
+    kind = payload.get("kind")
+    if kind not in {"atomic", "logical", "relation"}:
+        raise ParseError(f"Unsupported node kind: {kind!r}")
 
-def fallback_parse_hypothesis(text: str) -> Hypothesis:
-    cleaned = " ".join(text.strip().split())
-    lowered = cleaned.lower()
+    if kind == "atomic":
+        if not isinstance(payload.get("name"), str) or not payload["name"].strip():
+            raise ParseError("Atomic node must include a non-empty 'name'")
+        return
 
-    if lowered.startswith("if ") and " then " in lowered:
-        then_index = lowered.index(" then ")
-        condition = cleaned[3:then_index].strip()
-        target = cleaned[then_index + 6 :].strip()
-        if condition and target:
-            return Hypothesis(root=RelationNode("IMPLIES", [AtomicNode(condition), AtomicNode(target)]))
+    inputs = payload.get("inputs")
+    if not isinstance(inputs, list):
+        raise ParseError(f"{kind} node must include list 'inputs'")
 
-    splitters = [" and ", " AND ", " 그리고 "]
-    for splitter in splitters:
-        if splitter in cleaned:
-            parts = [part.strip() for part in cleaned.split(splitter) if part.strip()]
-            if len(parts) >= 2:
-                return Hypothesis(root=LogicalNode("AND", [AtomicNode(part) for part in parts]))
+    if kind == "logical":
+        op = payload.get("op")
+        if op not in {"AND", "OR", "NOT"}:
+            raise ParseError(f"Unsupported logical operator: {op!r}")
+        if op == "NOT" and len(inputs) != 1:
+            raise ParseError("NOT node must contain exactly one input")
+        if op in {"AND", "OR"} and len(inputs) < 2:
+            raise ParseError(f"{op} node must contain at least two inputs")
+    else:
+        relation_type = payload.get("type")
+        if relation_type not in {"IMPLIES", "SUPPORT", "CONTRADICT", "CORRELATE"}:
+            raise ParseError(f"Unsupported relation type: {relation_type!r}")
+        if len(inputs) != 2:
+            raise ParseError("Relation node must contain exactly two inputs")
 
-    return Hypothesis(root=AtomicNode(cleaned))
+    for child in inputs:
+        _validate_parser_payload(child)

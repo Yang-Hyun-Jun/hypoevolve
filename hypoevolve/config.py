@@ -14,12 +14,16 @@ class LLMConfig:
     model: str = "gpt-4o-mini"
     temperature: float = 0.2
     max_tokens: int = 2000
+    api_key: str | None = None
+    api_base: str = "https://api.openai.com/v1"
+    timeout: int = 60
+    retries: int = 2
+    retry_delay: float = 1.0
 
 
 @dataclass(slots=True)
 class ParserConfig:
     retries: int = 1
-    mode: str = "fallback"
 
 
 @dataclass(slots=True)
@@ -82,8 +86,13 @@ def load_config(path: str | Path | None = None) -> HypoEvolveConfig:
 def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
     _ensure_mapping(data, "root")
 
-    llm = LLMConfig(**_filter_known(data.get("llm", {}), {"model", "temperature", "max_tokens"}))
-    parser = ParserConfig(**_filter_known(data.get("parser", {}), {"retries", "mode"}))
+    llm = LLMConfig(
+        **_filter_known(
+            data.get("llm", {}),
+            {"model", "temperature", "max_tokens", "api_key", "api_base", "timeout", "retries", "retry_delay"},
+        )
+    )
+    parser = ParserConfig(**_filter_known(data.get("parser", {}), {"retries"}))
     evaluator = EvaluatorConfig(**_filter_known(data.get("evaluator", {}), {"seed"}))
     search = SearchConfig(**_filter_known(data.get("search", {}), {"iterations", "mutation_atomic_pool", "random_seed"}))
     archive = ArchiveConfig(**_filter_known(data.get("archive", {}), {"top_k"}))

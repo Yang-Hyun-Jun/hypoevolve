@@ -9,7 +9,8 @@ from pathlib import Path
 from elg import hypothesis_from_dict, render_pretty, render_tree
 from hypoevolve.config import ConfigError, HypoEvolveConfig, load_config
 from hypoevolve.controller import HypoEvolveController
-from hypoevolve.parser import ParseError, fallback_parse_hypothesis
+from hypoevolve.llm import LLMClient
+from hypoevolve.parser import ParseError, parse_hypothesis_text
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,8 +22,9 @@ def parse_args() -> argparse.Namespace:
     run_parser.add_argument("--config", default="hypoevolve.yaml", help="Path to hypoevolve.yaml")
     run_parser.add_argument("--workers", type=int, default=None, help="Override local worker count")
 
-    render_parser = subparsers.add_parser("render", help="Render a natural-language hypothesis via fallback parser")
+    render_parser = subparsers.add_parser("render", help="Render a natural-language hypothesis via LLM parser")
     render_parser.add_argument("hypothesis", help="Natural-language hypothesis input")
+    render_parser.add_argument("--config", default="hypoevolve.yaml", help="Path to hypoevolve.yaml")
     render_parser.add_argument("--tree", action="store_true", help="Render as ASCII tree instead of pretty form")
 
     inspect_parser = subparsers.add_parser("inspect", help="Inspect a saved best/checkpoint JSON file")
@@ -70,12 +72,24 @@ def _run_command(args: argparse.Namespace) -> int:
 
 
 def _render_command(args: argparse.Namespace) -> int:
-    hypothesis = fallback_parse_hypothesis(args.hypothesis)
-    if args.tree:
-        print(render_tree(hypothesis))
-    else:
-        print(render_pretty(hypothesis))
-    return 0
+    try:
+        config = load_config(args.config) if Path(args.config).exists() else HypoEvolveConfig()
+        hypothesis = parse_hypothesis_text(
+            args.hypothesis,
+            llm=LLMClient(config.llm),
+            retries=config.parser.retries,
+        )
+        if args.tree:
+            print(render_tree(hypothesis))
+        else:
+            print(render_pretty(hypothesis))
+        return 0
+    except (ConfigError, ParseError) as exc:
+        print(f"Error: {exc}")
+        if getattr(exc, "errors", None):
+            for item in exc.errors:
+                print(f"  - {item}")
+        return 1
 
 
 def _inspect_command(args: argparse.Namespace) -> int:

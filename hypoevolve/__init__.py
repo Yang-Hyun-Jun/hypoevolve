@@ -14,7 +14,9 @@ from .config import (
 )
 from .controller import HypoEvolveController, RunResult
 from .evaluator import Evaluator, PlaceholderEvaluator, evaluate_hypothesis
-from .parser import ParseError, fallback_parse_hypothesis, parse_hypothesis_text
+from .llm import LLMClient, LLMError, LLMResponse
+from .parser import ParseError, llm_parse_hypothesis, parse_hypothesis_text
+from .prompts import load_prompt
 from .runtime import create_run_dir, write_artifact, write_best, write_checkpoint, write_trace
 from .workers import WorkerResult, WorkerTask, run_worker_task
 
@@ -27,7 +29,10 @@ __all__ = [
     "EvaluatorConfig",
     "HypoEvolveConfig",
     "HypoEvolveController",
+    "LLMClient",
+    "LLMError",
     "LLMConfig",
+    "LLMResponse",
     "LoggingConfig",
     "WorkerConfig",
     "OutputConfig",
@@ -38,7 +43,8 @@ __all__ = [
     "SearchConfig",
     "create_run_dir",
     "evaluate_hypothesis",
-    "fallback_parse_hypothesis",
+    "llm_parse_hypothesis",
+    "load_prompt",
     "load_config",
     "parse_hypothesis_text",
     "write_artifact",

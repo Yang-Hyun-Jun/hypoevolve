@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from hypoevolve import cli
@@ -20,7 +21,15 @@ class TestHypoEvolveCLI(unittest.TestCase):
             config_path = Path(tmp) / "hypoevolve.yaml"
             config_path.write_text("archive:\n  top_k: 5\nsearch:\n  iterations: 1\n", encoding="utf-8")
             out = io.StringIO()
-            with patch("sys.argv", ["hypoevolve", "run", "if A then B", "--config", str(config_path)]):
+            fake_result = SimpleNamespace(
+                run_dir=Path(tmp) / "run1",
+                best_hypothesis=SimpleNamespace(),
+                best_metrics={"combined_score": 0.9},
+            )
+            with patch("hypoevolve.cli.HypoEvolveController") as controller_cls, \
+                 patch("hypoevolve.cli.render_pretty", return_value="IMPLIES(\n  A,\n  B\n)"), \
+                 patch("sys.argv", ["hypoevolve", "run", "if A then B", "--config", str(config_path)]):
+                controller_cls.return_value.run.return_value = fake_result
                 with redirect_stdout(out):
                     code = cli.main()
             self.assertEqual(code, 0)
@@ -39,7 +48,15 @@ class TestHypoEvolveCLI(unittest.TestCase):
             config_path = Path(tmp) / "hypoevolve.yaml"
             config_path.write_text("archive:\n  top_k: 5\nsearch:\n  iterations: 1\nworkers:\n  enabled: true\n  count: 2\n", encoding="utf-8")
             out = io.StringIO()
-            with patch("sys.argv", ["hypoevolve", "run", "if A then B", "--config", str(config_path), "--workers", "1"]):
+            fake_result = SimpleNamespace(
+                run_dir=Path(tmp) / "run2",
+                best_hypothesis=SimpleNamespace(),
+                best_metrics={"combined_score": 0.8},
+            )
+            with patch("hypoevolve.cli.HypoEvolveController") as controller_cls, \
+                 patch("hypoevolve.cli.render_pretty", return_value="SUPPORT(\n  A,\n  B\n)"), \
+                 patch("sys.argv", ["hypoevolve", "run", "if A then B", "--config", str(config_path), "--workers", "1"]):
+                controller_cls.return_value.run.return_value = fake_result
                 with redirect_stdout(out):
                     code = cli.main()
             self.assertEqual(code, 0)

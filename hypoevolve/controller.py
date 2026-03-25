@@ -11,7 +11,8 @@ from elg import Hypothesis, hypothesis_from_dict, hypothesis_to_json, render_pre
 from hypoevolve.archive import Archive
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.evaluator import Evaluator, PlaceholderEvaluator, evaluate_hypothesis
-from hypoevolve.parser import ParserCallable, ParseError, parse_hypothesis_text
+from hypoevolve.llm import LLMClient
+from hypoevolve.parser import ParseError, parse_hypothesis_text
 from hypoevolve.runtime import create_run_dir, write_artifact, write_best, write_checkpoint, write_trace
 from hypoevolve.workers import WorkerResult, WorkerTask, run_worker_task
 
@@ -29,24 +30,20 @@ class HypoEvolveController:
         self,
         config: HypoEvolveConfig,
         evaluator: Optional[Evaluator] = None,
-        parser: Optional[ParserCallable] = None,
+        llm_client: Optional[LLMClient] = None,
         executor_factory: Optional[Callable[..., Any]] = None,
     ):
         self.config = config
         self.evaluator = evaluator or PlaceholderEvaluator(seed=config.evaluator.seed)
-        self.parser = parser
+        self.llm_client = llm_client or LLMClient(config.llm)
         self.rng = random.Random(config.search.random_seed)
         self.executor_factory = executor_factory or ProcessPoolExecutor
 
     def run(self, hypothesis_text: str) -> RunResult:
-        if self.parser is None and self.config.parser.mode != "fallback":
-            raise ParseError(
-                f"Unsupported parser.mode without custom parser: {self.config.parser.mode}"
-            )
         run_dir = create_run_dir(self.config.output.base_dir)
         hypothesis = parse_hypothesis_text(
             hypothesis_text,
-            parser=self.parser,
+            llm=self.llm_client,
             retries=self.config.parser.retries,
         )
 

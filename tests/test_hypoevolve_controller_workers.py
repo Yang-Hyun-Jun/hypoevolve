@@ -58,40 +58,84 @@ class DelayedExecutor(FakeExecutor):
 
 class TestHypoEvolveControllerWorkers(unittest.TestCase):
     def test_worker_enabled_run_completes_and_writes_outputs(self):
+        class FakeLLM:
+            def generate_json(self, system, user, **kwargs):
+                return {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                    ],
+                    "params": {},
+                }
         with tempfile.TemporaryDirectory() as tmp:
             config = HypoEvolveConfig()
             config.search.iterations = 3
             config.output.base_dir = tmp
             config.workers.enabled = True
             config.workers.count = 2
-            controller = HypoEvolveController(config, executor_factory=FakeExecutor)
+            controller = HypoEvolveController(config, llm_client=FakeLLM(), executor_factory=FakeExecutor)
             result = controller.run("if A then B")
             self.assertTrue((result.run_dir / "trace.jsonl").exists())
             self.assertTrue((result.run_dir / "checkpoint.json").exists())
             self.assertTrue((result.run_dir / "best.json").exists())
 
     def test_single_process_fallback_when_workers_disabled(self):
+        class FakeLLM:
+            def generate_json(self, system, user, **kwargs):
+                return {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                    ],
+                    "params": {},
+                }
         with tempfile.TemporaryDirectory() as tmp:
             config = HypoEvolveConfig()
             config.search.iterations = 1
             config.output.base_dir = tmp
             config.workers.enabled = False
-            controller = HypoEvolveController(config)
+            controller = HypoEvolveController(config, llm_client=FakeLLM())
             result = controller.run("if A then B")
             self.assertTrue(result.run_dir.exists())
 
     def test_single_process_fallback_when_worker_count_is_one(self):
+        class FakeLLM:
+            def generate_json(self, system, user, **kwargs):
+                return {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                    ],
+                    "params": {},
+                }
         with tempfile.TemporaryDirectory() as tmp:
             config = HypoEvolveConfig()
             config.search.iterations = 1
             config.output.base_dir = tmp
             config.workers.enabled = True
             config.workers.count = 1
-            controller = HypoEvolveController(config, executor_factory=FakeExecutor)
+            controller = HypoEvolveController(config, llm_client=FakeLLM(), executor_factory=FakeExecutor)
             result = controller.run("if A then B")
             self.assertTrue(result.run_dir.exists())
 
     def test_worker_results_are_reflected_as_completed(self):
+        class FakeLLM:
+            def generate_json(self, system, user, **kwargs):
+                return {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                    ],
+                    "params": {},
+                }
         with tempfile.TemporaryDirectory() as tmp:
             config = HypoEvolveConfig()
             config.search.iterations = 3
@@ -100,6 +144,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
             config.workers.count = 2
             controller = HypoEvolveController(
                 config,
+                llm_client=FakeLLM(),
                 executor_factory=lambda max_workers=2: DelayedExecutor([2, 0, 0]),
             )
             result = controller.run("if A then B")
