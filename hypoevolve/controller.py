@@ -1,27 +1,41 @@
 from __future__ import annotations
 
 import random
-from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
-from pathlib import Path
 import time
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from elg import Hypothesis, hypothesis_from_dict, hypothesis_to_json, render_pretty, sample_mutation
+from elg import Hypothesis, hypothesis_from_dict, render_pretty
 from hypoevolve.archive import Archive
 from hypoevolve.config import HypoEvolveConfig
-from hypoevolve.evaluator import Evaluator, PlaceholderEvaluator, evaluate_hypothesis
+from hypoevolve.dataset import load_dataset_schema
+from hypoevolve.evaluator import Evaluator, LLMEvaluator, evaluate_hypothesis
 from hypoevolve.llm import LLMClient
-from hypoevolve.parser import ParseError, parse_hypothesis_text
-from hypoevolve.runtime import create_run_dir, write_artifact, write_best, write_checkpoint, write_trace
-from hypoevolve.workers import WorkerResult, WorkerTask, run_worker_task
+from hypoevolve.logger import configure_logger, logger
+from hypoevolve.mutation import steer_mutation
+from hypoevolve.parser import (
+    ParseError,
+    llm_hypothesis_to_natural_language,
+    llm_make_hypothesis_measurable,
+    parse_hypothesis_text,
+)
+from hypoevolve.runtime import (
+    create_run_dir,
+    write_artifact,
+    write_best,
+    write_checkpoint,
+    write_trace,
+)
+from hypoevolve.workers import WorkerTask, run_worker_task
 
 
 @dataclass(slots=True)
 class RunResult:
     run_dir: Path
     best_hypothesis: Hypothesis
-    best_metrics: Dict[str, float]
+    best_metrics: Dict[str, object]
     iterations: int
 
 
@@ -34,23 +48,63 @@ class HypoEvolveController:
         executor_factory: Optional[Callable[..., Any]] = None,
     ):
         self.config = config
-        self.evaluator = evaluator or PlaceholderEvaluator(seed=config.evaluator.seed)
         self.llm_client = llm_client or LLMClient(config.llm)
+        self.evaluator = evaluator or self._build_evaluator()
         self.rng = random.Random(config.search.random_seed)
         self.executor_factory = executor_factory or ProcessPoolExecutor
 
     def run(self, hypothesis_text: str) -> RunResult:
         run_dir = create_run_dir(self.config.output.base_dir)
+        configure_logger(
+            self.config.logging.level,
+            run_dir / "hypoevolve.log",
+        )
+        logger.info(
+            "[run.start] run_dir={} iterations={} workers={} dataset_schema_path={}",
+            run_dir,
+            self.config.search.iterations,
+            self.config.workers.count,
+            self.config.evaluator.dataset_schema_path,
+        )
         hypothesis = parse_hypothesis_text(
             hypothesis_text,
             llm=self.llm_client,
             retries=self.config.parser.retries,
         )
+        logger.info(
+            "[seed.parse] hypothesis={}",
+            render_pretty(hypothesis).replace("\n", " "),
+        )
+        hypothesis = llm_make_hypothesis_measurable(
+            hypothesis,
+            llm=self.llm_client,
+            retries=self.config.parser.retries,
+        )
+        logger.info(
+            "[seed.measurable] hypothesis={}",
+            render_pretty(hypothesis).replace("\n", " "),
+        )
 
         archive = Archive(top_k=self.config.archive.top_k)
         seed_metrics = evaluate_hypothesis(hypothesis, self.evaluator)
+        logger.info(
+            "[seed.eval] score={:.6f} precision={} baseline={} coverage={} uplift={}",
+            float(seed_metrics.get("combined_score", 0.0)),
+            seed_metrics.get("precision"),
+            seed_metrics.get("baseline"),
+            seed_metrics.get("coverage"),
+            seed_metrics.get("uplift"),
+        )
         archive.add(hypothesis, seed_metrics, iteration=0, metadata={"source": "seed"})
-        write_trace(run_dir, self._trace_event(0, None, hypothesis, seed_metrics, {"source": "seed"}))
+        logger.info(
+            "[seed.archive] archive_size={} best_score={:.6f}",
+            len(archive),
+            archive.best.score if archive.best else 0.0,
+        )
+        write_trace(
+            run_dir,
+            self._trace_event(0, None, hypothesis, seed_metrics, {"source": "seed"}),
+        )
         write_best(run_dir, archive.best.hypothesis, archive.best.metrics)
         write_checkpoint(run_dir, self._checkpoint_payload(archive, 0))
         write_artifact(
@@ -63,15 +117,48 @@ class HypoEvolveController:
             },
         )
 
-        if not self.config.workers.enabled or self.config.workers.count == 1 or not isinstance(self.evaluator, PlaceholderEvaluator):
+        if not self.config.workers.enabled or self.config.workers.count == 1:
+            recent_history: list[Dict[str, object]] = []
             for iteration in range(1, self.config.search.iterations + 1):
-                parent_entry = archive.sample_parent(self.rng)
-                mutation_sample = sample_mutation(
-                    parent_entry.hypothesis,
-                    rng=self.rng,
-                    atomic_pool=self.config.search.mutation_atomic_pool,
+                parent_entry = archive.sample_parent(
+                    self.rng,
+                    explore_prob=self.config.search.parent_explore_prob,
                 )
-                child_metrics = evaluate_hypothesis(mutation_sample.result, self.evaluator)
+                logger.info(
+                    "[iter.parent] i={} parent_score={:.6f} parent_fp={} hypothesis={}",
+                    iteration,
+                    parent_entry.score,
+                    parent_entry.fingerprint,
+                    render_pretty(parent_entry.hypothesis).replace("\n", " "),
+                )
+                mutation_sample, steering_metadata = self._choose_mutation(
+                    parent_entry,
+                    recent_history,
+                    archive,
+                )
+                logger.info(
+                    "[iter.steer] i={} selected_candidate_index={} operation={} path={} reason={}",
+                    iteration,
+                    steering_metadata.get("selected_candidate_index"),
+                    mutation_sample.operation,
+                    list(mutation_sample.path),
+                    str(steering_metadata.get("steering_reason", "")).replace("\n", " "),
+                )
+                child_metrics = evaluate_hypothesis(
+                    mutation_sample.result, self.evaluator
+                )
+                logger.info(
+                    "[iter.eval] i={} score={:.6f} precision={} baseline={} coverage={} uplift={}",
+                    iteration,
+                    float(child_metrics.get("combined_score", 0.0)),
+                    child_metrics.get("precision"),
+                    child_metrics.get("baseline"),
+                    child_metrics.get("coverage"),
+                    child_metrics.get("uplift"),
+                )
+                score_delta = (
+                    float(child_metrics.get("combined_score", 0.0)) - parent_entry.score
+                )
                 self._reflect_result(
                     archive,
                     run_dir,
@@ -84,12 +171,35 @@ class HypoEvolveController:
                         "path": list(mutation_sample.path),
                         "details": mutation_sample.details,
                         "parent_score": parent_entry.score,
+                        "score_delta": score_delta,
+                        **steering_metadata,
                     },
                 )
+                recent_history.append(
+                    {
+                        "operation": mutation_sample.operation,
+                        "path": list(mutation_sample.path),
+                        "details": dict(mutation_sample.details),
+                        "score_delta": score_delta,
+                        "result_hypothesis": render_pretty(mutation_sample.result),
+                        **steering_metadata,
+                    }
+                )
         else:
+            logger.info(
+                "[run.workers] workers={} mode=parallel",
+                self.config.workers.count,
+            )
             self._run_with_workers(archive, run_dir, self.config.search.iterations)
 
         best = archive.best
+        logger.info(
+            "[run.done] run_dir={} best_score={:.6f} archive_size={} best_hypothesis={}",
+            run_dir,
+            best.score if best else 0.0,
+            len(archive),
+            render_pretty(best.hypothesis).replace("\n", " ") if best else None,
+        )
         return RunResult(
             run_dir=run_dir,
             best_hypothesis=best.hypothesis,
@@ -97,21 +207,36 @@ class HypoEvolveController:
             iterations=self.config.search.iterations,
         )
 
-    def _run_with_workers(self, archive: Archive, run_dir: Path, total_iterations: int) -> None:
+    def _run_with_workers(
+        self, archive: Archive, run_dir: Path, total_iterations: int
+    ) -> None:
         worker_count = self.config.workers.count
         pending = []
         submitted = 0
+        recent_history: list[Dict[str, object]] = []
 
         with self.executor_factory(max_workers=worker_count) as executor:
             while submitted < min(worker_count, total_iterations):
                 submitted += 1
-                task, parent = self._make_worker_task(archive, submitted)
+                task, parent = self._make_worker_task(
+                    archive, submitted, recent_history[-3:]
+                )
+                logger.info(
+                    "[worker.submit] i={} parent_score={:.6f} parent_hypothesis={}",
+                    submitted,
+                    archive.best.score if archive.best else 0.0,
+                    render_pretty(parent).replace("\n", " "),
+                )
                 future = executor.submit(run_worker_task, task)
                 pending.append((future, parent))
 
             while pending:
                 completed_index = next(
-                    (index for index, (future, _parent) in enumerate(pending) if future.done()),
+                    (
+                        index
+                        for index, (future, _parent) in enumerate(pending)
+                        if future.done()
+                    ),
                     None,
                 )
                 if completed_index is None:
@@ -121,6 +246,13 @@ class HypoEvolveController:
                 future, parent = pending.pop(completed_index)
                 result = future.result()
                 child = hypothesis_from_dict(result.child_hypothesis)
+                logger.info(
+                    "[worker.result] i={} selected_candidate_index={} operation={} score={:.6f}",
+                    result.iteration,
+                    result.selected_candidate_index,
+                    result.mutation_operation,
+                    float(result.metrics.get("combined_score", 0.0)),
+                )
                 self._reflect_result(
                     archive,
                     run_dir,
@@ -133,25 +265,106 @@ class HypoEvolveController:
                         "path": result.mutation_path,
                         "details": result.mutation_details,
                         "parent_score": result.parent_score,
+                        "score_delta": float(result.metrics.get("combined_score", 0.0))
+                        - result.parent_score,
                         "worker_mode": True,
+                        "steered": True,
+                        "selected_candidate_index": result.selected_candidate_index,
+                        "steering_reason": result.steering_reason,
                     },
+                )
+                recent_history.append(
+                    {
+                        "operation": result.mutation_operation,
+                        "path": list(result.mutation_path),
+                        "details": dict(result.mutation_details),
+                        "score_delta": float(result.metrics.get("combined_score", 0.0))
+                        - result.parent_score,
+                        "result_hypothesis": render_pretty(child),
+                        "steered": True,
+                        "selected_candidate_index": result.selected_candidate_index,
+                        "steering_reason": result.steering_reason,
+                    }
                 )
                 if submitted < total_iterations:
                     submitted += 1
-                    task, next_parent = self._make_worker_task(archive, submitted)
+                    task, next_parent = self._make_worker_task(
+                        archive, submitted, recent_history[-3:]
+                    )
+                    logger.info(
+                        "[worker.submit] i={} parent_score={:.6f} parent_hypothesis={}",
+                        submitted,
+                        archive.best.score if archive.best else 0.0,
+                        render_pretty(next_parent).replace("\n", " "),
+                    )
                     next_future = executor.submit(run_worker_task, task)
                     pending.append((next_future, next_parent))
 
-    def _make_worker_task(self, archive: Archive, iteration: int) -> tuple[WorkerTask, Hypothesis]:
-        parent_entry = archive.sample_parent(self.rng)
+    def _make_worker_task(
+        self,
+        archive: Archive,
+        iteration: int,
+        recent_history: list[Dict[str, object]],
+    ) -> tuple[WorkerTask, Hypothesis]:
+        parent_entry = archive.sample_parent(
+            self.rng,
+            explore_prob=self.config.search.parent_explore_prob,
+        )
         task = WorkerTask(
             parent_hypothesis=parent_entry.hypothesis.to_dict(),
+            parent_metrics=dict(parent_entry.metrics),
             iteration=iteration,
             parent_score=parent_entry.score,
             mutation_atomic_pool=list(self.config.search.mutation_atomic_pool),
-            evaluator_seed=self.config.evaluator.seed,
+            llm_config=asdict(self.config.llm),
+            dataset_schema_path=self.config.evaluator.dataset_schema_path,
+            evaluator_parameters=dict(self.config.evaluator.parameters),
+            parser_retries=self.config.parser.retries,
+            steering_retries=self.config.search.steering_retries,
+            recent_history=list(recent_history),
+            top_hypotheses=archive.snapshot()[:3],
         )
         return task, parent_entry.hypothesis
+
+    def _build_evaluator(self) -> Evaluator:
+        schema = load_dataset_schema(self.config.evaluator.dataset_schema_path)
+        return LLMEvaluator(
+            llm_client=self.llm_client,
+            dataset_schema=schema,
+            dataset_schema_path=self.config.evaluator.dataset_schema_path,
+            parameters=self.config.evaluator.parameters or None,
+        )
+
+    def _choose_mutation(
+        self,
+        parent_entry,
+        recent_history: list[Dict[str, object]],
+        archive: Archive,
+    ) -> tuple[Any, Dict[str, object]]:
+        try:
+            parent_nl = llm_hypothesis_to_natural_language(
+                parent_entry.hypothesis,
+                llm=self.llm_client,
+                retries=self.config.parser.retries,
+            )
+        except ParseError:
+            parent_nl = render_pretty(parent_entry.hypothesis)
+
+        decision = steer_mutation(
+            parent_hypothesis=parent_entry.hypothesis,
+            parent_hypothesis_nl=parent_nl,
+            current_metrics=parent_entry.metrics,
+            llm=self.llm_client,
+            atomic_pool=self.config.search.mutation_atomic_pool,
+            recent_history=recent_history[-3:],
+            top_hypotheses=archive.entries[:3],
+            retries=self.config.search.steering_retries,
+        )
+        return decision.mutation, {
+            "steered": True,
+            "selected_candidate_index": decision.selected_candidate_index,
+            "steering_reason": decision.reason,
+        }
 
     def _reflect_result(
         self,
@@ -160,18 +373,27 @@ class HypoEvolveController:
         iteration: int,
         parent_hypothesis: Hypothesis,
         child_hypothesis: Hypothesis,
-        child_metrics: Dict[str, float],
+        child_metrics: Dict[str, object],
         metadata: Dict[str, object],
     ) -> None:
+        previous_best_score = archive.best.score if archive.best else None
         archive.add(
             child_hypothesis,
             child_metrics,
             iteration=iteration,
             metadata=metadata,
         )
+        logger.info(
+            "[archive.add] i={} score={:.6f} archive_size={}",
+            iteration,
+            float(child_metrics.get("combined_score", 0.0)),
+            len(archive),
+        )
         write_trace(
             run_dir,
-            self._trace_event(iteration, parent_hypothesis, child_hypothesis, child_metrics, metadata),
+            self._trace_event(
+                iteration, parent_hypothesis, child_hypothesis, child_metrics, metadata
+            ),
         )
         write_checkpoint(run_dir, self._checkpoint_payload(archive, iteration))
         write_best(run_dir, archive.best.hypothesis, archive.best.metrics)
@@ -187,8 +409,25 @@ class HypoEvolveController:
                 "worker_mode": metadata.get("worker_mode", False),
             },
         )
+        best = archive.best
+        logger.info(
+            "[iter.archive] i={} score_delta={:.6f} best_updated={} best_score={:.6f}",
+            iteration,
+            float(metadata.get("score_delta", 0.0)),
+            previous_best_score is None or (best is not None and best.score != previous_best_score),
+            best.score if best else 0.0,
+        )
+        if best is not None and (previous_best_score is None or best.score != previous_best_score):
+            logger.info(
+                "[best.update] i={} best_score={:.6f} hypothesis={}",
+                iteration,
+                best.score,
+                render_pretty(best.hypothesis).replace("\n", " "),
+            )
 
-    def _checkpoint_payload(self, archive: Archive, iteration: int) -> Dict[str, object]:
+    def _checkpoint_payload(
+        self, archive: Archive, iteration: int
+    ) -> Dict[str, object]:
         best = archive.best
         return {
             "iteration": iteration,

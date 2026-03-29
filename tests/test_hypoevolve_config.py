@@ -34,6 +34,23 @@ class TestHypoEvolveConfig(unittest.TestCase):
             self.assertTrue(config.workers.enabled)
             self.assertEqual(config.workers.count, 2)
 
+    def test_llm_evaluator_config_loads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "hypoevolve.yaml"
+            path.write_text(
+                "archive:\n  top_k: 5\n"
+                "evaluator:\n"
+                "  dataset_schema_path: dataset.yaml\n"
+                "search:\n"
+                "  parent_explore_prob: 0.25\n"
+                "  steering_retries: 2\n",
+                encoding="utf-8",
+            )
+            config = load_config(path)
+            self.assertEqual(config.evaluator.dataset_schema_path, "dataset.yaml")
+            self.assertEqual(config.search.parent_explore_prob, 0.25)
+            self.assertEqual(config.search.steering_retries, 2)
+
     def test_invalid_worker_count_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "hypoevolve.yaml"

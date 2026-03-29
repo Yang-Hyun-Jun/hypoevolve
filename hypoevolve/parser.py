@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
 from hypoevolve.llm import LLMClient
+from hypoevolve.logger import logger
 from hypoevolve.prompts import load_prompt
 
 
@@ -13,11 +14,10 @@ class ParseError(ValueError):
         self.errors = errors or []
 
 
-ParserCallable = Callable[[str], Hypothesis]
-
-
 PARSER_SYSTEM_PROMPT = load_prompt("parser", "system.md")
-PARSER_RETRY_PROMPT = load_prompt("parser", "retry.md")
+JSON_RETRY_PROMPT = load_prompt("common", "json-retry.md")
+MEASURABLE_SYSTEM_PROMPT = load_prompt("measurable", "system.md")
+NL_SYSTEM_PROMPT = load_prompt("nl", "system.md")
 
 
 def parse_hypothesis_text(
@@ -38,12 +38,14 @@ def llm_parse_hypothesis(
 
     errors: List[str] = []
     attempts = retries + 1
+    logger.info("parser started")
     for attempt in range(1, attempts + 1):
         try:
+            logger.info("parser attempt {}", attempt)
             system_prompt = (
                 PARSER_SYSTEM_PROMPT
                 if attempt == 1
-                else f"{PARSER_SYSTEM_PROMPT}\n\n{PARSER_RETRY_PROMPT}"
+                else f"{PARSER_SYSTEM_PROMPT}\n\n{JSON_RETRY_PROMPT}"
             )
             payload = llm.generate_json(
                 system_prompt,
@@ -52,12 +54,88 @@ def llm_parse_hypothesis(
             )
             _validate_parser_payload(payload)
             hypothesis = hypothesis_from_dict({"root": payload, "params": {}})
+            logger.info("parser succeeded on attempt {}", attempt)
             return normalize_hypothesis(hypothesis)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"attempt {attempt}: {exc}")
+            logger.error("parser attempt {} failed: {}", attempt, exc)
     raise ParseError(
         "Failed to convert natural-language hypothesis to ELG via LLM", errors=errors
     )
+
+
+def llm_make_hypothesis_measurable(
+    hypothesis: Hypothesis,
+    llm: LLMClient,
+    retries: int = 2,
+) -> Hypothesis:
+    errors: List[str] = []
+    attempts = retries + 1
+    logger.info("measurable conversion started")
+
+    for attempt in range(1, attempts + 1):
+        try:
+            logger.info("measurable conversion attempt {}", attempt)
+            system_prompt = (
+                MEASURABLE_SYSTEM_PROMPT
+                if attempt == 1
+                else f"{MEASURABLE_SYSTEM_PROMPT}\n\n{JSON_RETRY_PROMPT}"
+            )
+            payload = llm.generate_json(
+                system_prompt,
+                "Convert this ELG hypothesis into a more measurable ELG root node while preserving structure as much as possible:\n\n"
+                f"{hypothesis.to_dict()['root']}",
+                json_retries=0,
+            )
+            _validate_parser_payload(payload)
+            measurable = hypothesis_from_dict(
+                {"root": payload, "params": dict(hypothesis.params)}
+            )
+            logger.info("measurable conversion succeeded on attempt {}", attempt)
+            return normalize_hypothesis(measurable)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"attempt {attempt}: {exc}")
+            logger.error("measurable conversion attempt {} failed: {}", attempt, exc)
+
+    raise ParseError(
+        "Failed to convert ELG hypothesis into measurable ELG via LLM",
+        errors=errors,
+    )
+
+
+def llm_hypothesis_to_natural_language(
+    hypothesis: Hypothesis,
+    llm: LLMClient,
+    retries: int = 2,
+) -> str:
+    errors: List[str] = []
+    attempts = retries + 1
+    logger.info("natural-language rendering started")
+
+    for attempt in range(1, attempts + 1):
+        try:
+            logger.info("natural-language rendering attempt {}", attempt)
+            system_prompt = NL_SYSTEM_PROMPT
+            response = llm.generate_text(
+                system_prompt,
+                "Convert this ELG hypothesis into natural language:\n\n"
+                f"{hypothesis.to_dict()['root']}",
+            )
+            rendered = response.strip()
+            if not rendered:
+                raise ParseError("Natural-language rendering returned empty text")
+            logger.info("natural-language rendering succeeded on attempt {}", attempt)
+            return rendered
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"attempt {attempt}: {exc}")
+            logger.error("natural-language rendering attempt {} failed: {}", attempt, exc)
+
+    raise ParseError(
+        "Failed to convert ELG hypothesis into natural language via LLM",
+        errors=errors,
+    )
+
+
 def _validate_parser_payload(payload: Dict[str, Any]) -> None:
     if not isinstance(payload, dict):
         raise ParseError("Parser payload must be a JSON object")

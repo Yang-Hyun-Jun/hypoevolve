@@ -1,18 +1,228 @@
+import json
 import unittest
 
-from elg import AtomicNode, Hypothesis
-from hypoevolve.evaluator import PlaceholderEvaluator, evaluate_hypothesis
+from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
+from elg.sampler import MutationSample
+from hypoevolve.archive import ArchiveEntry
+from hypoevolve.config import LLMConfig
+from hypoevolve.dataset import ColumnSpec, DataFile, DatasetAccessor, DatasetSchema, IndexSpec
+from hypoevolve.evaluator import LLMEvaluator, evaluate_hypothesis
+from hypoevolve.executor import ExecutionResult
+from hypoevolve.helper import (
+    build_evaluator_prompt_variables,
+    build_evaluator_runtime_wrapper,
+    build_steering_prompt_variables,
+)
+
+
+class FakeLLMClient:
+    def __init__(self, outputs, retries: int = 1):
+        self.outputs = list(outputs)
+        self.config = LLMConfig(retries=retries)
+        self.calls = []
+
+    def generate_text(self, system: str, user: str, **kwargs):
+        self.calls.append({"system": system, "user": user, "kwargs": kwargs})
+        if not self.outputs:
+            raise RuntimeError("No fake LLM outputs remaining")
+        return self.outputs.pop(0)
+
+
+class FakeExecutor:
+    def __init__(self, results):
+        self.results = list(results)
+        self.calls = []
+
+    def execute(self, code: str, files=None):
+        self.calls.append({"code": code, "files": dict(files or {})})
+        if not self.results:
+            raise RuntimeError("No fake executor results remaining")
+        return self.results.pop(0)
 
 
 class TestHypoEvolveEvaluator(unittest.TestCase):
-    def test_placeholder_evaluator_returns_expected_shape(self):
-        evaluator = PlaceholderEvaluator(seed=1)
-        metrics = evaluator.evaluate(Hypothesis(root=AtomicNode('A')))
-        self.assertIn('combined_score', metrics)
-        self.assertIn('raw_score', metrics)
-        self.assertIn('complexity_penalty', metrics)
+    def setUp(self):
+        self.schema = DatasetSchema(
+            files=[DataFile(entity="BTCUSDT", path="BTCUSDT.parquet")],
+            index=IndexSpec(name="close_time", dtype="datetime64[us]"),
+            columns=[ColumnSpec(name="CLOSE", description="close price")],
+            description="Test dataset",
+        )
+        self.hypothesis = Hypothesis(
+            root=RelationNode(
+                "IMPLIES",
+                [
+                    LogicalNode("AND", [AtomicNode("A"), AtomicNode("B")]),
+                    AtomicNode("C"),
+                ],
+            )
+        )
 
     def test_helper_calls_evaluator(self):
-        evaluator = PlaceholderEvaluator(seed=1)
-        metrics = evaluate_hypothesis(Hypothesis(root=AtomicNode('A')), evaluator)
-        self.assertIn('combined_score', metrics)
+        evaluator = type(
+            "FakeEvaluator",
+            (),
+            {"evaluate": lambda self, hypothesis: {"combined_score": 0.5}},
+        )()
+        metrics = evaluate_hypothesis(Hypothesis(root=AtomicNode("A")), evaluator)
+        self.assertIn("combined_score", metrics)
+
+    def test_build_evaluator_prompt_variables(self):
+        class FakeAccessor(DatasetAccessor):
+            def load_dataframe(self, entity: str):
+                raise AssertionError("build_evaluator_prompt_variables should not read sample data")
+
+            def head(self, entity: str, n: int = 5):
+                raise AssertionError("build_evaluator_prompt_variables should not read sample data")
+
+        accessor = FakeAccessor(self.schema)
+        variables = build_evaluator_prompt_variables(self.hypothesis, self.schema, accessor)
+        self.assertIn("IMPLIES", variables["HYPOTHESIS_PRETTY"])
+        self.assertEqual(variables["INDEX_NAME"], "close_time")
+        self.assertEqual(variables["INDEX_DTYPE"], "datetime64[us]")
+        self.assertIn("BTCUSDT", variables["ENTITIES"])
+        self.assertIn("CLOSE", variables["COLUMN_SPECS"])
+        self.assertIn("DatasetAccessor methods:", variables["DATASET_ACCESSOR_DOC"])
+        self.assertNotIn("HYPOTHESIS_JSON", variables)
+        self.assertNotIn("DATASET_SAMPLES", variables)
+
+    def test_build_evaluator_runtime_wrapper(self):
+        wrapper = build_evaluator_runtime_wrapper(
+            "dataset.yaml",
+            {"window": 10},
+        )
+        self.assertIn("sys.path.insert(0,", wrapper)
+        self.assertIn("load_dataset_schema", wrapper)
+        self.assertIn("redirect_stdout", wrapper)
+        self.assertIn('"window": 10', wrapper)
+
+    def test_build_steering_prompt_variables(self):
+        candidates = [
+            MutationSample(
+                operation="change_relation_type",
+                path=(),
+                result=Hypothesis(root=AtomicNode("A")),
+                details={"new_type": "SUPPORT"},
+            )
+        ]
+        top_hypotheses = [
+            ArchiveEntry(
+                hypothesis=Hypothesis(root=AtomicNode("BEST")),
+                metrics={"combined_score": 0.9},
+                fingerprint="best-fp",
+                iteration=3,
+                metadata={"source": "test"},
+            )
+        ]
+        variables = build_steering_prompt_variables(
+            parent_hypothesis=self.hypothesis,
+            parent_hypothesis_nl="If A and B then C.",
+            current_metrics={"combined_score": 0.1, "precision": 0.2},
+            mutation_candidates=candidates,
+            recent_history=[{"operation": "wrap_not", "score_delta": -0.1}],
+            top_hypotheses=top_hypotheses,
+        )
+        self.assertIn("IMPLIES", variables["PARENT_HYPOTHESIS_MEASURABLE"])
+        self.assertEqual(variables["PARENT_HYPOTHESIS_NL"], "If A and B then C.")
+        self.assertIn("combined_score", variables["CURRENT_METRICS"])
+        self.assertIn("precision = P(target | condition)", variables["METRIC_DEFINITIONS"])
+        self.assertIn("wrap_not", variables["RECENT_HISTORY"])
+        self.assertIn("BEST", variables["TOP_HYPOTHESES"])
+        self.assertIn("change_relation_type", variables["MUTATION_CANDIDATES"])
+        self.assertIn("meaning:", variables["MUTATION_CANDIDATES"])
+        self.assertIn("example:", variables["MUTATION_CANDIDATES"])
+        self.assertIn("Path notation guide:", variables["MUTATION_CANDIDATES"])
+
+    def test_llm_evaluator_returns_normalized_metrics(self):
+        llm = FakeLLMClient(
+            outputs=[
+                "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n"
+                "    return {'combined_score': 0.5, 'precision': 0.7, 'baseline': 0.2, 'coverage': 0.4, 'uplift': 0.5, 'support_count': 2, 'total_count': 5, 'rationale': 'ok'}\n"
+            ]
+        )
+        executor = FakeExecutor(
+            results=[
+                ExecutionResult(
+                    stdout=json.dumps(
+                        {
+                            "combined_score": 0.5,
+                            "precision": 0.7,
+                            "baseline": 0.2,
+                            "coverage": 0.4,
+                            "uplift": 0.5,
+                            "support_count": 2,
+                            "total_count": 5,
+                            "rationale": "ok",
+                        }
+                    ),
+                    stderr="",
+                    exit_code=0,
+                    timed_out=False,
+                    duration_sec=0.01,
+                    work_dir="/tmp/fake",
+                )
+            ]
+        )
+
+        evaluator = LLMEvaluator(
+            llm_client=llm,
+            dataset_schema=self.schema,
+            dataset_schema_path="dataset.yaml",
+            executor=executor,
+        )
+        metrics = evaluator.evaluate(self.hypothesis)
+        self.assertEqual(metrics["combined_score"], 0.5)
+        self.assertEqual(metrics["support_count"], 2)
+        self.assertEqual(metrics["rationale"], "ok")
+        self.assertIn("candidate.py", executor.calls[0]["files"])
+
+    def test_llm_evaluator_retries_after_invalid_code(self):
+        llm = FakeLLMClient(
+            outputs=[
+                "def broken(",
+                "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n"
+                "    return {'combined_score': 0.1, 'precision': 0.2, 'baseline': 0.1, 'coverage': 0.5, 'uplift': 0.1, 'support_count': 1, 'total_count': 2, 'rationale': 'fixed'}\n",
+            ],
+            retries=1,
+        )
+        executor = FakeExecutor(
+            results=[
+                ExecutionResult(
+                    stdout=json.dumps(
+                        {
+                            "combined_score": 0.1,
+                            "precision": 0.2,
+                            "baseline": 0.1,
+                            "coverage": 0.5,
+                            "uplift": 0.1,
+                            "support_count": 1,
+                            "total_count": 2,
+                            "rationale": "fixed",
+                        }
+                    ),
+                    stderr="",
+                    exit_code=0,
+                    timed_out=False,
+                    duration_sec=0.01,
+                    work_dir="/tmp/fake",
+                )
+            ]
+        )
+
+        evaluator = LLMEvaluator(llm, self.schema, "dataset.yaml", executor=executor)
+        metrics = evaluator.evaluate(self.hypothesis)
+        self.assertEqual(metrics["rationale"], "fixed")
+        self.assertEqual(len(llm.calls), 2)
+        self.assertIn("Previous Attempt Failed", llm.calls[1]["user"])
+
+    def test_llm_evaluator_returns_failure_metrics_after_exhausted_retries(self):
+        llm = FakeLLMClient(outputs=["def broken(", "def still_broken("], retries=1)
+        executor = FakeExecutor(results=[])
+        evaluator = LLMEvaluator(llm, self.schema, "dataset.yaml", executor=executor)
+        metrics = evaluator.evaluate(self.hypothesis)
+        self.assertEqual(metrics["combined_score"], 0.0)
+        self.assertIn("evaluation_failed:", metrics["rationale"])
+
+
+if __name__ == "__main__":
+    unittest.main()

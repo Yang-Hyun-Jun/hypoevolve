@@ -1,0 +1,54 @@
+description: Per-asset Binance perpetual futures OHLCV-style parquet dataset for BTCUSDT, DOGEUSDT, and XRPUSDT. The parquet files are indexed by close_time at 5-minute frequency.
+index: 
+  name: close_time
+  dtype: datetime64[us]
+files:
+  -
+    entity: BTCUSDT
+    path: /Users/hyunjun/Workspace/openresearch/data/BTCUSDT.parquet
+  -
+    entity: DOGEUSDT
+    path: /Users/hyunjun/Workspace/openresearch/data/DOGEUSDT.parquet
+  -
+    entity: XRPUSDT
+    path: /Users/hyunjun/Workspace/openresearch/data/XRPUSDT.parquet
+columns:
+  -
+    name: OPEN
+    description: opening price for the interval
+  -
+    name: HIGH
+    description: highest traded price during the interval
+  -
+    name: LOW
+    description: lowest traded price during the interval
+  -
+    name: CLOSE
+    description: closing price for the interval
+  -
+    name: VOLUME
+    description: traded volume during the interval
+  -
+    name: TAKER_BUY_VOLUME
+    description: taker buy volume during the interval
+  -
+    name: TAKER_SELL_VOLUME
+    description: taker sell volume during the interval
+  -
+    name: ORDER_FLOW_IMBALANCE
+    description: imbalance between taker buy and taker sell activity
+  -
+    name: PREMIUM_INDEX_OPEN
+    description: premium index open value for the interval
+  -
+    name: PREMIUM_INDEX_HIGH
+    description: premium index high value for the interval
+  -
+    name: PREMIUM_INDEX_LOW
+    description: premium index low value for the interval
+  -
+    name: PREMIUM_INDEX_CLOSE
+    description: premium index close value for the interval
+  -
+    name: FUNDING_SCORE
+    description: funding-related score/value aligned to the interval

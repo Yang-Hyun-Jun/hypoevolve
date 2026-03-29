@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 class ConfigError(ValueError):
@@ -11,13 +11,13 @@ class ConfigError(ValueError):
 
 @dataclass(slots=True)
 class LLMConfig:
-    model: str = "gpt-4o-mini"
+    model: str = "deepseek/deepseek-v3.2"
     temperature: float = 0.2
     max_tokens: int = 2000
     api_key: str | None = None
-    api_base: str = "https://api.openai.com/v1"
+    api_base: str = "https://openrouter.ai/api/v1"
     timeout: int = 60
-    retries: int = 2
+    retries: int = 1
     retry_delay: float = 1.0
 
 
@@ -28,6 +28,8 @@ class ParserConfig:
 
 @dataclass(slots=True)
 class EvaluatorConfig:
+    dataset_schema_path: str = "dataset.yaml"
+    parameters: Dict[str, Any] = field(default_factory=dict)
     seed: int = 42
 
 
@@ -35,6 +37,8 @@ class EvaluatorConfig:
 class SearchConfig:
     iterations: int = 5
     mutation_atomic_pool: List[str] = field(default_factory=list)
+    parent_explore_prob: float = 0.3
+    steering_retries: int = 2
     random_seed: int = 42
 
 
@@ -89,16 +93,43 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
     llm = LLMConfig(
         **_filter_known(
             data.get("llm", {}),
-            {"model", "temperature", "max_tokens", "api_key", "api_base", "timeout", "retries", "retry_delay"},
+            {
+                "model",
+                "temperature",
+                "max_tokens",
+                "api_key",
+                "api_base",
+                "timeout",
+                "retries",
+                "retry_delay",
+            },
         )
     )
     parser = ParserConfig(**_filter_known(data.get("parser", {}), {"retries"}))
-    evaluator = EvaluatorConfig(**_filter_known(data.get("evaluator", {}), {"seed"}))
-    search = SearchConfig(**_filter_known(data.get("search", {}), {"iterations", "mutation_atomic_pool", "random_seed"}))
+    evaluator = EvaluatorConfig(
+        **_filter_known(
+            data.get("evaluator", {}),
+            {"dataset_schema_path", "parameters", "seed"},
+        )
+    )
+    search = SearchConfig(
+        **_filter_known(
+            data.get("search", {}),
+            {
+                "iterations",
+                "mutation_atomic_pool",
+                "parent_explore_prob",
+                "steering_retries",
+                "random_seed",
+            },
+        )
+    )
     archive = ArchiveConfig(**_filter_known(data.get("archive", {}), {"top_k"}))
     output = OutputConfig(**_filter_known(data.get("output", {}), {"base_dir"}))
     logging = LoggingConfig(**_filter_known(data.get("logging", {}), {"level"}))
-    workers = WorkerConfig(**_filter_known(data.get("workers", {}), {"enabled", "count"}))
+    workers = WorkerConfig(
+        **_filter_known(data.get("workers", {}), {"enabled", "count"})
+    )
 
     if archive.top_k != 5:
         raise ConfigError("archive.top_k must remain 5 in MVP")
@@ -106,8 +137,14 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
         raise ConfigError("parser.retries must be between 0 and 2 for MVP")
     if search.iterations < 1:
         raise ConfigError("search.iterations must be >= 1")
+    if search.steering_retries < 0 or search.steering_retries > 3:
+        raise ConfigError("search.steering_retries must be between 0 and 3")
+    if search.parent_explore_prob < 0.0 or search.parent_explore_prob > 1.0:
+        raise ConfigError("search.parent_explore_prob must be between 0.0 and 1.0")
     if workers.count < 1:
         raise ConfigError("workers.count must be >= 1")
+    if not evaluator.dataset_schema_path:
+        raise ConfigError("evaluator.dataset_schema_path is required")
 
     return HypoEvolveConfig(
         llm=llm,
@@ -155,7 +192,9 @@ def _parse_simple_yaml(text: str) -> Dict[str, Any]:
     return result
 
 
-def _parse_block(lines: List[Tuple[int, str]], index: int, indent: int) -> Tuple[int, Any]:
+def _parse_block(
+    lines: List[Tuple[int, str]], index: int, indent: int
+) -> Tuple[int, Any]:
     container: Any = None
 
     while index < len(lines):
@@ -165,12 +204,12 @@ def _parse_block(lines: List[Tuple[int, str]], index: int, indent: int) -> Tuple
         if current_indent > indent:
             raise ConfigError(f"Unexpected indentation near: {text}")
 
-        if text.startswith("- "):
+        if text == "-" or text.startswith("- "):
             if container is None:
                 container = []
             elif not isinstance(container, list):
                 raise ConfigError("Cannot mix list and mapping items at same level")
-            value_text = text[2:].strip()
+            value_text = "" if text == "-" else text[2:].strip()
             if not value_text:
                 index, value = _parse_block(lines, index + 1, indent + 2)
             else:
@@ -207,7 +246,9 @@ def _parse_scalar(value: str) -> Any:
         return lowered == "true"
     if lowered in {"null", "none"}:
         return None
-    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+    if (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
         return value[1:-1]
     try:
         return int(value)

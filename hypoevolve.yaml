@@ -1,11 +1,23 @@
 llm:
-  model: gpt-4o-mini
-  temperature: 0.2
-  max_tokens: 2000
-parser:
+  api_key: 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
+  api_base: https://openrouter.ai/api/v1
+  model: deepseek/deepseek-v3.2
+  temperature: 0.8
+  max_tokens: 4000
   retries: 1
+  retry_delay: 1.0
+parser:
+  retries: 2
+evaluator:
+  dataset_schema_path: dataset.yaml
+  parameters:
+    window: 12
+    horizon: 1
+  seed: 42
 search:
-  iterations: 5
+  iterations: 30
+  parent_explore_prob: 0.3
+  steering_retries: 2
   random_seed: 42
   mutation_atomic_pool:
     - VOLATILITY_HIGH
@@ -16,7 +28,6 @@ output:
   base_dir: .hypoevolve/runs
 logging:
   level: INFO
-
 workers:
-  enabled: false
-  count: 1
+  enabled: true
+  count: 6

@@ -10,28 +10,49 @@ from elg import hypothesis_from_dict, render_pretty, render_tree
 from hypoevolve.config import ConfigError, HypoEvolveConfig, load_config
 from hypoevolve.controller import HypoEvolveController
 from hypoevolve.llm import LLMClient
+from hypoevolve.logger import configure_logger, logger
 from hypoevolve.parser import ParseError, parse_hypothesis_text
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="hypoevolve", description="HypoEvolve MVP CLI")
+    parser = argparse.ArgumentParser(
+        prog="hypoevolve", description="HypoEvolve MVP CLI"
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     run_parser = subparsers.add_parser("run", help="Run a HypoEvolve iteration loop")
     run_parser.add_argument("hypothesis", help="Natural-language hypothesis input")
-    run_parser.add_argument("--config", default="hypoevolve.yaml", help="Path to hypoevolve.yaml")
-    run_parser.add_argument("--workers", type=int, default=None, help="Override local worker count")
+    run_parser.add_argument(
+        "--config", default="hypoevolve.yaml", help="Path to hypoevolve.yaml"
+    )
+    run_parser.add_argument(
+        "--workers", type=int, default=None, help="Override local worker count"
+    )
 
-    render_parser = subparsers.add_parser("render", help="Render a natural-language hypothesis via LLM parser")
+    render_parser = subparsers.add_parser(
+        "render", help="Render a natural-language hypothesis via LLM parser"
+    )
     render_parser.add_argument("hypothesis", help="Natural-language hypothesis input")
-    render_parser.add_argument("--config", default="hypoevolve.yaml", help="Path to hypoevolve.yaml")
-    render_parser.add_argument("--tree", action="store_true", help="Render as ASCII tree instead of pretty form")
+    render_parser.add_argument(
+        "--config", default="hypoevolve.yaml", help="Path to hypoevolve.yaml"
+    )
+    render_parser.add_argument(
+        "--tree",
+        action="store_true",
+        help="Render as ASCII tree instead of pretty form",
+    )
 
-    inspect_parser = subparsers.add_parser("inspect", help="Inspect a saved best/checkpoint JSON file")
+    inspect_parser = subparsers.add_parser(
+        "inspect", help="Inspect a saved best/checkpoint JSON file"
+    )
     inspect_parser.add_argument("path", help="Path to best.json or checkpoint.json")
 
-    doctor_parser = subparsers.add_parser("doctor", help="Show environment and config diagnostics")
-    doctor_parser.add_argument("--config", default="hypoevolve.yaml", help="Path to hypoevolve.yaml")
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="Show environment and config diagnostics"
+    )
+    doctor_parser.add_argument(
+        "--config", default="hypoevolve.yaml", help="Path to hypoevolve.yaml"
+    )
 
     return parser.parse_args()
 
@@ -51,19 +72,31 @@ def main() -> int:
 
 def _run_command(args: argparse.Namespace) -> int:
     try:
-        config = load_config(args.config) if Path(args.config).exists() else HypoEvolveConfig()
+        config = (
+            load_config(args.config)
+            if Path(args.config).exists()
+            else HypoEvolveConfig()
+        )
+        configure_logger(config.logging.level)
         if args.workers is not None:
             config.workers.count = args.workers
             config.workers.enabled = args.workers > 1
+        logger.info("cli run command started")
         controller = HypoEvolveController(config)
         result = controller.run(args.hypothesis)
         print(f"Run directory: {result.run_dir}")
         print("Best hypothesis:")
         print(render_pretty(result.best_hypothesis))
         print("Best metrics:")
-        print(json.dumps(result.best_metrics, ensure_ascii=False, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                result.best_metrics, ensure_ascii=False, indent=2, sort_keys=True
+            )
+        )
+        logger.info("cli run command completed")
         return 0
     except (ConfigError, ParseError) as exc:
+        logger.error("cli run command failed: {}", exc)
         print(f"Error: {exc}")
         if getattr(exc, "errors", None):
             for item in exc.errors:
@@ -73,7 +106,13 @@ def _run_command(args: argparse.Namespace) -> int:
 
 def _render_command(args: argparse.Namespace) -> int:
     try:
-        config = load_config(args.config) if Path(args.config).exists() else HypoEvolveConfig()
+        config = (
+            load_config(args.config)
+            if Path(args.config).exists()
+            else HypoEvolveConfig()
+        )
+        configure_logger(config.logging.level)
+        logger.info("cli render command started")
         hypothesis = parse_hypothesis_text(
             args.hypothesis,
             llm=LLMClient(config.llm),
@@ -83,8 +122,10 @@ def _render_command(args: argparse.Namespace) -> int:
             print(render_tree(hypothesis))
         else:
             print(render_pretty(hypothesis))
+        logger.info("cli render command completed")
         return 0
     except (ConfigError, ParseError) as exc:
+        logger.error("cli render command failed: {}", exc)
         print(f"Error: {exc}")
         if getattr(exc, "errors", None):
             for item in exc.errors:
@@ -98,12 +139,23 @@ def _inspect_command(args: argparse.Namespace) -> int:
         hypothesis = hypothesis_from_dict(payload["hypothesis"])
         print(render_pretty(hypothesis))
         if "metrics" in payload:
-            print(json.dumps(payload["metrics"], ensure_ascii=False, indent=2, sort_keys=True))
+            print(
+                json.dumps(
+                    payload["metrics"], ensure_ascii=False, indent=2, sort_keys=True
+                )
+            )
     elif "best_hypothesis" in payload and payload["best_hypothesis"] is not None:
         hypothesis = hypothesis_from_dict(payload["best_hypothesis"])
         print(render_pretty(hypothesis))
         if "best_metrics" in payload:
-            print(json.dumps(payload["best_metrics"], ensure_ascii=False, indent=2, sort_keys=True))
+            print(
+                json.dumps(
+                    payload["best_metrics"],
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
     else:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
@@ -117,14 +169,16 @@ def _doctor_command(args: argparse.Namespace) -> int:
     if config_path.exists():
         try:
             config = load_config(config_path)
-            print(f"config_ok: true")
+            print("config_ok: true")
             print(f"archive_top_k: {config.archive.top_k}")
             print(f"iterations: {config.search.iterations}")
+            print(f"steering_retries: {config.search.steering_retries}")
+            print(f"dataset_schema_path: {config.evaluator.dataset_schema_path}")
             print(f"output_base_dir: {config.output.base_dir}")
             print(f"workers_enabled: {config.workers.enabled}")
             print(f"worker_count: {config.workers.count}")
         except Exception as exc:  # noqa: BLE001
-            print(f"config_ok: false")
+            print("config_ok: false")
             print(f"config_error: {exc}")
             return 1
     else:

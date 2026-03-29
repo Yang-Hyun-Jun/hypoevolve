@@ -10,16 +10,22 @@ from elg import Hypothesis, fingerprint
 @dataclass(slots=True)
 class ArchiveEntry:
     hypothesis: Hypothesis
-    metrics: Dict[str, float]
+    metrics: Dict[str, object]
     fingerprint: str
     iteration: int = 0
     metadata: Dict[str, object] = field(default_factory=dict)
 
     @property
     def score(self) -> float:
-        if "combined_score" in self.metrics and isinstance(self.metrics["combined_score"], (int, float)):
+        if "combined_score" in self.metrics and isinstance(
+            self.metrics["combined_score"], (int, float)
+        ):
             return float(self.metrics["combined_score"])
-        numeric = [v for v in self.metrics.values() if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        numeric = [
+            v
+            for v in self.metrics.values()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        ]
         return float(sum(numeric) / len(numeric)) if numeric else 0.0
 
 
@@ -35,7 +41,9 @@ class Archive:
 
     @property
     def entries(self) -> List[ArchiveEntry]:
-        return sorted(self._entries.values(), key=lambda entry: entry.score, reverse=True)
+        return sorted(
+            self._entries.values(), key=lambda entry: entry.score, reverse=True
+        )
 
     @property
     def best(self) -> Optional[ArchiveEntry]:
@@ -45,7 +53,7 @@ class Archive:
     def add(
         self,
         hypothesis: Hypothesis,
-        metrics: Dict[str, float],
+        metrics: Dict[str, object],
         iteration: int = 0,
         metadata: Optional[Dict[str, object]] = None,
     ) -> ArchiveEntry:
@@ -63,13 +71,19 @@ class Archive:
             self._entries[fp] = new_entry
 
         self._trim()
-        return self._entries[fp]
+        return self._entries.get(fp, existing or new_entry)
 
-    def sample_parent(self, rng: Optional[random.Random] = None) -> ArchiveEntry:
+    def sample_parent(
+        self,
+        rng: Optional[random.Random] = None,
+        explore_prob: float = 0.0,
+    ) -> ArchiveEntry:
         ordered = self.entries
         if not ordered:
             raise ValueError("Cannot sample from an empty archive")
         chooser = rng or random.Random()
+        if explore_prob > 0.0 and chooser.random() < explore_prob:
+            return chooser.choice(ordered)
         weights = [max(entry.score, 1e-6) for entry in ordered]
         return chooser.choices(ordered, weights=weights, k=1)[0]
 
