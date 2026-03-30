@@ -104,6 +104,35 @@ class TestHypoEvolveMutation(unittest.TestCase):
         self.assertEqual(len(llm.calls), 2)
         self.assertIn("Previous Attempt Failed", llm.calls[1]["user"])
 
+    def test_random_steer_mutation_allows_missing_reason(self):
+        llm = FakeLLM([
+            {
+                "child_hypothesis": {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "logical", "op": "AND", "inputs": [
+                            {"kind": "atomic", "name": "A"},
+                            {"kind": "atomic", "name": "D"},
+                        ], "params": {}},
+                        {"kind": "atomic", "name": "C"},
+                    ],
+                    "params": {},
+                },
+                "mutation_summary": "Applied three exploratory local mutations in the condition subtree.",
+            }
+        ])
+        decision = steer_mutation(
+            parent_hypothesis=self.hypothesis,
+            parent_hypothesis_nl="If A and B then C.",
+            current_metrics={"combined_score": 0.1},
+            llm=llm,
+            atomic_pool=[AtomicNode("D")],
+            use_random_steering=True,
+        )
+        self.assertEqual(decision.reason, "")
+        self.assertIn("exploratory", decision.mutation_summary)
+
 
 if __name__ == '__main__':
     unittest.main()

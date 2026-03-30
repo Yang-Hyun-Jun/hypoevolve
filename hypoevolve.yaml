@@ -18,6 +18,7 @@ search:
   iterations: 30
   parent_explore_prob: 0.3
   steering_retries: 2
+  random_steering_prob: 0.2
   random_seed: 42
   mutation_atomic_pool:
     - VOLATILITY_HIGH

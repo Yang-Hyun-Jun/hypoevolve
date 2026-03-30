@@ -213,3 +213,37 @@ class TestHypoEvolveController(unittest.TestCase):
         task, _parent = controller._make_worker_task(archive, iteration=1, recent_history=[])
 
         self.assertEqual(task.parent_hypothesis_nl, "Cached A.")
+
+    def test_choose_mutation_can_use_random_steering_prompt(self):
+        config = HypoEvolveConfig()
+        config.search.random_steering_prob = 1.0
+        controller = HypoEvolveController(
+            config,
+            evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {}})(),
+            llm_client=object(),
+        )
+        archive = Archive()
+        parent = Hypothesis(root=AtomicNode("A"))
+        entry = archive.add(
+            parent,
+            {"combined_score": 0.1},
+            metadata={"hypothesis_nl": "Cached A."},
+        )
+        fake_decision = type(
+            "FakeDecision",
+            (),
+            {
+                "child_hypothesis": Hypothesis(root=AtomicNode("B")),
+                "reason": "",
+                "mutation_summary": "Applied three exploratory local mutations.",
+            },
+        )()
+
+        with patch(
+            "hypoevolve.controller.steer_mutation",
+            return_value=fake_decision,
+        ) as steer_mutation_mock:
+            _child, metadata = controller._choose_mutation(entry, [], archive)
+
+        self.assertTrue(steer_mutation_mock.call_args.kwargs["use_random_steering"])
+        self.assertTrue(metadata["random_steering"])

@@ -50,6 +50,28 @@ class TestHypoEvolveConfig(unittest.TestCase):
             self.assertEqual(config.evaluator.dataset_schema_path, "dataset.yaml")
             self.assertEqual(config.search.parent_explore_prob, 0.25)
             self.assertEqual(config.search.steering_retries, 2)
+            self.assertEqual(config.search.random_steering_prob, 0.2)
+
+    def test_random_steering_prob_loads_and_validates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "hypoevolve.yaml"
+            path.write_text(
+                "archive:\n  top_k: 5\n"
+                "search:\n"
+                "  random_steering_prob: 0.4\n",
+                encoding="utf-8",
+            )
+            config = load_config(path)
+            self.assertEqual(config.search.random_steering_prob, 0.4)
+
+            path.write_text(
+                "archive:\n  top_k: 5\n"
+                "search:\n"
+                "  random_steering_prob: 1.5\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ConfigError):
+                load_config(path)
 
     def test_invalid_worker_count_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
