@@ -40,6 +40,7 @@ class WorkerResult:
     parent_score: float = 0.0
     domain_reason: str = ""
     score_reason: str = ""
+    operation_score_rankings: Dict[str, int] = field(default_factory=dict)
     random_steering: bool = False
 
 
@@ -103,5 +104,8 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         parent_score=task.parent_score,
         domain_reason=decision.domain_reason,
         score_reason=decision.score_reason,
+        operation_score_rankings=dict(
+            getattr(decision, "operation_score_rankings", {})
+        ),
         random_steering=task.use_random_steering,
     )

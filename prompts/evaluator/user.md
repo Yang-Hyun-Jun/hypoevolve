@@ -27,4 +27,4 @@ dtype: {{INDEX_DTYPE}}
 
 Write Python code that evaluates the measurable ELG hypothesis on the provided dataset and prints exactly one JSON object matching the required output contract.
 
-If the measurable ELG contains parameter-slot notation such as `{RET_WINDOW}`, `{HORIZON}`, `{NEG_Z_THRESHOLD}`, or `{POS_Z_THRESHOLD}`, treat those as evaluator parameters, assign reasonable general-purpose values, and use them consistently in the computation.
+If the measurable ELG contains parameter-slot notation such as `{RET_WINDOW}`, `{HORIZON}`, `{NEG_Z_THRESHOLD}`, or `{POS_Z_THRESHOLD}`, treat those as evaluator parameters, assign reasonable general-purpose values, use them consistently in the computation, and return the actual values used in `used_parameters`.

@@ -27,6 +27,7 @@ class TestHypoEvolveWorkers(unittest.TestCase):
                 "child_hypothesis": Hypothesis(root=AtomicNode("B")),
                 "domain_reason": "This local edit is plausible from a domain perspective.",
                 "score_reason": "Pick the first legal candidate for score improvement.",
+                "operation_score_rankings": {"replace_atomic_feature": 1, "append_atomic": 2},
                 "mutation_summary": "Applied a replace_atomic-style local mutation.",
             },
         )()
@@ -65,6 +66,7 @@ class TestHypoEvolveWorkers(unittest.TestCase):
                 "child_hypothesis": Hypothesis(root=AtomicNode("B")),
                 "domain_reason": "Reuse the cached domain rationale.",
                 "score_reason": "Reuse the cached score rationale.",
+                "operation_score_rankings": {"replace_atomic_feature": 1},
                 "mutation_summary": "Applied a replace_atomic-style local mutation.",
             },
         )()

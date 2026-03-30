@@ -17,6 +17,7 @@ class MutationDecision:
     child_hypothesis: Hypothesis
     domain_reason: str
     score_reason: str
+    operation_score_rankings: dict[str, int]
     mutation_summary: str
 
 
@@ -64,7 +65,7 @@ def steer_mutation(
 
             if errors:
                 correction_text = (
-                    "Return a corrected JSON object with non-empty `child_hypothesis`, `reason`, and `mutation_summary` fields."
+                    "Return a corrected JSON object with non-empty `domain_reason`, `score_reason`, `operation_score_rankings`, `child_hypothesis`, and `mutation_summary` fields."
                     if not use_random_steering
                     else "Return a corrected JSON object with non-empty `child_hypothesis` and `mutation_summary` fields."
                 )
@@ -87,6 +88,30 @@ def steer_mutation(
                     raise ParseError(
                         "Steering output must include a non-empty score_reason"
                     )
+                operation_score_rankings = payload.get("operation_score_rankings")
+                if not isinstance(operation_score_rankings, dict) or not operation_score_rankings:
+                    raise ParseError(
+                        "Steering output must include a non-empty operation_score_rankings dictionary"
+                    )
+                normalized_rankings: dict[str, int] = {}
+                for key, value in operation_score_rankings.items():
+                    if not isinstance(key, str) or not key.strip():
+                        raise ParseError(
+                            "operation_score_rankings keys must be non-empty strings"
+                        )
+                    try:
+                        rank = int(value)
+                    except Exception as exc:  # noqa: BLE001
+                        raise ParseError(
+                            f"operation_score_rankings value for {key!r} must be an integer"
+                        ) from exc
+                    if rank < 1:
+                        raise ParseError(
+                            f"operation_score_rankings value for {key!r} must be >= 1"
+                        )
+                    normalized_rankings[key.strip()] = rank
+            else:
+                normalized_rankings = {}
 
             mutation_summary = str(payload.get("mutation_summary", "")).strip()
             if not mutation_summary:
@@ -114,6 +139,7 @@ def steer_mutation(
                 child_hypothesis=child_hypothesis,
                 domain_reason=domain_reason,
                 score_reason=score_reason,
+                operation_score_rankings=normalized_rankings,
                 mutation_summary=mutation_summary,
             )
 

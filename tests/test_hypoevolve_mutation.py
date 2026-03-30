@@ -51,6 +51,7 @@ class TestHypoEvolveMutation(unittest.TestCase):
                 },
                 "domain_reason": "The added condition-side atomic makes the stress regime more coherent from a market-structure perspective.",
                 "score_reason": "Adding a related condition-side atomic may improve precision without fully changing the structure.",
+                "operation_score_rankings": {"append_atomic": 1, "replace_atomic_feature": 2},
                 "mutation_summary": "Applied an append_child-style local mutation in the condition subtree.",
             }
         ])
@@ -72,11 +73,12 @@ class TestHypoEvolveMutation(unittest.TestCase):
         self.assertEqual(decision.child_hypothesis.root.type.value, "IMPLIES")
         self.assertTrue(decision.domain_reason)
         self.assertTrue(decision.score_reason)
+        self.assertEqual(decision.operation_score_rankings["append_atomic"], 1)
         self.assertIn("append_child-style", decision.mutation_summary)
 
     def test_steer_mutation_retries_on_invalid_payload(self):
         llm = FakeLLM([
-            {"child_hypothesis": "bad", "domain_reason": "bad", "score_reason": "", "mutation_summary": ""},
+            {"child_hypothesis": "bad", "domain_reason": "bad", "score_reason": "", "operation_score_rankings": {}, "mutation_summary": ""},
             {
                 "child_hypothesis": {
                     "kind": "relation",
@@ -92,6 +94,7 @@ class TestHypoEvolveMutation(unittest.TestCase):
                 },
                 "domain_reason": "The revised child remains plausible as a coherent market hypothesis.",
                 "score_reason": "A valid local mutation is better than an invalid payload and is most likely to improve the score.",
+                "operation_score_rankings": {"append_atomic": 1, "change_relation_type": 2},
                 "mutation_summary": "Applied an append_child-style local mutation in the condition subtree.",
             },
         ], retries=1)

@@ -95,6 +95,12 @@ However, the child should behave like the result of a local mutation applied to 
 - Preserve the overall proposition structure and measurable intent unless there is a strong reason not to.
 - The child root should normally remain a relation-level statement with a condition side and a target side.
 - Preserve the hypothesis as a meaningful proposition, not a fragment.
+- The child hypothesis must remain a complete relation-level proposition.
+- The root must remain a `relation` node with exactly two sides: one condition side and one target side.
+- Do not collapse the hypothesis into only a condition fragment.
+- Do not collapse the hypothesis into only a target fragment.
+- Do not drop the condition side.
+- Do not drop the target side.
 - You must apply exactly 3 mutation operations to produce the child hypothesis.
 - Choose any 3 operations from the allowed mutation pool, but the final child must reflect all 3.
 - Do not apply fewer than 3 mutations.
@@ -113,7 +119,6 @@ Your child hypothesis must be the result of applying one or more mutation operat
 - `append_child`: add one child proposition to an `AND` node
 - `remove_child`: remove one child proposition from an `AND` node
 - `change_relation_type`: change the relation type
-- `swap_condition_target`: swap the condition side and target side of the relation
 
 Important mutation rules:
 - Use these mutation styles as the allowed mutation pool.
@@ -153,6 +158,7 @@ The `mutation_summary` must describe the mutation in diff-style terms.
 - State the 3 mutation operations that were effectively applied.
 - State where the change was applied.
 - Explain the change relative to the parent hypothesis.
+- Explicitly note that the relation root and both proposition sides were preserved if they were preserved.
 
 # Example Output
 

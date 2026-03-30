@@ -32,6 +32,7 @@ Prefer mutations that:
 - Return exactly one JSON object with these keys:
   - `domain_reason`
   - `score_reason`
+  - `operation_score_rankings`
   - `child_hypothesis`
   - `mutation_summary`
 
@@ -107,13 +108,17 @@ However, the child should behave like the result of a local mutation applied to 
 - Do not perform a large rewrite unless a smaller local mutation is clearly insufficient.
 - Preserve the overall meaning, relation direction, and measurable intent unless there is a strong optimization reason to change them.
 - The child root should normally remain a relation-level statement with a condition side and a target side.
+- The child hypothesis must remain a complete relation-level proposition.
+- The root must remain a `relation` node with exactly two sides: one condition side and one target side.
+- Do not collapse the hypothesis into only a condition fragment.
+- Do not collapse the hypothesis into only a target fragment.
+- Do not drop the condition side.
+- Do not drop the target side.
 
 # Mutation Guidance
 
 Your child hypothesis must be the result of applying one or more of the following mutation operators from the following mutation family:
 
-- `wrap_not`: wrap a selected node with `NOT(...)`
-- `unwrap_not`: remove an existing `NOT(...)` wrapper
 - `replace_atomic_feature`: replace the condition atomic or target atomic with a different measurable feature or signal
 - `replace_atomic_direction`: keep the condition atomic or target atomic family but change the comparison direction or polarity
 - `replace_atomic_reformulate`: replace the condition atomic or target atomic with a fully new and different measurable proposition
@@ -121,7 +126,8 @@ Your child hypothesis must be the result of applying one or more of the followin
 - `append_atomic`: add one child atomic proposition to an `AND` node
 - `remove_atomic`: remove one child atomic proposition from an `AND` node
 - `change_relation_type`: change the relation type
-- `swap_condition_target`: swap the condition side and target side of the relation
+- `wrap_not`: wrap a selected node with `NOT(...)`
+- `unwrap_not`: remove an existing `NOT(...)` wrapper
 
 Important mutation rules:
 - Use these mutation styles as the allowed mutation pool.
@@ -168,6 +174,7 @@ Return exactly one JSON object with these keys:
 
 - `domain_reason` -> string
 - `score_reason` -> string
+- `operation_score_rankings` -> dict[str, int]
 - `child_hypothesis` -> ELG root node JSON object
 - `mutation_summary` -> string
 
@@ -188,6 +195,16 @@ The `score_reason` must be detailed, logical, and explicit.
 - Make the expected tradeoff clear, for example whether the mutation mainly aims to improve precision, improve coverage, or improve their balance.
 - This explanation should be score-oriented rather than domain-oriented.
 
+## `operation_score_rankings` requirements
+
+The `operation_score_rankings` field must be a dictionary that ranks mutation operation families by expected score improvement.
+
+- Use mutation operation names as keys.
+- Use integer ranks as values, where `1` means the most promising expected score-improvement direction.
+- Rank only operation families that are relevant candidates for this parent hypothesis.
+- This ranking is about expected score utility, not domain plausibility.
+- The chosen mutation in `child_hypothesis` should be broadly consistent with the highest-ranked or near-highest-ranked operation family.
+
 ## `mutation_summary` requirements
 
 The `mutation_summary` must describe the mutation in diff-style terms.
@@ -195,6 +212,7 @@ The `mutation_summary` must describe the mutation in diff-style terms.
 - State which mutation operations from the mutation family were effectively applied.
 - State where the change was applied.
 - Explain the change relative to the parent hypothesis.
+- Explicitly note that the relation root and both proposition sides were preserved if they were preserved.
 
 # Example Output
 
@@ -202,6 +220,12 @@ The `mutation_summary` must describe the mutation in diff-style terms.
 {
   "domain_reason": "...",
   "score_reason": "...",
+  "operation_score_rankings": {
+    "replace_atomic_feature": 1,
+    "append_atomic": 2,
+    "change_relation_type": 3,
+    ...,
+  },
   "child_hypothesis": {
     "kind": "relation",
     "type": "IMPLIES",

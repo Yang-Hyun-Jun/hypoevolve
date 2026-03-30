@@ -31,6 +31,9 @@ Return JSON only with this exact shape:
 {
   "domain_reason": "<why this mutation is plausible from a domain-knowledge perspective>",
   "score_reason": "<why this mutation is promising from a score-improvement perspective>",
+  "operation_score_rankings": {
+    "<operation_name>": <rank_int>
+  },
   "child_hypothesis": <ELG root node JSON>,
   "mutation_summary": "<what mutation-style changes were applied and where>"
 }

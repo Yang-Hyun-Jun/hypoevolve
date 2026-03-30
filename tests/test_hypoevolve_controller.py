@@ -27,6 +27,7 @@ class TestHypoEvolveController(unittest.TestCase):
                         },
                         "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                         "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
+                        "operation_score_rankings": {"replace_atomic_feature": 1, "append_atomic": 2},
                         "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                     }
                 return {
@@ -82,6 +83,7 @@ class TestHypoEvolveController(unittest.TestCase):
                         },
                         "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                         "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
+                        "operation_score_rankings": {"replace_atomic_feature": 1, "append_atomic": 2},
                         "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                     }
                 return {
@@ -141,6 +143,7 @@ class TestHypoEvolveController(unittest.TestCase):
                 "child_hypothesis": Hypothesis(root=AtomicNode("B")),
                 "domain_reason": "Cached domain rationale.",
                 "score_reason": "Use cached score rationale.",
+                "operation_score_rankings": {"replace_atomic_feature": 1},
                 "mutation_summary": "Applied a replace_atomic-style local mutation.",
             },
         )()

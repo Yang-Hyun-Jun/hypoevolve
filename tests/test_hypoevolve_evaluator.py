@@ -124,7 +124,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         llm = FakeLLMClient(
             outputs=[
                 "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n"
-                "    return {'combined_score': 0.5, 'precision': 0.7, 'baseline': 0.2, 'coverage': 0.4, 'uplift': 0.5, 'support_count': 2, 'total_count': 5, 'rationale': 'ok'}\n"
+                "    return {'combined_score': 0.5, 'precision': 0.7, 'baseline': 0.2, 'coverage': 0.4, 'uplift': 0.5, 'support_count': 2, 'total_count': 5, 'rationale': 'ok', 'used_parameters': {'RET_WINDOW': 12}}\n"
             ]
         )
         executor = FakeExecutor(
@@ -140,6 +140,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
                             "support_count": 2,
                             "total_count": 5,
                             "rationale": "ok",
+                            "used_parameters": {"RET_WINDOW": 12},
                         }
                     ),
                     stderr="",
@@ -161,6 +162,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         self.assertEqual(metrics["combined_score"], 0.5)
         self.assertEqual(metrics["support_count"], 2)
         self.assertEqual(metrics["rationale"], "ok")
+        self.assertEqual(metrics["used_parameters"]["RET_WINDOW"], 12)
         self.assertIn("candidate.py", executor.calls[0]["files"])
 
     def test_llm_evaluator_retries_after_invalid_code(self):
@@ -168,7 +170,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
             outputs=[
                 "def broken(",
                 "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n"
-                "    return {'combined_score': 0.1, 'precision': 0.2, 'baseline': 0.1, 'coverage': 0.5, 'uplift': 0.1, 'support_count': 1, 'total_count': 2, 'rationale': 'fixed'}\n",
+                "    return {'combined_score': 0.1, 'precision': 0.2, 'baseline': 0.1, 'coverage': 0.5, 'uplift': 0.1, 'support_count': 1, 'total_count': 2, 'rationale': 'fixed', 'used_parameters': {'HORIZON': 1}}\n",
             ],
             retries=1,
         )
@@ -185,6 +187,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
                             "support_count": 1,
                             "total_count": 2,
                             "rationale": "fixed",
+                            "used_parameters": {"HORIZON": 1},
                         }
                     ),
                     stderr="",
@@ -199,6 +202,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         evaluator = LLMEvaluator(llm, self.schema, "dataset.yaml", executor=executor)
         metrics = evaluator.evaluate(self.hypothesis)
         self.assertEqual(metrics["rationale"], "fixed")
+        self.assertEqual(metrics["used_parameters"]["HORIZON"], 1)
         self.assertEqual(len(llm.calls), 2)
         self.assertIn("Previous Attempt Failed", llm.calls[1]["user"])
 
@@ -209,6 +213,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         metrics = evaluator.evaluate(self.hypothesis)
         self.assertEqual(metrics["combined_score"], 0.0)
         self.assertIn("evaluation_failed:", metrics["rationale"])
+        self.assertEqual(metrics["used_parameters"], {})
 
     def test_llm_evaluator_sanitizes_non_finite_metrics(self):
         llm = FakeLLMClient(
@@ -220,7 +225,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         executor = FakeExecutor(
             results=[
                 ExecutionResult(
-                    stdout='{"combined_score": NaN, "precision": Infinity, "baseline": 0.2, "coverage": 0.4, "uplift": -Infinity, "support_count": NaN, "total_count": 5, "rationale": "raw"}',
+                    stdout='{"combined_score": NaN, "precision": Infinity, "baseline": 0.2, "coverage": 0.4, "uplift": -Infinity, "support_count": NaN, "total_count": 5, "rationale": "raw", "used_parameters": {"RET_WINDOW": 12}}',
                     stderr="",
                     exit_code=0,
                     timed_out=False,
@@ -235,6 +240,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         self.assertEqual(metrics["precision"], 0.0)
         self.assertEqual(metrics["uplift"], 0.0)
         self.assertEqual(metrics["support_count"], 0)
+        self.assertEqual(metrics["used_parameters"]["RET_WINDOW"], 12)
         self.assertTrue(str(metrics["rationale"]).startswith("non_finite_metrics_sanitized"))
 
 

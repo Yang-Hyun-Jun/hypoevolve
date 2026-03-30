@@ -31,6 +31,7 @@ class LLMEvaluator:
         "support_count",
         "total_count",
         "rationale",
+        "used_parameters",
     )
 
     def __init__(
@@ -130,11 +131,16 @@ class LLMEvaluator:
         logger.error("evaluator failed after retries: {}", last_error)
         payload = {k: 0.0 for k in self.REQUIRED_KEYS}
         payload["rationale"] = f"evaluation_failed: {last_error}"
+        payload["used_parameters"] = {}
         return payload
 
     def _sanitize_payload(self, payload: Dict[str, object]) -> Dict[str, object]:
         sanitized = dict(payload)
         non_finite_keys: list[str] = []
+
+        used_parameters = sanitized.get("used_parameters")
+        if not isinstance(used_parameters, dict):
+            sanitized["used_parameters"] = {}
 
         for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
             value = sanitized.get(key)

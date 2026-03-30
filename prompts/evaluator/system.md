@@ -43,6 +43,7 @@ Strong rule:
 - Access parameter values with `parameters.get(...)`, not direct indexing like `parameters["key"]`.
 - Provide safe defaults through `parameters.get(...)` so the code does not fail with `KeyError`.
 - If the measurable ELG includes named parameter slots, define corresponding parameter keys with the same names.
+- After filling defaults, keep a normalized `parameters` dictionary that represents the actual values used for evaluation.
 
 # Core Rule
 
@@ -144,6 +145,7 @@ The function must return a Python dictionary with exactly these keys:
 - `support_count` -> int
 - `total_count` -> int
 - `rationale` -> str
+- `used_parameters` -> dict
 
 Example shape:
 
@@ -157,6 +159,13 @@ Example shape:
     "support_count": 152,
     "total_count": 267,
     "rationale": "Condition improves the target over baseline with moderate support.",
+    "used_parameters": {
+        "RET_WINDOW": 12,
+        "TARGET_WINDOW": 12,
+        "HORIZON": 1,
+        "NEG_Z_THRESHOLD": -1.5,
+        "POS_Z_THRESHOLD": 1.5
+    }
 }
 ```
 
@@ -167,6 +176,7 @@ Example shape:
 - `rationale` should be concise
 - all score-like fields should be numeric
 - all numeric output fields must be finite
+- `used_parameters` must contain the actual parameter values used after defaults are applied
 
 # Execution Model
 

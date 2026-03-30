@@ -75,6 +75,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     },
                     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                     "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "operation_score_rankings": {"replace_atomic_feature": 1, "append_atomic": 2},
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
@@ -98,6 +99,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 parent_score=task.parent_score,
                 domain_reason="Use a plausible local relation-type mutation.",
                 score_reason="Use a local relation-type mutation.",
+                operation_score_rankings={"change_relation_type": 1},
             )
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -133,6 +135,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     },
                     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                     "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "operation_score_rankings": {"replace_atomic_feature": 1, "append_atomic": 2},
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
@@ -174,6 +177,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     },
                     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                     "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "operation_score_rankings": {"replace_atomic_feature": 1, "append_atomic": 2},
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
@@ -216,6 +220,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     },
                     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                     "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "operation_score_rankings": {"replace_atomic_feature": 1, "append_atomic": 2},
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
@@ -237,6 +242,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 parent_score=task.parent_score,
                 domain_reason="Use a plausible local relation-type mutation.",
                 score_reason="Use a local relation-type mutation.",
+                operation_score_rankings={"change_relation_type": 1},
             )
         with tempfile.TemporaryDirectory() as tmp:
             config = HypoEvolveConfig()

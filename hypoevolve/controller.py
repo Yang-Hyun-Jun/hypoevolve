@@ -265,6 +265,7 @@ class HypoEvolveController:
                         "mutation_summary": result.mutation_summary,
                         "domain_reason": result.domain_reason,
                         "score_reason": result.score_reason,
+                        "operation_score_rankings": result.operation_score_rankings,
                         "random_steering": result.random_steering,
                     },
                 )
@@ -277,6 +278,7 @@ class HypoEvolveController:
                         "mutation_summary": result.mutation_summary,
                         "domain_reason": result.domain_reason,
                         "score_reason": result.score_reason,
+                        "operation_score_rankings": result.operation_score_rankings,
                         "random_steering": result.random_steering,
                     }
                 )
@@ -355,6 +357,9 @@ class HypoEvolveController:
             "steered": True,
             "domain_reason": decision.domain_reason,
             "score_reason": decision.score_reason,
+            "operation_score_rankings": dict(
+                getattr(decision, "operation_score_rankings", {})
+            ),
             "mutation_summary": decision.mutation_summary,
             "random_steering": use_random_steering,
         }
@@ -401,6 +406,7 @@ class HypoEvolveController:
                 "mutation_summary": metadata.get("mutation_summary", ""),
                 "domain_reason": metadata.get("domain_reason", ""),
                 "score_reason": metadata.get("score_reason", ""),
+                "operation_score_rankings": metadata.get("operation_score_rankings", {}),
                 "metrics": child_metrics,
                 "hypothesis": child_hypothesis.to_dict(),
                 "worker_mode": metadata.get("worker_mode", False),
