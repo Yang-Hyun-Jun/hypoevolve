@@ -30,8 +30,9 @@ Prefer mutations that:
 - Do not return markdown.
 - Do not return explanations outside the JSON.
 - Return exactly one JSON object with these keys:
+  - `domain_reason`
+  - `score_reason`
   - `child_hypothesis`
-  - `reason`
   - `mutation_summary`
 
 # ELG Schema Contract
@@ -113,16 +114,21 @@ Your child hypothesis must be the result of applying one or more of the followin
 
 - `wrap_not`: wrap a selected node with `NOT(...)`
 - `unwrap_not`: remove an existing `NOT(...)` wrapper
-- `replace_atomic_threshold`: keep the same atomic family but change the threshold
-- `replace_atomic_feature`: replace the atomic with a different measurable feature or signal
-- `replace_atomic_direction`: keep the atomic family but change the comparison direction or polarity
-- `append_child`: add one child proposition to an `AND` node
-- `remove_child`: remove one child proposition from an `AND` node
+- `replace_atomic_feature`: replace the condition atomic or target atomic with a different measurable feature or signal
+- `replace_atomic_direction`: keep the condition atomic or target atomic family but change the comparison direction or polarity
+- `replace_atomic_reformulate`: replace the condition atomic or target atomic with a fully new and different measurable proposition
+- `promote_atomic_to_and`: replace one condition atomic or target atomic with a more explicit local `AND(...)` formulation
+- `append_atomic`: add one child atomic proposition to an `AND` node
+- `remove_atomic`: remove one child atomic proposition from an `AND` node
 - `change_relation_type`: change the relation type
+- `swap_condition_target`: swap the condition side and target side of the relation
 
 Important mutation rules:
 - Use these mutation styles as the allowed mutation pool.
 - You may apply one or multiple mutation operations from the mutation family in a single child hypothesis.
+- Do not treat thresholds, windows, or horizons as the primary mutation target.
+- Parameter choices such as thresholds, windows, and horizons are handled by the evaluator.
+- Focus mutation on structure, measurable feature choice, direction, logical composition, and relation type.
 
 # Measurable Atomic Guidance
 
@@ -160,18 +166,27 @@ Interpretation hints:
 
 Return exactly one JSON object with these keys:
 
+- `domain_reason` -> string
+- `score_reason` -> string
 - `child_hypothesis` -> ELG root node JSON object
-- `reason` -> string
 - `mutation_summary` -> string
 
-## `reason` requirements
+## `domain_reason` requirements
 
-The `reason` must be detailed, logical, and explicit.
+The `domain_reason` must be detailed, logical, and explicit.
+
+- Explain why this mutation is plausible or meaningful from a crypto-market or domain-knowledge perspective.
+- Ground the explanation in the hypothesis semantics and plausible market behavior.
+- Do not optimize this explanation for score language; optimize it for logical domain plausibility.
+
+## `score_reason` requirements
+
+The `score_reason` must be detailed, logical, and explicit.
 
 - Explain why this mutation is promising under the current metrics.
-- Explain wht this mutation is promising under data domain knowledges.
-- Ground the explanation in the provided information: domain knowledge, current metrics, metric definitions, recent history, and top hypotheses.
+- Ground the explanation in the provided information: current metrics, metric definitions, recent history, and top hypotheses.
 - Make the expected tradeoff clear, for example whether the mutation mainly aims to improve precision, improve coverage, or improve their balance.
+- This explanation should be score-oriented rather than domain-oriented.
 
 ## `mutation_summary` requirements
 
@@ -185,6 +200,8 @@ The `mutation_summary` must describe the mutation in diff-style terms.
 
 ```json
 {
+  "domain_reason": "...",
+  "score_reason": "...",
   "child_hypothesis": {
     "kind": "relation",
     "type": "IMPLIES",
@@ -220,7 +237,6 @@ The `mutation_summary` must describe the mutation in diff-style terms.
     ],
     "params": {}
   },
-  "reason": "...",
   "mutation_summary": "..."
 }
 ```

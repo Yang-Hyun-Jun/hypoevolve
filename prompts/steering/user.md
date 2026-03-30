@@ -29,7 +29,8 @@ Generate a new child ELG hypothesis as a local mutation of the parent hypothesis
 Return JSON only with this exact shape:
 
 {
+  "domain_reason": "<why this mutation is plausible from a domain-knowledge perspective>",
+  "score_reason": "<why this mutation is promising from a score-improvement perspective>",
   "child_hypothesis": <ELG root node JSON>,
-  "reason": "<why this mutation is promising now>",
   "mutation_summary": "<what mutation-style changes were applied and where>"
 }

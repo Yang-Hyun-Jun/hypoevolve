@@ -141,12 +141,13 @@ class HypoEvolveController:
                     archive,
                 )
                 logger.info(
-                    "[iter.steer] i={} mutation_summary={} reason={}",
+                    "[iter.steer] i={} mutation_summary={} score_reason={} domain_reason={}",
                     iteration,
                     str(steering_metadata.get("mutation_summary", "")).replace(
                         "\n", " "
                     ),
-                    str(steering_metadata.get("steering_reason", "")).replace("\n", " "),
+                    str(steering_metadata.get("score_reason", "")).replace("\n", " "),
+                    str(steering_metadata.get("domain_reason", "")).replace("\n", " "),
                 )
                 child_metrics = evaluate_hypothesis(mutation_sample, self.evaluator)
                 logger.info(
@@ -262,7 +263,8 @@ class HypoEvolveController:
                         "worker_mode": True,
                         "steered": True,
                         "mutation_summary": result.mutation_summary,
-                        "steering_reason": result.steering_reason,
+                        "domain_reason": result.domain_reason,
+                        "score_reason": result.score_reason,
                         "random_steering": result.random_steering,
                     },
                 )
@@ -273,7 +275,8 @@ class HypoEvolveController:
                         "result_hypothesis": render_pretty(child),
                         "steered": True,
                         "mutation_summary": result.mutation_summary,
-                        "steering_reason": result.steering_reason,
+                        "domain_reason": result.domain_reason,
+                        "score_reason": result.score_reason,
                         "random_steering": result.random_steering,
                     }
                 )
@@ -350,7 +353,8 @@ class HypoEvolveController:
         )
         return decision.child_hypothesis, {
             "steered": True,
-            "steering_reason": decision.reason,
+            "domain_reason": decision.domain_reason,
+            "score_reason": decision.score_reason,
             "mutation_summary": decision.mutation_summary,
             "random_steering": use_random_steering,
         }
@@ -395,7 +399,8 @@ class HypoEvolveController:
             f"iteration_{iteration:04d}",
             {
                 "mutation_summary": metadata.get("mutation_summary", ""),
-                "steering_reason": metadata.get("steering_reason", ""),
+                "domain_reason": metadata.get("domain_reason", ""),
+                "score_reason": metadata.get("score_reason", ""),
                 "metrics": child_metrics,
                 "hypothesis": child_hypothesis.to_dict(),
                 "worker_mode": metadata.get("worker_mode", False),

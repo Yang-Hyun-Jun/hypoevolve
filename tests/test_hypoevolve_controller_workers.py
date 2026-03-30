@@ -73,7 +73,8 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                         ],
                         "params": {},
                     },
-                    "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
+                    "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
@@ -95,7 +96,8 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 iteration=task.iteration,
                 mutation_summary="Applied a change_relation_type-style local mutation.",
                 parent_score=task.parent_score,
-                steering_reason="Use a local relation-type mutation.",
+                domain_reason="Use a plausible local relation-type mutation.",
+                score_reason="Use a local relation-type mutation.",
             )
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -129,7 +131,8 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                         ],
                         "params": {},
                     },
-                    "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
+                    "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
@@ -169,7 +172,8 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                         ],
                         "params": {},
                     },
-                    "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
+                    "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
@@ -210,7 +214,8 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                         ],
                         "params": {},
                     },
-                    "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
+                    "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
@@ -230,7 +235,8 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 iteration=task.iteration,
                 mutation_summary="Applied a change_relation_type-style local mutation.",
                 parent_score=task.parent_score,
-                steering_reason="Use a local relation-type mutation.",
+                domain_reason="Use a plausible local relation-type mutation.",
+                score_reason="Use a local relation-type mutation.",
             )
         with tempfile.TemporaryDirectory() as tmp:
             config = HypoEvolveConfig()

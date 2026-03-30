@@ -42,6 +42,7 @@ Strong rule:
 - When the function needs a parameter value, read it from `parameters` rather than hardcoding it in the computation logic.
 - Access parameter values with `parameters.get(...)`, not direct indexing like `parameters["key"]`.
 - Provide safe defaults through `parameters.get(...)` so the code does not fail with `KeyError`.
+- If the measurable ELG includes named parameter slots, define corresponding parameter keys with the same names.
 
 # Core Rule
 
@@ -49,6 +50,25 @@ Assume the measurable ELG is already the authoritative measurable definition of 
 
 Do not reinterpret it freely.
 Do not invent a different hypothesis.
+
+# Parameterized ELG Rule
+
+The measurable ELG may contain parameter-slot notation such as:
+- `{WINDOW}`
+- `{HORIZON}`
+- `{Z_THRESHOLD}`
+
+When parameter slots appear in the measurable ELG:
+- recognize them explicitly as evaluator parameters
+- choose reasonable, general-purpose values rather than aggressively optimized values
+- prefer stable defaults that make the hypothesis meaningfully testable
+- do not perform brute-force parameter search
+- do not overfit parameter values to maximize score
+
+Important:
+- hypothesis structure is primary
+- parameter values are secondary operational choices
+- a meaningful hypothesis should remain evaluable under reasonable generic parameter choices
 
 # Constraints
 
@@ -96,6 +116,7 @@ This is critical.
 
 - Respect asset/entity names exactly as written in the measurable ELG.
 - Respect windows, horizons, transforms, and thresholds exactly as written when possible.
+- If the measurable ELG expresses thresholds, windows, or horizons as parameter slots rather than fixed numbers, instantiate them with reasonable generic values and keep those values explicit in `used_parameters`.
 - If a measurable atomic still requires operationalization, choose the smallest reasonable interpretation and keep it explicit in code.
 - Do not invent extra theory or mechanism that is not needed for scoring.
 

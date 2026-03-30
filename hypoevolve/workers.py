@@ -38,7 +38,8 @@ class WorkerResult:
     iteration: int
     mutation_summary: str
     parent_score: float = 0.0
-    steering_reason: str = ""
+    domain_reason: str = ""
+    score_reason: str = ""
     random_steering: bool = False
 
 
@@ -100,6 +101,7 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         iteration=task.iteration,
         mutation_summary=decision.mutation_summary,
         parent_score=task.parent_score,
-        steering_reason=decision.reason,
+        domain_reason=decision.domain_reason,
+        score_reason=decision.score_reason,
         random_steering=task.use_random_steering,
     )

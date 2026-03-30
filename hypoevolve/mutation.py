@@ -15,7 +15,8 @@ from hypoevolve.prompts import load_and_render_prompt, load_prompt
 @dataclass(slots=True)
 class MutationDecision:
     child_hypothesis: Hypothesis
-    reason: str
+    domain_reason: str
+    score_reason: str
     mutation_summary: str
 
 
@@ -75,9 +76,17 @@ def steer_mutation(
                 )
 
             payload = llm.generate_json(system_prompt, user_prompt, json_retries=0)
-            reason = str(payload.get("reason", "")).strip()
-            if not use_random_steering and not reason:
-                raise ParseError("Steering output must include a non-empty reason")
+            domain_reason = str(payload.get("domain_reason", "")).strip()
+            score_reason = str(payload.get("score_reason", "")).strip()
+            if not use_random_steering:
+                if not domain_reason:
+                    raise ParseError(
+                        "Steering output must include a non-empty domain_reason"
+                    )
+                if not score_reason:
+                    raise ParseError(
+                        "Steering output must include a non-empty score_reason"
+                    )
 
             mutation_summary = str(payload.get("mutation_summary", "")).strip()
             if not mutation_summary:
@@ -103,7 +112,8 @@ def steer_mutation(
             logger.info("steering proposed child hypothesis successfully")
             return MutationDecision(
                 child_hypothesis=child_hypothesis,
-                reason=reason,
+                domain_reason=domain_reason,
+                score_reason=score_reason,
                 mutation_summary=mutation_summary,
             )
 

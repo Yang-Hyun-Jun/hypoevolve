@@ -106,17 +106,22 @@ Your child hypothesis must be the result of applying one or more mutation operat
 
 - `wrap_not`: wrap a selected node with `NOT(...)`
 - `unwrap_not`: remove an existing `NOT(...)` wrapper
-- `replace_atomic_threshold`: keep the same atomic family but change the threshold
 - `replace_atomic_feature`: replace the atomic with a different measurable feature or signal
-- `replace_atomic_direction`: - keep the atomic family but change the comparison direction or polarity
+- `replace_atomic_direction`: keep the atomic family but change the comparison direction or polarity
+- `replace_atomic_reformulate`: replace the atomic with a fully new measurable formulation
+- `promote_atomic_to_and`: replace one atomic with a more explicit local `AND(...)` formulation
 - `append_child`: add one child proposition to an `AND` node
 - `remove_child`: remove one child proposition from an `AND` node
 - `change_relation_type`: change the relation type
+- `swap_condition_target`: swap the condition side and target side of the relation
 
 Important mutation rules:
 - Use these mutation styles as the allowed mutation pool.
 - You must apply exactly 3 mutation operations in a single child hypothesis.
 - The 3 mutations may be any mix of the allowed mutation operators.
+- Do not treat thresholds, windows, or horizons as the primary mutation target.
+- Parameter choices such as thresholds, windows, and horizons are handled by the evaluator.
+- Prefer structure, measurable feature choice, direction, logical composition, and relation changes over parameter tweaking.
 
 # Measurable Atomic Guidance
 

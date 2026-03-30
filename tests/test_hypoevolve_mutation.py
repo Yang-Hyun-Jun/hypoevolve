@@ -49,7 +49,8 @@ class TestHypoEvolveMutation(unittest.TestCase):
                     ],
                     "params": {},
                 },
-                "reason": "Adding a related condition-side atomic may improve precision without fully changing the structure.",
+                "domain_reason": "The added condition-side atomic makes the stress regime more coherent from a market-structure perspective.",
+                "score_reason": "Adding a related condition-side atomic may improve precision without fully changing the structure.",
                 "mutation_summary": "Applied an append_child-style local mutation in the condition subtree.",
             }
         ])
@@ -69,12 +70,13 @@ class TestHypoEvolveMutation(unittest.TestCase):
         )
         self.assertIsInstance(decision, MutationDecision)
         self.assertEqual(decision.child_hypothesis.root.type.value, "IMPLIES")
-        self.assertTrue(decision.reason)
+        self.assertTrue(decision.domain_reason)
+        self.assertTrue(decision.score_reason)
         self.assertIn("append_child-style", decision.mutation_summary)
 
     def test_steer_mutation_retries_on_invalid_payload(self):
         llm = FakeLLM([
-            {"child_hypothesis": "bad", "reason": "bad", "mutation_summary": ""},
+            {"child_hypothesis": "bad", "domain_reason": "bad", "score_reason": "", "mutation_summary": ""},
             {
                 "child_hypothesis": {
                     "kind": "relation",
@@ -88,7 +90,8 @@ class TestHypoEvolveMutation(unittest.TestCase):
                     ],
                     "params": {},
                 },
-                "reason": "A valid local mutation is better than an invalid payload and is most likely to improve the score.",
+                "domain_reason": "The revised child remains plausible as a coherent market hypothesis.",
+                "score_reason": "A valid local mutation is better than an invalid payload and is most likely to improve the score.",
                 "mutation_summary": "Applied an append_child-style local mutation in the condition subtree.",
             },
         ], retries=1)
@@ -127,7 +130,8 @@ class TestHypoEvolveMutation(unittest.TestCase):
             llm=llm,
             use_random_steering=True,
         )
-        self.assertEqual(decision.reason, "")
+        self.assertEqual(decision.domain_reason, "")
+        self.assertEqual(decision.score_reason, "")
         self.assertIn("exploratory", decision.mutation_summary)
 
 

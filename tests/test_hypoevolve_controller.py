@@ -25,7 +25,8 @@ class TestHypoEvolveController(unittest.TestCase):
                             ],
                             "params": {},
                         },
-                        "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                        "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
+                        "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
                         "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                     }
                 return {
@@ -79,7 +80,8 @@ class TestHypoEvolveController(unittest.TestCase):
                             ],
                             "params": {},
                         },
-                        "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                        "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
+                        "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
                         "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                     }
                 return {
@@ -137,7 +139,8 @@ class TestHypoEvolveController(unittest.TestCase):
             (),
             {
                 "child_hypothesis": Hypothesis(root=AtomicNode("B")),
-                "reason": "Use cached NL.",
+                "domain_reason": "Cached domain rationale.",
+                "score_reason": "Use cached score rationale.",
                 "mutation_summary": "Applied a replace_atomic-style local mutation.",
             },
         )()
@@ -233,7 +236,8 @@ class TestHypoEvolveController(unittest.TestCase):
             (),
             {
                 "child_hypothesis": Hypothesis(root=AtomicNode("B")),
-                "reason": "",
+                "domain_reason": "",
+                "score_reason": "",
                 "mutation_summary": "Applied three exploratory local mutations.",
             },
         )()
