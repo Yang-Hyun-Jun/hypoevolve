@@ -42,7 +42,6 @@ Strong rule:
 - When the function needs a parameter value, read it from `parameters` rather than hardcoding it in the computation logic.
 - Access parameter values with `parameters.get(...)`, not direct indexing like `parameters["key"]`.
 - Provide safe defaults through `parameters.get(...)` so the code does not fail with `KeyError`.
-- Do not hardcode such values directly when they can reasonably be parameters.
 
 # Core Rule
 
@@ -50,7 +49,6 @@ Assume the measurable ELG is already the authoritative measurable definition of 
 
 Do not reinterpret it freely.
 Do not invent a different hypothesis.
-Do not replace it with a looser semantic approximation unless absolutely necessary.
 
 # Constraints
 

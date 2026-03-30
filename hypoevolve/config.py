@@ -39,6 +39,7 @@ class SearchConfig:
     mutation_atomic_pool: List[str] = field(default_factory=list)
     parent_explore_prob: float = 0.3
     steering_retries: int = 2
+    random_steering_prob: float = 0.2
     random_seed: int = 42
 
 
@@ -120,6 +121,7 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
                 "mutation_atomic_pool",
                 "parent_explore_prob",
                 "steering_retries",
+                "random_steering_prob",
                 "random_seed",
             },
         )
@@ -141,6 +143,8 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
         raise ConfigError("search.steering_retries must be between 0 and 3")
     if search.parent_explore_prob < 0.0 or search.parent_explore_prob > 1.0:
         raise ConfigError("search.parent_explore_prob must be between 0.0 and 1.0")
+    if search.random_steering_prob < 0.0 or search.random_steering_prob > 1.0:
+        raise ConfigError("search.random_steering_prob must be between 0.0 and 1.0")
     if workers.count < 1:
         raise ConfigError("workers.count must be >= 1")
     if not evaluator.dataset_schema_path:

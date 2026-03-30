@@ -263,6 +263,7 @@ class HypoEvolveController:
                         "steered": True,
                         "mutation_summary": result.mutation_summary,
                         "steering_reason": result.steering_reason,
+                        "random_steering": result.random_steering,
                     },
                 )
                 recent_history.append(
@@ -273,6 +274,7 @@ class HypoEvolveController:
                         "steered": True,
                         "mutation_summary": result.mutation_summary,
                         "steering_reason": result.steering_reason,
+                        "random_steering": result.random_steering,
                     }
                 )
                 if submitted < total_iterations:

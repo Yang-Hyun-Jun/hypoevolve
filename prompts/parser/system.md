@@ -12,7 +12,6 @@ Allowed node kinds:
 
 Allowed logical operators:
 - AND
-- OR
 - NOT
 
 Allowed relation types:
@@ -29,7 +28,7 @@ Rules:
 - For `relation` nodes, the relation type field must be named **`type`**.
 - Do **not** use alternative field names such as `operator`, `proposition`, `label`, `relation`, or `node_type`.
 - NOT must have exactly one input.
-- AND and OR must have at least two inputs.
+- AND must have at least two inputs.
 - relation.inputs must contain exactly two nodes.
 - Use params: {} if no params are needed.
 - Prefer the simplest valid ELG structure that preserves the hypothesis.
@@ -48,7 +47,7 @@ Atomic node:
 Logical node:
 {
   "kind": "logical",
-  "op": "AND | OR | NOT",
+  "op": "AND | NOT",
   "inputs": [<node>, ...],
   "params": {}
 }

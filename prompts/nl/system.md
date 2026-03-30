@@ -18,7 +18,6 @@ Interpretation rules:
 - CONTRADICT(A, B) -> express as "A contradicts B" or equivalent
 - CORRELATE(A, B) -> express as "A is correlated with B" or equivalent
 - AND(A, B, ...) -> combine with "and"
-- OR(A, B, ...) -> combine with "or"
 - NOT(A) -> express as negation
 - atomic nodes should be preserved as closely as possible unless minor smoothing improves readability without changing meaning
 

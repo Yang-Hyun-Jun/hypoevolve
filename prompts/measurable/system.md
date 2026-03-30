@@ -64,7 +64,6 @@ Examples:
 ## Allowed logical operators
 
 - AND
-- OR
 - NOT
 
 ## Allowed relation types
