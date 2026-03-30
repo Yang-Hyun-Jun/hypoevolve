@@ -310,7 +310,6 @@ class HypoEvolveController:
             use_random_steering=(
                 self.rng.random() < self.config.search.random_steering_prob
             ),
-            mutation_atomic_pool=list(self.config.search.mutation_atomic_pool),
             llm_config=asdict(self.config.llm),
             dataset_schema_path=self.config.evaluator.dataset_schema_path,
             evaluator_parameters=dict(self.config.evaluator.parameters),
@@ -344,7 +343,6 @@ class HypoEvolveController:
             parent_hypothesis_nl=self._get_entry_hypothesis_nl(parent_entry),
             current_metrics=parent_entry.metrics,
             llm=self.llm_client,
-            atomic_pool=self.config.search.mutation_atomic_pool,
             recent_history=recent_history[-3:],
             top_hypotheses=archive.entries[:3],
             use_random_steering=use_random_steering,

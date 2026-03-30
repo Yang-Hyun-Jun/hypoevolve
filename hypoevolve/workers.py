@@ -22,7 +22,6 @@ class WorkerTask:
     parent_score: float
     parent_hypothesis_nl: str = ""
     use_random_steering: bool = False
-    mutation_atomic_pool: List[str] = field(default_factory=list)
     llm_config: Dict[str, Any] = field(default_factory=dict)
     dataset_schema_path: str = "dataset.yaml"
     evaluator_parameters: Dict[str, object] = field(default_factory=dict)
@@ -83,7 +82,6 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         parent_hypothesis_nl=parent_nl,
         current_metrics=task.parent_metrics,
         llm=llm,
-        atomic_pool=task.mutation_atomic_pool,
         recent_history=task.recent_history,
         top_hypotheses=top_hypotheses,
         use_random_steering=task.use_random_steering,

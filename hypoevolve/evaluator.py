@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 from typing import Dict, Protocol
 
 from elg import Hypothesis
@@ -114,6 +115,7 @@ class LLMEvaluator:
                 if not isinstance(payload, dict):
                     raise ValueError("Generated evaluator output must be a JSON object")
 
+                payload = self._sanitize_payload(payload)
                 logger.info("evaluator execution succeeded")
                 return payload
 
@@ -129,6 +131,37 @@ class LLMEvaluator:
         payload = {k: 0.0 for k in self.REQUIRED_KEYS}
         payload["rationale"] = f"evaluation_failed: {last_error}"
         return payload
+
+    def _sanitize_payload(self, payload: Dict[str, object]) -> Dict[str, object]:
+        sanitized = dict(payload)
+        non_finite_keys: list[str] = []
+
+        for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
+            value = sanitized.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if not math.isfinite(float(value)):
+                    sanitized[key] = 0.0
+                    non_finite_keys.append(key)
+
+        for key in ("support_count", "total_count"):
+            value = sanitized.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if not math.isfinite(float(value)):
+                    sanitized[key] = 0
+                    non_finite_keys.append(key)
+
+        if non_finite_keys:
+            logger.warning(
+                "non-finite evaluator metrics detected; coercing keys={} to finite defaults",
+                sorted(non_finite_keys),
+            )
+            rationale = str(sanitized.get("rationale", "")).strip()
+            prefix = "non_finite_metrics_sanitized"
+            sanitized["rationale"] = (
+                f"{prefix}: {rationale}" if rationale else prefix
+            )
+
+        return sanitized
 
     def _strip_code_fences(self, text: str) -> str:
         stripped = text.strip()

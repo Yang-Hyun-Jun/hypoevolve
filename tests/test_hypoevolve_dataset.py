@@ -59,6 +59,23 @@ class TestHypoEvolveDataset(unittest.TestCase):
             self.assertEqual(schema.index.name, "close_time")
             self.assertEqual(schema.files[0].entity, "BTCUSDT")
 
+    def test_load_dataset_schema_resolves_relative_file_paths_from_schema_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dataset.yaml"
+            path.write_text(
+                "description: OHLCV dataset\n"
+                "files:\n"
+                "  -\n"
+                "    entity: BTCUSDT\n"
+                "    path: data/BTCUSDT.parquet\n",
+                encoding="utf-8",
+            )
+            schema = load_dataset_schema(path)
+            self.assertEqual(
+                schema.files[0].path,
+                str((Path(tmp) / "data" / "BTCUSDT.parquet").resolve()),
+            )
+
     def test_dataset_accessor_reads_dataframe_and_summary(self):
         class FakeFrame:
             def __init__(self):

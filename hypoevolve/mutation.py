@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
-from elg import AtomicNode, Hypothesis, hypothesis_from_dict, normalize_hypothesis
+from elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.helper import build_steering_prompt_variables
 from hypoevolve.llm import LLMClient
@@ -28,7 +28,6 @@ def steer_mutation(
     parent_hypothesis_nl: str,
     current_metrics: Mapping[str, object],
     llm: LLMClient,
-    atomic_pool: Sequence[AtomicNode | str] | None = None,
     recent_history: Sequence[Mapping[str, object]] | None = None,
     top_hypotheses: Sequence[ArchiveEntry] | None = None,
     use_random_steering: bool = False,

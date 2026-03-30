@@ -63,3 +63,11 @@ class TestHypoEvolveArchive(unittest.TestCase):
             counts[picked.hypothesis.root.name] += 1
         self.assertGreater(counts['LOW'], 0)
         self.assertGreater(counts['HIGH'], 0)
+
+    def test_non_finite_scores_do_not_break_parent_sampling(self):
+        archive = Archive(top_k=5)
+        archive.add(Hypothesis(root=AtomicNode('BAD')), {'combined_score': float('nan')})
+        archive.add(Hypothesis(root=AtomicNode('GOOD')), {'combined_score': 0.5})
+        picked = archive.sample_parent(random.Random(0))
+        self.assertIn(picked.hypothesis.root.name, {'BAD', 'GOOD'})
+        self.assertEqual(archive.entries[0].score, 0.5)

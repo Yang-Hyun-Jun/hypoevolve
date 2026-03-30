@@ -58,7 +58,6 @@ class TestHypoEvolveMutation(unittest.TestCase):
             parent_hypothesis_nl="If A and B then C.",
             current_metrics={"combined_score": 0.1, "precision": 0.2, "baseline": 0.3, "coverage": 0.05},
             llm=llm,
-            atomic_pool=[AtomicNode("D")],
             recent_history=[{"operation": "wrap_not", "score_delta": -0.1}],
             top_hypotheses=[
                 ArchiveEntry(
@@ -98,7 +97,6 @@ class TestHypoEvolveMutation(unittest.TestCase):
             parent_hypothesis_nl="If A and B then C.",
             current_metrics={"combined_score": 0.1},
             llm=llm,
-            atomic_pool=[AtomicNode("D")],
         )
         self.assertIn("append_child-style", decision.mutation_summary)
         self.assertEqual(len(llm.calls), 2)
@@ -127,7 +125,6 @@ class TestHypoEvolveMutation(unittest.TestCase):
             parent_hypothesis_nl="If A and B then C.",
             current_metrics={"combined_score": 0.1},
             llm=llm,
-            atomic_pool=[AtomicNode("D")],
             use_random_steering=True,
         )
         self.assertEqual(decision.reason, "")

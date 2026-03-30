@@ -93,9 +93,6 @@ parser:
 search:
   iterations: 5
   random_seed: 42
-  mutation_atomic_pool:
-    - VOLATILITY_HIGH
-    - OPEN_INTEREST_CHANGE > 0
 archive:
   top_k: 5
 output:

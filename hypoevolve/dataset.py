@@ -97,7 +97,16 @@ def load_dataset_schema(path: str | Path) -> DatasetSchema:
     if not schema_path.exists():
         raise DatasetSchemaError(f"Dataset schema file not found: {schema_path}")
     raw = _parse_simple_yaml(schema_path.read_text(encoding="utf-8"))
-    return dataset_schema_from_dict(raw)
+    schema = dataset_schema_from_dict(raw)
+    base_dir = schema_path.resolve().parent
+    resolved_files = []
+    for item in schema.files:
+        file_path = Path(item.path)
+        if not file_path.is_absolute():
+            file_path = base_dir / file_path
+        resolved_files.append(DataFile(entity=item.entity, path=str(file_path)))
+    schema.files = resolved_files
+    return schema
 
 
 def dataset_schema_from_dict(data: Dict[str, object]) -> DatasetSchema:

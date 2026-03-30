@@ -98,7 +98,6 @@ class TestHypoEvolveController(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config = HypoEvolveConfig()
             config.search.iterations = 1
-            config.search.mutation_atomic_pool = ["C"]
             config.output.base_dir = tmp
             config.evaluator.dataset_schema_path = str(Path(tmp) / "dataset.yaml")
             Path(config.evaluator.dataset_schema_path).write_text(

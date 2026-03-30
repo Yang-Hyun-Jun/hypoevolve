@@ -36,7 +36,6 @@ class EvaluatorConfig:
 @dataclass(slots=True)
 class SearchConfig:
     iterations: int = 5
-    mutation_atomic_pool: List[str] = field(default_factory=list)
     parent_explore_prob: float = 0.3
     steering_retries: int = 2
     random_steering_prob: float = 0.2
@@ -118,7 +117,6 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
             data.get("search", {}),
             {
                 "iterations",
-                "mutation_atomic_pool",
                 "parent_explore_prob",
                 "steering_retries",
                 "random_steering_prob",

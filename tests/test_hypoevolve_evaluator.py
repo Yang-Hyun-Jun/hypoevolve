@@ -210,6 +210,33 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         self.assertEqual(metrics["combined_score"], 0.0)
         self.assertIn("evaluation_failed:", metrics["rationale"])
 
+    def test_llm_evaluator_sanitizes_non_finite_metrics(self):
+        llm = FakeLLMClient(
+            outputs=[
+                "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n"
+                "    return {'combined_score': float('nan'), 'precision': float('inf'), 'baseline': 0.2, 'coverage': 0.4, 'uplift': float('-inf'), 'support_count': float('nan'), 'total_count': 5, 'rationale': 'raw'}\n"
+            ]
+        )
+        executor = FakeExecutor(
+            results=[
+                ExecutionResult(
+                    stdout='{"combined_score": NaN, "precision": Infinity, "baseline": 0.2, "coverage": 0.4, "uplift": -Infinity, "support_count": NaN, "total_count": 5, "rationale": "raw"}',
+                    stderr="",
+                    exit_code=0,
+                    timed_out=False,
+                    duration_sec=0.01,
+                    work_dir="/tmp/fake",
+                )
+            ]
+        )
+        evaluator = LLMEvaluator(llm, self.schema, "dataset.yaml", executor=executor)
+        metrics = evaluator.evaluate(self.hypothesis)
+        self.assertEqual(metrics["combined_score"], 0.0)
+        self.assertEqual(metrics["precision"], 0.0)
+        self.assertEqual(metrics["uplift"], 0.0)
+        self.assertEqual(metrics["support_count"], 0)
+        self.assertTrue(str(metrics["rationale"]).startswith("non_finite_metrics_sanitized"))
+
 
 if __name__ == "__main__":
     unittest.main()

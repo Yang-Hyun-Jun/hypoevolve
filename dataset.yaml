@@ -5,13 +5,13 @@ index:
 files:
   -
     entity: BTCUSDT
-    path: /Users/hyunjun/Workspace/openresearch/data/BTCUSDT.parquet
+    path: data/BTCUSDT.parquet
   -
     entity: DOGEUSDT
-    path: /Users/hyunjun/Workspace/openresearch/data/DOGEUSDT.parquet
+    path: data/DOGEUSDT.parquet
   -
     entity: XRPUSDT
-    path: /Users/hyunjun/Workspace/openresearch/data/XRPUSDT.parquet
+    path: data/XRPUSDT.parquet
 columns:
   -
     name: OPEN

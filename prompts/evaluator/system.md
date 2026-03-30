@@ -70,6 +70,8 @@ Do not invent a different hypothesis.
 - Before dividing, guard zero or near-zero denominators explicitly.
 - Prefer compact safe patterns such as replacing zero denominators with missing values before division.
 - Keep the final metric outputs finite and well-defined.
+- Never return `NaN`, `inf`, or `-inf` in any output field.
+- If a metric is undefined due to empty support or zero denominators, return a finite fallback such as `0.0` instead.
 
 # Time Alignment Rules
 
@@ -85,6 +87,10 @@ This is critical.
 - Never use future information when computing the condition.
 - Never evaluate the target on the same time step if the hypothesis implies a future effect.
 - Do not introduce look-ahead bias or leakage.
+- If the measurable ELG already specifies a target at `t+1` or `t+h`, do not apply an additional future shift on top of that semantic intent.
+- Avoid double-shifting target events. Represent the target exactly once at the stated future horizon.
+- If a target atomic uses a `W1` return-style expression, interpret it as a one-step future return/event directly rather than building an unstable rolling z-score with a one-point standard deviation.
+- For `W1` target expressions, prefer a direct finite formulation that preserves the intended one-step future event semantics.
 
 # Measurable Fidelity Rules
 
@@ -139,6 +145,7 @@ Example shape:
 - `total_count` means the total count of evaluated rows / events
 - `rationale` should be concise
 - all score-like fields should be numeric
+- all numeric output fields must be finite
 
 # Execution Model
 

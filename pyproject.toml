@@ -4,6 +4,10 @@ version = "0.1.0"
 description = ""
 authors = ["Yang-Hyun-Jun <sugumy@naver.com>"]
 readme = "README.md"
+packages = [
+  { include = "hypoevolve" },
+  { include = "elg" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -11,6 +15,7 @@ openai = "^2.29.0"
 pandas = ">=2.2,<3.0"
 pyarrow = ">=15,<20"
 loguru = "^0.7.3"
+click = ">=8,<9"
 
 
 [tool.poetry.group.dev.dependencies]

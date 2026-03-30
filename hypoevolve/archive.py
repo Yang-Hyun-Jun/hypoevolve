@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -20,13 +21,17 @@ class ArchiveEntry:
         if "combined_score" in self.metrics and isinstance(
             self.metrics["combined_score"], (int, float)
         ):
-            return float(self.metrics["combined_score"])
+            score = float(self.metrics["combined_score"])
+            return score if math.isfinite(score) else 0.0
         numeric = [
             v
             for v in self.metrics.values()
             if isinstance(v, (int, float)) and not isinstance(v, bool)
         ]
-        return float(sum(numeric) / len(numeric)) if numeric else 0.0
+        if not numeric:
+            return 0.0
+        score = float(sum(numeric) / len(numeric))
+        return score if math.isfinite(score) else 0.0
 
 
 class Archive:
