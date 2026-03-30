@@ -4,40 +4,9 @@ import json
 from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
-from elg import Hypothesis, MutationSample, render_pretty
+from elg import Hypothesis, render_pretty
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.dataset import DatasetAccessor, DatasetSchema
-
-_MUTATION_OPERATION_GUIDE = {
-    "wrap_not": (
-        "Wrap the selected node with NOT(...).",
-        "Example: A -> NOT(A)",
-    ),
-    "unwrap_not": (
-        "Remove an existing NOT(...) wrapper.",
-        "Example: NOT(A) -> A",
-    ),
-    "replace_atomic": (
-        "Replace one atomic proposition with another atomic proposition.",
-        "Example: X < -2.0 -> X < -1.5",
-    ),
-    "change_logical_operator": (
-        "Change a logical operator such as AND <-> OR.",
-        "Example: AND(A, B) -> OR(A, B)",
-    ),
-    "append_child": (
-        "Add one child proposition to an AND/OR node.",
-        "Example: AND(A, B) -> AND(A, B, C)",
-    ),
-    "remove_child": (
-        "Remove one child proposition from an AND/OR node.",
-        "Example: AND(A, B, C) -> AND(A, B)",
-    ),
-    "change_relation_type": (
-        "Change the relation type.",
-        "Example: IMPLIES(A, B) -> SUPPORT(A, B)",
-    ),
-}
 
 
 def build_evaluator_prompt_variables(
@@ -108,7 +77,6 @@ def build_steering_prompt_variables(
     parent_hypothesis: Hypothesis,
     parent_hypothesis_nl: str,
     current_metrics: Mapping[str, object],
-    mutation_candidates: Sequence[MutationSample],
     recent_history: Sequence[Mapping[str, object]] | None = None,
     top_hypotheses: Sequence[ArchiveEntry] | None = None,
 ) -> Dict[str, str]:
@@ -131,32 +99,6 @@ def build_steering_prompt_variables(
         }
         for entry in (top_hypotheses or [])
     ]
-    candidate_lines = []
-    path_guide = (
-        "Path notation guide:\n"
-        "- [] means the root node\n"
-        "- [0] means the first child of the root\n"
-        "- [1] means the second child of the root\n"
-        "- [0, 1] means the second child of the first child of the root"
-    )
-    for index, candidate in enumerate(mutation_candidates):
-        meaning, example = _MUTATION_OPERATION_GUIDE.get(
-            candidate.operation,
-            ("Apply the named mutation operation.", "Example: see result hypothesis below"),
-        )
-        details = f"\n  details: {json.dumps(dict(candidate.details), ensure_ascii=False)}" if candidate.details else ""
-        candidate_lines.append(
-            "\n".join(
-                [
-                    f"[{index}] {candidate.operation}",
-                    f"  meaning: {meaning}",
-                    f"  example: {example}",
-                    f"  path: {list(candidate.path)}{details}",
-                    f"  result: {render_pretty(candidate.result).replace(chr(10), ' ')}",
-                ]
-            )
-        )
-
     return {
         "PARENT_HYPOTHESIS_MEASURABLE": render_pretty(parent_hypothesis),
         "PARENT_HYPOTHESIS_NL": parent_hypothesis_nl.strip(),
@@ -166,5 +108,4 @@ def build_steering_prompt_variables(
         "METRIC_DEFINITIONS": metric_definitions,
         "RECENT_HISTORY": json.dumps(history_payload, ensure_ascii=False, indent=2),
         "TOP_HYPOTHESES": json.dumps(top_payload, ensure_ascii=False, indent=2),
-        "MUTATION_CANDIDATES": f"{path_guide}\n\n" + "\n\n".join(candidate_lines),
     }

@@ -2,7 +2,6 @@ import json
 import unittest
 
 from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
-from elg.sampler import MutationSample
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import ColumnSpec, DataFile, DatasetAccessor, DatasetSchema, IndexSpec
@@ -97,14 +96,6 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         self.assertIn('"window": 10', wrapper)
 
     def test_build_steering_prompt_variables(self):
-        candidates = [
-            MutationSample(
-                operation="change_relation_type",
-                path=(),
-                result=Hypothesis(root=AtomicNode("A")),
-                details={"new_type": "SUPPORT"},
-            )
-        ]
         top_hypotheses = [
             ArchiveEntry(
                 hypothesis=Hypothesis(root=AtomicNode("BEST")),
@@ -118,20 +109,16 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
             parent_hypothesis=self.hypothesis,
             parent_hypothesis_nl="If A and B then C.",
             current_metrics={"combined_score": 0.1, "precision": 0.2},
-            mutation_candidates=candidates,
-            recent_history=[{"operation": "wrap_not", "score_delta": -0.1}],
+            recent_history=[{"mutation_summary": "Applied a wrap_not-style local mutation.", "score_delta": -0.1}],
             top_hypotheses=top_hypotheses,
         )
         self.assertIn("IMPLIES", variables["PARENT_HYPOTHESIS_MEASURABLE"])
         self.assertEqual(variables["PARENT_HYPOTHESIS_NL"], "If A and B then C.")
         self.assertIn("combined_score", variables["CURRENT_METRICS"])
         self.assertIn("precision = P(target | condition)", variables["METRIC_DEFINITIONS"])
-        self.assertIn("wrap_not", variables["RECENT_HISTORY"])
+        self.assertIn("wrap_not-style", variables["RECENT_HISTORY"])
         self.assertIn("BEST", variables["TOP_HYPOTHESES"])
-        self.assertIn("change_relation_type", variables["MUTATION_CANDIDATES"])
-        self.assertIn("meaning:", variables["MUTATION_CANDIDATES"])
-        self.assertIn("example:", variables["MUTATION_CANDIDATES"])
-        self.assertIn("Path notation guide:", variables["MUTATION_CANDIDATES"])
+        self.assertNotIn("MUTATION_CANDIDATES", variables)
 
     def test_llm_evaluator_returns_normalized_metrics(self):
         llm = FakeLLMClient(

@@ -84,6 +84,10 @@ class HypoEvolveController:
             "[seed.measurable] hypothesis={}",
             render_pretty(hypothesis).replace("\n", " "),
         )
+        seed_metadata = {
+            "source": "seed",
+            "hypothesis_nl": self._render_hypothesis_nl(hypothesis),
+        }
 
         archive = Archive(top_k=self.config.archive.top_k)
         seed_metrics = evaluate_hypothesis(hypothesis, self.evaluator)
@@ -95,7 +99,7 @@ class HypoEvolveController:
             seed_metrics.get("coverage"),
             seed_metrics.get("uplift"),
         )
-        archive.add(hypothesis, seed_metrics, iteration=0, metadata={"source": "seed"})
+        archive.add(hypothesis, seed_metrics, iteration=0, metadata=seed_metadata)
         logger.info(
             "[seed.archive] archive_size={} best_score={:.6f}",
             len(archive),
@@ -103,7 +107,7 @@ class HypoEvolveController:
         )
         write_trace(
             run_dir,
-            self._trace_event(0, None, hypothesis, seed_metrics, {"source": "seed"}),
+            self._trace_event(0, None, hypothesis, seed_metrics, seed_metadata),
         )
         write_best(run_dir, archive.best.hypothesis, archive.best.metrics)
         write_checkpoint(run_dir, self._checkpoint_payload(archive, 0))
@@ -137,16 +141,14 @@ class HypoEvolveController:
                     archive,
                 )
                 logger.info(
-                    "[iter.steer] i={} selected_candidate_index={} operation={} path={} reason={}",
+                    "[iter.steer] i={} mutation_summary={} reason={}",
                     iteration,
-                    steering_metadata.get("selected_candidate_index"),
-                    mutation_sample.operation,
-                    list(mutation_sample.path),
+                    str(steering_metadata.get("mutation_summary", "")).replace(
+                        "\n", " "
+                    ),
                     str(steering_metadata.get("steering_reason", "")).replace("\n", " "),
                 )
-                child_metrics = evaluate_hypothesis(
-                    mutation_sample.result, self.evaluator
-                )
+                child_metrics = evaluate_hypothesis(mutation_sample, self.evaluator)
                 logger.info(
                     "[iter.eval] i={} score={:.6f} precision={} baseline={} coverage={} uplift={}",
                     iteration,
@@ -164,12 +166,9 @@ class HypoEvolveController:
                     run_dir,
                     iteration,
                     parent_entry.hypothesis,
-                    mutation_sample.result,
+                    mutation_sample,
                     child_metrics,
                     {
-                        "operation": mutation_sample.operation,
-                        "path": list(mutation_sample.path),
-                        "details": mutation_sample.details,
                         "parent_score": parent_entry.score,
                         "score_delta": score_delta,
                         **steering_metadata,
@@ -177,11 +176,8 @@ class HypoEvolveController:
                 )
                 recent_history.append(
                     {
-                        "operation": mutation_sample.operation,
-                        "path": list(mutation_sample.path),
-                        "details": dict(mutation_sample.details),
                         "score_delta": score_delta,
-                        "result_hypothesis": render_pretty(mutation_sample.result),
+                        "result_hypothesis": render_pretty(mutation_sample),
                         **steering_metadata,
                     }
                 )
@@ -247,10 +243,9 @@ class HypoEvolveController:
                 result = future.result()
                 child = hypothesis_from_dict(result.child_hypothesis)
                 logger.info(
-                    "[worker.result] i={} selected_candidate_index={} operation={} score={:.6f}",
+                    "[worker.result] i={} mutation_summary={} score={:.6f}",
                     result.iteration,
-                    result.selected_candidate_index,
-                    result.mutation_operation,
+                    result.mutation_summary.replace("\n", " "),
                     float(result.metrics.get("combined_score", 0.0)),
                 )
                 self._reflect_result(
@@ -261,28 +256,22 @@ class HypoEvolveController:
                     child,
                     result.metrics,
                     {
-                        "operation": result.mutation_operation,
-                        "path": result.mutation_path,
-                        "details": result.mutation_details,
                         "parent_score": result.parent_score,
                         "score_delta": float(result.metrics.get("combined_score", 0.0))
                         - result.parent_score,
                         "worker_mode": True,
                         "steered": True,
-                        "selected_candidate_index": result.selected_candidate_index,
+                        "mutation_summary": result.mutation_summary,
                         "steering_reason": result.steering_reason,
                     },
                 )
                 recent_history.append(
                     {
-                        "operation": result.mutation_operation,
-                        "path": list(result.mutation_path),
-                        "details": dict(result.mutation_details),
                         "score_delta": float(result.metrics.get("combined_score", 0.0))
                         - result.parent_score,
                         "result_hypothesis": render_pretty(child),
                         "steered": True,
-                        "selected_candidate_index": result.selected_candidate_index,
+                        "mutation_summary": result.mutation_summary,
                         "steering_reason": result.steering_reason,
                     }
                 )
@@ -312,9 +301,13 @@ class HypoEvolveController:
         )
         task = WorkerTask(
             parent_hypothesis=parent_entry.hypothesis.to_dict(),
+            parent_hypothesis_nl=self._get_entry_hypothesis_nl(parent_entry),
             parent_metrics=dict(parent_entry.metrics),
             iteration=iteration,
             parent_score=parent_entry.score,
+            use_random_steering=(
+                self.rng.random() < self.config.search.random_steering_prob
+            ),
             mutation_atomic_pool=list(self.config.search.mutation_atomic_pool),
             llm_config=asdict(self.config.llm),
             dataset_schema_path=self.config.evaluator.dataset_schema_path,
@@ -341,29 +334,25 @@ class HypoEvolveController:
         recent_history: list[Dict[str, object]],
         archive: Archive,
     ) -> tuple[Any, Dict[str, object]]:
-        try:
-            parent_nl = llm_hypothesis_to_natural_language(
-                parent_entry.hypothesis,
-                llm=self.llm_client,
-                retries=self.config.parser.retries,
-            )
-        except ParseError:
-            parent_nl = render_pretty(parent_entry.hypothesis)
-
+        use_random_steering = (
+            self.rng.random() < self.config.search.random_steering_prob
+        )
         decision = steer_mutation(
             parent_hypothesis=parent_entry.hypothesis,
-            parent_hypothesis_nl=parent_nl,
+            parent_hypothesis_nl=self._get_entry_hypothesis_nl(parent_entry),
             current_metrics=parent_entry.metrics,
             llm=self.llm_client,
             atomic_pool=self.config.search.mutation_atomic_pool,
             recent_history=recent_history[-3:],
             top_hypotheses=archive.entries[:3],
+            use_random_steering=use_random_steering,
             retries=self.config.search.steering_retries,
         )
-        return decision.mutation, {
+        return decision.child_hypothesis, {
             "steered": True,
-            "selected_candidate_index": decision.selected_candidate_index,
             "steering_reason": decision.reason,
+            "mutation_summary": decision.mutation_summary,
+            "random_steering": use_random_steering,
         }
 
     def _reflect_result(
@@ -377,6 +366,10 @@ class HypoEvolveController:
         metadata: Dict[str, object],
     ) -> None:
         previous_best_score = archive.best.score if archive.best else None
+        metadata = {
+            **metadata,
+            "hypothesis_nl": self._render_hypothesis_nl(child_hypothesis),
+        }
         archive.add(
             child_hypothesis,
             child_metrics,
@@ -401,9 +394,8 @@ class HypoEvolveController:
             run_dir,
             f"iteration_{iteration:04d}",
             {
-                "mutation": metadata.get("operation"),
-                "path": metadata.get("path", []),
-                "details": metadata.get("details", {}),
+                "mutation_summary": metadata.get("mutation_summary", ""),
+                "steering_reason": metadata.get("steering_reason", ""),
                 "metrics": child_metrics,
                 "hypothesis": child_hypothesis.to_dict(),
                 "worker_mode": metadata.get("worker_mode", False),
@@ -436,6 +428,24 @@ class HypoEvolveController:
             "best_hypothesis": best.hypothesis.to_dict() if best else None,
             "archive": archive.snapshot(),
         }
+
+    def _render_hypothesis_nl(self, hypothesis: Hypothesis) -> str:
+        try:
+            return llm_hypothesis_to_natural_language(
+                hypothesis,
+                llm=self.llm_client,
+                retries=self.config.parser.retries,
+            )
+        except ParseError:
+            return render_pretty(hypothesis)
+
+    def _get_entry_hypothesis_nl(self, entry) -> str:
+        cached = str(entry.metadata.get("hypothesis_nl", "")).strip()
+        if cached:
+            return cached
+        rendered = self._render_hypothesis_nl(entry.hypothesis)
+        entry.metadata["hypothesis_nl"] = rendered
+        return rendered
 
     def _trace_event(
         self,

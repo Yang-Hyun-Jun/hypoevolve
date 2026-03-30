@@ -37,8 +37,20 @@ class TestHypoEvolveMutation(unittest.TestCase):
     def test_steer_mutation_returns_selected_candidate(self):
         llm = FakeLLM([
             {
-                "selected_candidate_index": 0,
-                "reason": "The first legal candidate is the most direct local change for improving coverage without increasing structural complexity.",
+                "child_hypothesis": {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "logical", "op": "AND", "inputs": [
+                            {"kind": "atomic", "name": "A"},
+                            {"kind": "atomic", "name": "D"},
+                        ], "params": {}},
+                        {"kind": "atomic", "name": "C"},
+                    ],
+                    "params": {},
+                },
+                "reason": "Adding a related condition-side atomic may improve precision without fully changing the structure.",
+                "mutation_summary": "Applied an append_child-style local mutation in the condition subtree.",
             }
         ])
         decision = steer_mutation(
@@ -57,16 +69,28 @@ class TestHypoEvolveMutation(unittest.TestCase):
             ],
         )
         self.assertIsInstance(decision, MutationDecision)
-        self.assertEqual(decision.selected_candidate_index, 0)
+        self.assertEqual(decision.child_hypothesis.root.type.value, "IMPLIES")
         self.assertTrue(decision.reason)
-        self.assertEqual(decision.mutation, decision.mutation)
+        self.assertIn("append_child-style", decision.mutation_summary)
 
-    def test_steer_mutation_retries_on_invalid_index(self):
+    def test_steer_mutation_retries_on_invalid_payload(self):
         llm = FakeLLM([
-            {"selected_candidate_index": 999, "reason": "bad"},
+            {"child_hypothesis": "bad", "reason": "bad", "mutation_summary": ""},
             {
-                "selected_candidate_index": 0,
-                "reason": "A valid local mutation is better than an invalid selection and is most likely to improve the score.",
+                "child_hypothesis": {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "logical", "op": "AND", "inputs": [
+                            {"kind": "atomic", "name": "A"},
+                            {"kind": "atomic", "name": "D"},
+                        ], "params": {}},
+                        {"kind": "atomic", "name": "C"},
+                    ],
+                    "params": {},
+                },
+                "reason": "A valid local mutation is better than an invalid payload and is most likely to improve the score.",
+                "mutation_summary": "Applied an append_child-style local mutation in the condition subtree.",
             },
         ], retries=1)
         decision = steer_mutation(
@@ -76,7 +100,7 @@ class TestHypoEvolveMutation(unittest.TestCase):
             llm=llm,
             atomic_pool=[AtomicNode("D")],
         )
-        self.assertEqual(decision.selected_candidate_index, 0)
+        self.assertIn("append_child-style", decision.mutation_summary)
         self.assertEqual(len(llm.calls), 2)
         self.assertIn("Previous Attempt Failed", llm.calls[1]["user"])
 

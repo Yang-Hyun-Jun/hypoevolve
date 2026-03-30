@@ -20,6 +20,8 @@ class WorkerTask:
     parent_metrics: Dict[str, object]
     iteration: int
     parent_score: float
+    parent_hypothesis_nl: str = ""
+    use_random_steering: bool = False
     mutation_atomic_pool: List[str] = field(default_factory=list)
     llm_config: Dict[str, Any] = field(default_factory=dict)
     dataset_schema_path: str = "dataset.yaml"
@@ -35,12 +37,10 @@ class WorkerResult:
     child_hypothesis: Dict[str, Any]
     metrics: Dict[str, object]
     iteration: int
-    mutation_operation: str
-    mutation_path: List[int]
-    mutation_details: Dict[str, Any] = field(default_factory=dict)
+    mutation_summary: str
     parent_score: float = 0.0
-    selected_candidate_index: int = 0
     steering_reason: str = ""
+    random_steering: bool = False
 
 
 def run_worker_task(task: WorkerTask) -> WorkerResult:
@@ -54,15 +54,20 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         dataset_schema_path=task.dataset_schema_path,
         parameters=task.evaluator_parameters or None,
     )
-    try:
-        parent_nl = llm_hypothesis_to_natural_language(
-            parent,
-            llm=llm,
-            retries=task.parser_retries,
-        )
-    except ParseError:
-        parent_nl = render_pretty(parent)
-        logger.error("worker iteration {} fell back to pretty hypothesis text", task.iteration)
+    parent_nl = task.parent_hypothesis_nl.strip()
+    if not parent_nl:
+        try:
+            parent_nl = llm_hypothesis_to_natural_language(
+                parent,
+                llm=llm,
+                retries=task.parser_retries,
+            )
+        except ParseError:
+            parent_nl = render_pretty(parent)
+            logger.error(
+                "worker iteration {} fell back to pretty hypothesis text",
+                task.iteration,
+            )
     top_hypotheses = [
         ArchiveEntry(
             hypothesis=hypothesis_from_dict(item["hypothesis"]),
@@ -81,24 +86,22 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         atomic_pool=task.mutation_atomic_pool,
         recent_history=task.recent_history,
         top_hypotheses=top_hypotheses,
+        use_random_steering=task.use_random_steering,
         retries=task.steering_retries,
     )
     logger.info(
-        "worker iteration {} selected mutation={} candidate={}",
+        "worker iteration {} produced mutation_summary={}",
         task.iteration,
-        decision.mutation.operation,
-        decision.selected_candidate_index,
+        decision.mutation_summary,
     )
-    metrics = evaluate_hypothesis(decision.mutation.result, evaluator)
+    metrics = evaluate_hypothesis(decision.child_hypothesis, evaluator)
     logger.info("worker iteration {} evaluation completed", task.iteration)
     return WorkerResult(
-        child_hypothesis=decision.mutation.result.to_dict(),
+        child_hypothesis=decision.child_hypothesis.to_dict(),
         metrics=metrics,
         iteration=task.iteration,
-        mutation_operation=decision.mutation.operation,
-        mutation_path=list(decision.mutation.path),
-        mutation_details=dict(decision.mutation.details),
+        mutation_summary=decision.mutation_summary,
         parent_score=task.parent_score,
-        selected_candidate_index=decision.selected_candidate_index,
         steering_reason=decision.reason,
+        random_steering=task.use_random_steering,
     )

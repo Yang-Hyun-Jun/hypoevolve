@@ -64,9 +64,18 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
         class FakeLLM:
             def generate_json(self, system, user, **kwargs):
                 return {
-                    "selected_candidate_index": 0,
-                    "reason": "Choose the first legal candidate.",
-                } if "selected_candidate_index" in system else {
+                    "child_hypothesis": {
+                        "kind": "relation",
+                        "type": "IMPLIES",
+                        "inputs": [
+                            {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
+                            {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        ],
+                        "params": {},
+                    },
+                    "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
+                } if "mutation_summary" in system else {
                     "kind": "relation",
                     "type": "IMPLIES",
                     "inputs": [
@@ -84,12 +93,9 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 child_hypothesis=task.parent_hypothesis,
                 metrics={"combined_score": 0.6},
                 iteration=task.iteration,
-                mutation_operation="change_relation_type",
-                mutation_path=[],
-                mutation_details={"new_type": "SUPPORT"},
+                mutation_summary="Applied a change_relation_type-style local mutation.",
                 parent_score=task.parent_score,
-                selected_candidate_index=0,
-                steering_reason="Choose the first legal candidate.",
+                steering_reason="Use a local relation-type mutation.",
             )
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -114,9 +120,18 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
         class FakeLLM:
             def generate_json(self, system, user, **kwargs):
                 return {
-                    "selected_candidate_index": 0,
-                    "reason": "Choose the first legal candidate.",
-                } if "selected_candidate_index" in system else {
+                    "child_hypothesis": {
+                        "kind": "relation",
+                        "type": "IMPLIES",
+                        "inputs": [
+                            {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
+                            {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        ],
+                        "params": {},
+                    },
+                    "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
+                } if "mutation_summary" in system else {
                     "kind": "relation",
                     "type": "IMPLIES",
                     "inputs": [
@@ -145,9 +160,18 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
         class FakeLLM:
             def generate_json(self, system, user, **kwargs):
                 return {
-                    "selected_candidate_index": 0,
-                    "reason": "Choose the first legal candidate.",
-                } if "selected_candidate_index" in system else {
+                    "child_hypothesis": {
+                        "kind": "relation",
+                        "type": "IMPLIES",
+                        "inputs": [
+                            {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
+                            {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        ],
+                        "params": {},
+                    },
+                    "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
+                } if "mutation_summary" in system else {
                     "kind": "relation",
                     "type": "IMPLIES",
                     "inputs": [
@@ -177,9 +201,18 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
         class FakeLLM:
             def generate_json(self, system, user, **kwargs):
                 return {
-                    "selected_candidate_index": 0,
-                    "reason": "Choose the first legal candidate.",
-                } if "selected_candidate_index" in system else {
+                    "child_hypothesis": {
+                        "kind": "relation",
+                        "type": "IMPLIES",
+                        "inputs": [
+                            {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
+                            {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        ],
+                        "params": {},
+                    },
+                    "reason": "Tightening one atomic condition is a local change that may improve precision.",
+                    "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
+                } if "mutation_summary" in system else {
                     "kind": "relation",
                     "type": "IMPLIES",
                     "inputs": [
@@ -195,12 +228,9 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 child_hypothesis=task.parent_hypothesis,
                 metrics={"combined_score": 0.6},
                 iteration=task.iteration,
-                mutation_operation="change_relation_type",
-                mutation_path=[],
-                mutation_details={"new_type": "SUPPORT"},
+                mutation_summary="Applied a change_relation_type-style local mutation.",
                 parent_score=task.parent_score,
-                selected_candidate_index=0,
-                steering_reason="Choose the first legal candidate.",
+                steering_reason="Use a local relation-type mutation.",
             )
         with tempfile.TemporaryDirectory() as tmp:
             config = HypoEvolveConfig()
