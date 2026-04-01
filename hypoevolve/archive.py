@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import math
 import random
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
-from elg import Hypothesis, fingerprint
+from elg import Hypothesis, count_nodes, fingerprint
+
+
+Cell = Tuple[int, int]
 
 
 @dataclass(slots=True)
@@ -15,6 +19,9 @@ class ArchiveEntry:
     fingerprint: str
     iteration: int = 0
     metadata: Dict[str, object] = field(default_factory=dict)
+    coverage: float = 0.0
+    complexity: int = 0
+    cell: Optional[Cell] = None
 
     @property
     def score(self) -> float:
@@ -34,21 +41,28 @@ class ArchiveEntry:
         return score if math.isfinite(score) else 0.0
 
 
-class Archive:
-    def __init__(self, top_k: int = 5):
-        if top_k < 1:
-            raise ValueError("top_k must be >= 1")
-        self.top_k = top_k
-        self._entries: Dict[str, ArchiveEntry] = {}
+class MAPElitesArchive:
+    def __init__(
+        self,
+        coverage_bins: Optional[List[float]] = None,
+        complexity_bins: Optional[List[int]] = None,
+    ):
+        coverage_bins = coverage_bins or [0.05, 0.15, 0.30]
+        complexity_bins = complexity_bins or [3, 5, 8]
+        if not coverage_bins:
+            raise ValueError("coverage_bins must not be empty")
+        if not complexity_bins:
+            raise ValueError("complexity_bins must not be empty")
+        self.coverage_bins = [float(value) for value in coverage_bins]
+        self.complexity_bins = [int(value) for value in complexity_bins]
+        self._cells: Dict[Cell, ArchiveEntry] = {}
 
     def __len__(self) -> int:
-        return len(self._entries)
+        return len(self._cells)
 
     @property
     def entries(self) -> List[ArchiveEntry]:
-        return sorted(
-            self._entries.values(), key=lambda entry: entry.score, reverse=True
-        )
+        return sorted(self._cells.values(), key=lambda entry: entry.score, reverse=True)
 
     @property
     def best(self) -> Optional[ArchiveEntry]:
@@ -62,35 +76,85 @@ class Archive:
         iteration: int = 0,
         metadata: Optional[Dict[str, object]] = None,
     ) -> ArchiveEntry:
-        fp = fingerprint(hypothesis)
+        descriptor = self.describe(hypothesis, metrics)
+        coverage = descriptor["coverage"]
+        complexity = descriptor["complexity"]
+        cell = descriptor["cell"]
+        entry_metadata = dict(metadata or {})
+        entry_metadata["map_elites"] = dict(descriptor["map_elites"])
         new_entry = ArchiveEntry(
             hypothesis=hypothesis,
             metrics=dict(metrics),
-            fingerprint=fp,
+            fingerprint=fingerprint(hypothesis),
             iteration=iteration,
-            metadata=dict(metadata or {}),
+            metadata=entry_metadata,
+            coverage=coverage,
+            complexity=complexity,
+            cell=cell,
         )
 
-        existing = self._entries.get(fp)
+        existing = self._cells.get(cell)
         if existing is None or new_entry.score > existing.score:
-            self._entries[fp] = new_entry
+            self._cells[cell] = new_entry
+            return new_entry
+        return existing
 
-        self._trim()
-        return self._entries.get(fp, existing or new_entry)
+    def describe(
+        self,
+        hypothesis: Hypothesis,
+        metrics: Dict[str, object],
+    ) -> Dict[str, object]:
+        coverage = _coerce_coverage(metrics.get("coverage"))
+        complexity = count_nodes(hypothesis)
+        cell = (
+            coverage_bin(coverage, self.coverage_bins),
+            complexity_bin(complexity, self.complexity_bins),
+        )
+        return {
+            "coverage": coverage,
+            "complexity": complexity,
+            "cell": cell,
+            "map_elites": {
+                "coverage": coverage,
+                "complexity": complexity,
+                "coverage_bin": cell[0],
+                "complexity_bin": cell[1],
+            },
+        }
 
     def sample_parent(
         self,
         rng: Optional[random.Random] = None,
-        explore_prob: float = 0.0,
     ) -> ArchiveEntry:
         ordered = self.entries
         if not ordered:
             raise ValueError("Cannot sample from an empty archive")
         chooser = rng or random.Random()
-        if explore_prob > 0.0 and chooser.random() < explore_prob:
-            return chooser.choice(ordered)
-        weights = [max(entry.score, 1e-6) for entry in ordered]
-        return chooser.choices(ordered, weights=weights, k=1)[0]
+        occupied_cells = sorted(self._cells)
+        selected_cell = chooser.choice(occupied_cells)
+        return self._cells[selected_cell]
+
+    def occupancy_stats(self) -> Dict[str, object]:
+        coverage_counts = [0] * (len(self.coverage_bins) + 1)
+        complexity_counts = [0] * (len(self.complexity_bins) + 1)
+        for entry in self._cells.values():
+            if entry.cell is None:
+                continue
+            coverage_counts[entry.cell[0]] += 1
+            complexity_counts[entry.cell[1]] += 1
+        return {
+            "occupied_cells": len(self._cells),
+            "coverage_counts": coverage_counts,
+            "complexity_counts": complexity_counts,
+        }
+
+    def occupancy_summary(self) -> str:
+        stats = self.occupancy_stats()
+        coverage_text = ",".join(str(value) for value in stats["coverage_counts"])
+        complexity_text = ",".join(
+            str(value) for value in stats["complexity_counts"]
+        )
+        return f"cells={stats['occupied_cells']} cov=[{coverage_text}] cmp=[{complexity_text}]"
 
     def snapshot(self) -> List[Dict[str, object]]:
         return [
@@ -100,13 +164,25 @@ class Archive:
                 "metrics": dict(entry.metrics),
                 "hypothesis": entry.hypothesis.to_dict(),
                 "metadata": dict(entry.metadata),
+                "coverage": entry.coverage,
+                "complexity": entry.complexity,
+                "cell": list(entry.cell) if entry.cell is not None else None,
             }
             for entry in self.entries
         ]
 
-    def _trim(self) -> None:
-        ordered = self.entries
-        if len(ordered) <= self.top_k:
-            return
-        keep = {entry.fingerprint for entry in ordered[: self.top_k]}
-        self._entries = {fp: entry for fp, entry in self._entries.items() if fp in keep}
+def coverage_bin(coverage: float, bins: List[float]) -> int:
+    return bisect_right(bins, coverage)
+
+
+def complexity_bin(complexity: int, bins: List[int]) -> int:
+    return bisect_left(bins, complexity)
+
+
+def _coerce_coverage(value: object) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return 0.0
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        return 0.0
+    return min(1.0, max(0.0, numeric))

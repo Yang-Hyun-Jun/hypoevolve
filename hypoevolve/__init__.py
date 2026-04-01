@@ -1,4 +1,4 @@
-from .archive import Archive, ArchiveEntry
+from .archive import ArchiveEntry, MAPElitesArchive
 from .config import (
     ArchiveConfig,
     ConfigError,
@@ -38,7 +38,6 @@ from .runtime import create_run_dir, write_artifact, write_best, write_checkpoin
 from .workers import WorkerResult, WorkerTask, run_worker_task
 
 __all__ = [
-    "Archive",
     "ArchiveEntry",
     "ArchiveConfig",
     "build_evaluator_prompt_variables",
@@ -62,6 +61,7 @@ __all__ = [
     "LLMConfig",
     "LLMResponse",
     "LoggingConfig",
+    "MAPElitesArchive",
     "MutationDecision",
     "WorkerConfig",
     "OutputConfig",

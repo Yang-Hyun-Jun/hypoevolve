@@ -32,7 +32,7 @@
 | 후보 직렬화/복원 | Program dict 저장 | ELG codec + JSON round-trip | **HypoEvolve 우위** |
 | 후보 정규화 | 코드 기준 없음/약함 | normalize / fingerprint 있음 | **HypoEvolve 우위** |
 | mutation primitive | 코드 diff/rewrite 중심 | 구조적 immutable mutation 제공 | **HypoEvolve 우위** |
-| 랜덤 mutation sampler | 명시적 primitive sampler 없음 | legal mutation candidate generator 있음 | **HypoEvolve 우위** |
+| 랜덤 mutation sampler | 명시적 primitive sampler 없음 | 없음 (현재는 LLM이 child ELG를 직접 생성) | 비슷 |
 | LLM proposal integration | 강함 | 아직 약함 / 구조만 준비 | **OpenEvolve 우위** |
 | evaluator 성숙도 | 높음 | placeholder 수준 | **OpenEvolve 우위** |
 | archive/best tracking | 강함 | compact top-k archive | **OpenEvolve 우위** |
@@ -104,15 +104,12 @@ HypoEvolve는 mutation primitive를 명시적으로 갖고 있다.
 OpenEvolve는 parent sampling은 확률적으로 하지만, 명시적인 구조적 mutation sampler는 없다. 실제 변형은 prompt와 LLM 응답을 통해 만들어진다. (`openevolve/openevolve/database.py`, `openevolve/openevolve/process_parallel.py`)
 
 ### HypoEvolve
-HypoEvolve는 legal mutation candidate를 생성하고, seeded RNG로 하나를 고르는 **random mutation sampler**를 갖고 있다.
-- `generate_mutation_candidates`
-- `sample_mutation`
-- `MutationSample`
-
-즉 HypoEvolve는 mutation primitive 위에 **자동 proposal 계층**까지 있다. (`elg/sampler.py`)
+현재 HypoEvolve에는 별도 random mutation sampler가 없다.
+실제 mutation steering은 parent measurable ELG와 metric 문맥을 바탕으로
+LLM이 full child ELG를 직접 생성하는 방식이다. (`hypoevolve/mutation.py`, `prompts/steering/system.md`)
 
 ### 판단
-이 부분은 현재 기준으로 **HypoEvolve 우위**다.
+이 부분은 현재 기준으로 **둘 다 명시적 primitive sampler는 없다**고 보는 편이 정확하다.
 
 ---
 
@@ -321,7 +318,7 @@ HypoEvolve는 더 작지만, 사용성은 MVP 기준으로 나쁘지 않다.
 ### OpenEvolve보다 이미 강하거나 더 적합한 것
 1. hypothesis representation  
 2. structural mutation primitives  
-3. random mutation sampler  
+3. LLM direct mutation steering  
 4. canonicalization / fingerprint  
 5. 가설 도메인 적합성
 

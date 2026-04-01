@@ -190,7 +190,9 @@ def doctor(config: str) -> int:
             rows.extend(
                 [
                     ("Config ok", "true"),
-                    ("Archive top-k", str(loaded.archive.top_k)),
+                    ("Archive type", "MAP-Elites"),
+                    ("Coverage bins", str(loaded.archive.coverage_bins)),
+                    ("Complexity bins", str(loaded.archive.complexity_bins)),
                     ("Iterations", str(loaded.search.iterations)),
                     ("Steering retries", str(loaded.search.steering_retries)),
                     ("Dataset schema", loaded.evaluator.dataset_schema_path),

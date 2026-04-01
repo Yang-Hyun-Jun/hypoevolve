@@ -133,7 +133,7 @@ def steer_mutation(
                     }
                 )
             )
-            
+
             logger.info("steering proposed child hypothesis successfully")
             return MutationDecision(
                 child_hypothesis=child_hypothesis,

@@ -36,7 +36,6 @@ class EvaluatorConfig:
 @dataclass(slots=True)
 class SearchConfig:
     iterations: int = 5
-    parent_explore_prob: float = 0.3
     steering_retries: int = 2
     random_steering_prob: float = 0.2
     random_seed: int = 42
@@ -44,7 +43,8 @@ class SearchConfig:
 
 @dataclass(slots=True)
 class ArchiveConfig:
-    top_k: int = 5
+    coverage_bins: List[float] = field(default_factory=lambda: [0.05, 0.15, 0.30])
+    complexity_bins: List[int] = field(default_factory=lambda: [3, 5, 8])
 
 
 @dataclass(slots=True)
@@ -117,36 +117,37 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
             data.get("search", {}),
             {
                 "iterations",
-                "parent_explore_prob",
                 "steering_retries",
                 "random_steering_prob",
                 "random_seed",
             },
         )
     )
-    archive = ArchiveConfig(**_filter_known(data.get("archive", {}), {"top_k"}))
+    archive = ArchiveConfig(
+        **_filter_known(
+            data.get("archive", {}),
+            {"coverage_bins", "complexity_bins"},
+        )
+    )
     output = OutputConfig(**_filter_known(data.get("output", {}), {"base_dir"}))
     logging = LoggingConfig(**_filter_known(data.get("logging", {}), {"level"}))
     workers = WorkerConfig(
         **_filter_known(data.get("workers", {}), {"enabled", "count"})
     )
 
-    if archive.top_k != 5:
-        raise ConfigError("archive.top_k must remain 5 in MVP")
     if parser.retries < 0 or parser.retries > 2:
         raise ConfigError("parser.retries must be between 0 and 2 for MVP")
     if search.iterations < 1:
         raise ConfigError("search.iterations must be >= 1")
     if search.steering_retries < 0 or search.steering_retries > 3:
         raise ConfigError("search.steering_retries must be between 0 and 3")
-    if search.parent_explore_prob < 0.0 or search.parent_explore_prob > 1.0:
-        raise ConfigError("search.parent_explore_prob must be between 0.0 and 1.0")
     if search.random_steering_prob < 0.0 or search.random_steering_prob > 1.0:
         raise ConfigError("search.random_steering_prob must be between 0.0 and 1.0")
     if workers.count < 1:
         raise ConfigError("workers.count must be >= 1")
     if not evaluator.dataset_schema_path:
         raise ConfigError("evaluator.dataset_schema_path is required")
+    _validate_archive_bins(archive.coverage_bins, archive.complexity_bins)
 
     return HypoEvolveConfig(
         llm=llm,
@@ -158,6 +159,28 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
         logging=logging,
         workers=workers,
     )
+
+
+def _validate_archive_bins(
+    coverage_bins: List[float],
+    complexity_bins: List[int],
+) -> None:
+    if not coverage_bins:
+        raise ConfigError("archive.coverage_bins must not be empty")
+    if not complexity_bins:
+        raise ConfigError("archive.complexity_bins must not be empty")
+    if coverage_bins != sorted(coverage_bins):
+        raise ConfigError("archive.coverage_bins must be sorted ascending")
+    if complexity_bins != sorted(complexity_bins):
+        raise ConfigError("archive.complexity_bins must be sorted ascending")
+    if any(not isinstance(value, (int, float)) for value in coverage_bins):
+        raise ConfigError("archive.coverage_bins must contain only numeric values")
+    if any(not 0.0 < float(value) < 1.0 for value in coverage_bins):
+        raise ConfigError("archive.coverage_bins values must be between 0.0 and 1.0")
+    if any(int(value) != value for value in complexity_bins):
+        raise ConfigError("archive.complexity_bins must contain only integers")
+    if any(int(value) <= 0 for value in complexity_bins):
+        raise ConfigError("archive.complexity_bins values must be > 0")
 
 
 def _filter_known(data: Any, allowed: set[str]) -> Dict[str, Any]:

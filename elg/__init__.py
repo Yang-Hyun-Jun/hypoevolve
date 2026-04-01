@@ -34,9 +34,6 @@ from .metrics import (
 )
 from .normalize import normalize_hypothesis, normalize_node
 from .render import render_pretty, render_tree
-from .sampler import MutationSample, generate_mutation_candidates, sample_mutation
-
-
 __all__ = [
     "AtomicNode",
     "AtomicSource",
@@ -57,7 +54,6 @@ __all__ = [
     "count_nodes",
     "count_relations",
     "fingerprint",
-    "generate_mutation_candidates",
     "get_node_at_path",
     "iter_paths",
     "mutate_append_child",
@@ -68,12 +64,10 @@ __all__ = [
     "mutate_replace_subtree",
     "mutate_unwrap_not",
     "mutate_wrap_not",
-    "MutationSample",
     "normalize_hypothesis",
     "normalize_node",
     "replace_at_path",
     "render_pretty",
     "render_tree",
-    "sample_mutation",
     "tree_depth",
 ]

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from elg import Hypothesis, hypothesis_from_dict, render_pretty
-from hypoevolve.archive import Archive
+from hypoevolve.archive import ArchiveEntry, MAPElitesArchive
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.dataset import load_dataset_schema
 from hypoevolve.evaluator import Evaluator, LLMEvaluator, evaluate_hypothesis
@@ -89,7 +89,10 @@ class HypoEvolveController:
             "hypothesis_nl": self._render_hypothesis_nl(hypothesis),
         }
 
-        archive = Archive(top_k=self.config.archive.top_k)
+        archive = MAPElitesArchive(
+            coverage_bins=self.config.archive.coverage_bins,
+            complexity_bins=self.config.archive.complexity_bins,
+        )
         seed_metrics = evaluate_hypothesis(hypothesis, self.evaluator)
         logger.info(
             "[seed.eval] score={:.6f} precision={} baseline={} coverage={} uplift={}",
@@ -99,15 +102,24 @@ class HypoEvolveController:
             seed_metrics.get("coverage"),
             seed_metrics.get("uplift"),
         )
+        seed_descriptor = archive.describe(hypothesis, seed_metrics)
         archive.add(hypothesis, seed_metrics, iteration=0, metadata=seed_metadata)
         logger.info(
-            "[seed.archive] archive_size={} best_score={:.6f}",
+            "[seed.archive] archive_size={} best_score={:.6f} best_cell={} occupancy={}",
             len(archive),
             archive.best.score if archive.best else 0.0,
+            archive.best.cell if archive.best else None,
+            archive.occupancy_summary(),
         )
         write_trace(
             run_dir,
-            self._trace_event(0, None, hypothesis, seed_metrics, seed_metadata),
+            self._trace_event(
+                0,
+                None,
+                hypothesis,
+                seed_metrics,
+                {**seed_metadata, "map_elites": seed_descriptor["map_elites"]},
+            ),
         )
         write_best(run_dir, archive.best.hypothesis, archive.best.metrics)
         write_checkpoint(run_dir, self._checkpoint_payload(archive, 0))
@@ -124,15 +136,13 @@ class HypoEvolveController:
         if not self.config.workers.enabled or self.config.workers.count == 1:
             recent_history: list[Dict[str, object]] = []
             for iteration in range(1, self.config.search.iterations + 1):
-                parent_entry = archive.sample_parent(
-                    self.rng,
-                    explore_prob=self.config.search.parent_explore_prob,
-                )
+                parent_entry = archive.sample_parent(self.rng)
                 logger.info(
-                    "[iter.parent] i={} parent_score={:.6f} parent_fp={} hypothesis={}",
+                    "[iter.parent] i={} parent_score={:.6f} parent_fp={} parent_cell={} hypothesis={}",
                     iteration,
                     parent_entry.score,
                     parent_entry.fingerprint,
+                    parent_entry.cell,
                     render_pretty(parent_entry.hypothesis).replace("\n", " "),
                 )
                 mutation_sample, steering_metadata = self._choose_mutation(
@@ -191,10 +201,11 @@ class HypoEvolveController:
 
         best = archive.best
         logger.info(
-            "[run.done] run_dir={} best_score={:.6f} archive_size={} best_hypothesis={}",
+            "[run.done] run_dir={} best_score={:.6f} archive_size={} occupancy={} best_hypothesis={}",
             run_dir,
             best.score if best else 0.0,
             len(archive),
+            archive.occupancy_summary(),
             render_pretty(best.hypothesis).replace("\n", " ") if best else None,
         )
         return RunResult(
@@ -205,7 +216,7 @@ class HypoEvolveController:
         )
 
     def _run_with_workers(
-        self, archive: Archive, run_dir: Path, total_iterations: int
+        self, archive: MAPElitesArchive, run_dir: Path, total_iterations: int
     ) -> None:
         worker_count = self.config.workers.count
         pending = []
@@ -215,17 +226,18 @@ class HypoEvolveController:
         with self.executor_factory(max_workers=worker_count) as executor:
             while submitted < min(worker_count, total_iterations):
                 submitted += 1
-                task, parent = self._make_worker_task(
+                task, parent_entry = self._make_worker_task(
                     archive, submitted, recent_history[-3:]
                 )
                 logger.info(
-                    "[worker.submit] i={} parent_score={:.6f} parent_hypothesis={}",
+                    "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
                     submitted,
                     archive.best.score if archive.best else 0.0,
-                    render_pretty(parent).replace("\n", " "),
+                    parent_entry.cell,
+                    render_pretty(parent_entry.hypothesis).replace("\n", " "),
                 )
                 future = executor.submit(run_worker_task, task)
-                pending.append((future, parent))
+                pending.append((future, parent_entry.hypothesis))
 
             while pending:
                 completed_index = next(
@@ -284,28 +296,26 @@ class HypoEvolveController:
                 )
                 if submitted < total_iterations:
                     submitted += 1
-                    task, next_parent = self._make_worker_task(
+                    task, next_parent_entry = self._make_worker_task(
                         archive, submitted, recent_history[-3:]
                     )
                     logger.info(
-                        "[worker.submit] i={} parent_score={:.6f} parent_hypothesis={}",
+                        "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
                         submitted,
                         archive.best.score if archive.best else 0.0,
-                        render_pretty(next_parent).replace("\n", " "),
+                        next_parent_entry.cell,
+                        render_pretty(next_parent_entry.hypothesis).replace("\n", " "),
                     )
                     next_future = executor.submit(run_worker_task, task)
-                    pending.append((next_future, next_parent))
+                    pending.append((next_future, next_parent_entry.hypothesis))
 
     def _make_worker_task(
         self,
-        archive: Archive,
+        archive: MAPElitesArchive,
         iteration: int,
         recent_history: list[Dict[str, object]],
-    ) -> tuple[WorkerTask, Hypothesis]:
-        parent_entry = archive.sample_parent(
-            self.rng,
-            explore_prob=self.config.search.parent_explore_prob,
-        )
+    ) -> tuple[WorkerTask, ArchiveEntry]:
+        parent_entry = archive.sample_parent(self.rng)
         task = WorkerTask(
             parent_hypothesis=parent_entry.hypothesis.to_dict(),
             parent_hypothesis_nl=self._get_entry_hypothesis_nl(parent_entry),
@@ -323,7 +333,7 @@ class HypoEvolveController:
             recent_history=list(recent_history),
             top_hypotheses=archive.snapshot()[:3],
         )
-        return task, parent_entry.hypothesis
+        return task, parent_entry
 
     def _build_evaluator(self) -> Evaluator:
         schema = load_dataset_schema(self.config.evaluator.dataset_schema_path)
@@ -338,7 +348,7 @@ class HypoEvolveController:
         self,
         parent_entry,
         recent_history: list[Dict[str, object]],
-        archive: Archive,
+        archive: MAPElitesArchive,
     ) -> tuple[Any, Dict[str, object]]:
         use_random_steering = (
             self.rng.random() < self.config.search.random_steering_prob
@@ -366,7 +376,7 @@ class HypoEvolveController:
 
     def _reflect_result(
         self,
-        archive: Archive,
+        archive: MAPElitesArchive,
         run_dir: Path,
         iteration: int,
         parent_hypothesis: Hypothesis,
@@ -379,6 +389,7 @@ class HypoEvolveController:
             **metadata,
             "hypothesis_nl": self._render_hypothesis_nl(child_hypothesis),
         }
+        descriptor = archive.describe(child_hypothesis, child_metrics)
         archive.add(
             child_hypothesis,
             child_metrics,
@@ -386,15 +397,21 @@ class HypoEvolveController:
             metadata=metadata,
         )
         logger.info(
-            "[archive.add] i={} score={:.6f} archive_size={}",
+            "[archive.add] i={} score={:.6f} archive_size={} child_cell={} occupancy={}",
             iteration,
             float(child_metrics.get("combined_score", 0.0)),
             len(archive),
+            descriptor["cell"],
+            archive.occupancy_summary(),
         )
         write_trace(
             run_dir,
             self._trace_event(
-                iteration, parent_hypothesis, child_hypothesis, child_metrics, metadata
+                iteration,
+                parent_hypothesis,
+                child_hypothesis,
+                child_metrics,
+                {**metadata, "map_elites": descriptor["map_elites"]},
             ),
         )
         write_checkpoint(run_dir, self._checkpoint_payload(archive, iteration))
@@ -410,6 +427,7 @@ class HypoEvolveController:
                 "metrics": child_metrics,
                 "hypothesis": child_hypothesis.to_dict(),
                 "worker_mode": metadata.get("worker_mode", False),
+                "map_elites": descriptor["map_elites"],
             },
         )
         best = archive.best
@@ -429,7 +447,7 @@ class HypoEvolveController:
             )
 
     def _checkpoint_payload(
-        self, archive: Archive, iteration: int
+        self, archive: MAPElitesArchive, iteration: int
     ) -> Dict[str, object]:
         best = archive.best
         return {

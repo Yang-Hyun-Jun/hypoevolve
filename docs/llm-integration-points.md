@@ -89,7 +89,7 @@ class LLMDataDrivenEvaluator:
 - parser 호출
 - archive 초기화
 - parent 선택
-- `sample_mutation(...)`
+- `steer_mutation(...)`
 - evaluator 호출
 - archive 반영
 - runtime trace/checkpoint/artifact 기록
@@ -114,36 +114,22 @@ LLM critique 또는 mutation steering이 들어갈 수 있는 지점은:
 
 ## 4. mutation 샘플링 계층
 
-### 파일
-- `elg/sampler.py`
-
-### 핵심 함수
-- `generate_mutation_candidates(...)`
-- `sample_mutation(...)`
-
 ### 현재 상태
-- 현재는 legal mutation candidate를 생성하고
-- seeded RNG로 하나를 샘플링하는 random sampler다.
+- 현재는 별도 sampler 계층이 없다.
+- parent selection 이후 `hypoevolve/mutation.py`에서
+  LLM이 `child_hypothesis` 전체 ELG를 직접 생성한다.
 
-### LLM이 들어갈 자리
-이 계층은 두 가지 방식으로 확장될 수 있다.
+### 앞으로의 확장 방향
+필요하면 나중에 다시 두 방향 중 하나로 추가할 수 있다.
 
-#### A. 기존 sampler를 대체
-예:
-```python
-def sample_mutation_guided(hypothesis, context, critique) -> MutationSample:
-    ...
-```
-
-#### B. 기존 sampler를 보강
-예:
-- 후보를 모두 만든 뒤
+#### A. sampler를 새로 도입
+- legal mutation candidate를 생성하고
 - LLM이 ranking / filtering / weighting
 - 최종 mutation 선택
 
-### 역할
-- legal mutation 후보 공간은 ELG가 유지하고
-- 그 중 어떤 방향이 더 promising한지 LLM이 판단하게 만드는 계층
+#### B. 현재 direct generation 방식을 유지
+- full child ELG 생성
+- `mutation_summary`와 validation으로 locality를 통제
 
 ---
 
@@ -198,15 +184,15 @@ def sample_mutation_guided(hypothesis, context, critique) -> MutationSample:
 - `parse_hypothesis_text(...)`
 - `Evaluator.evaluate(...)`
 - `HypoEvolveController.run(...)`
-- `sample_mutation(...)`
+- `steer_mutation(...)`
 
 ---
 
 ## 8. 한 문장 결론
 
-현재 코드 기준으로 **LLM이 원래 들어가야 하는 핵심 자리는 parser, evaluator, controller, sampler의 네 군데**이며, 우선순위는 보통:
+현재 코드 기준으로 **LLM이 핵심적으로 들어가는 자리는 parser, evaluator, controller/steering의 세 군데**이며, 우선순위는 보통:
 
-> **parser → evaluator → controller → sampler**
+> **parser → evaluator → controller/steering**
 
 순으로 보는 게 가장 자연스럽다.
 
@@ -234,11 +220,11 @@ def sample_mutation_guided(hypothesis, context, critique) -> MutationSample:
 - [ ] evaluator 결과를 다음 iteration prompt/context에 반영하는 규칙 정의
 - [ ] single-process / worker mode 모두에서 LLM 흐름이 일관되게 동작하는지 점검
 
-### Mutation Sampler
-- [ ] `elg/sampler.py`를 LLM-guided sampler로 대체 또는 보강할지 결정
-- [ ] legal mutation candidates를 LLM이 ranking/filtering할 수 있는 인터페이스 정의
+### Mutation Steering / Optional Sampler
+- [ ] 현재 direct steering을 유지할지, sampler 계층을 다시 도입할지 결정
+- [ ] sampler를 다시 도입한다면 legal mutation candidates ranking/filtering 인터페이스 정의
 - [ ] critique → mutation primitive 매핑 규칙 정의
-- [ ] random sampler와 guided sampler의 fallback 정책 정의
+- [ ] direct steering과 optional sampler의 fallback 정책 정의
 
 ### Prompt / LLM Layer
 - [ ] 전용 프롬프트 모듈(`hypoevolve/prompts.py` 또는 `hypoevolve/llm.py`) 추가 여부 결정

@@ -35,7 +35,6 @@ The long-term goal is a data-driven hypothesis search system where LLMs can help
 - structural metrics
 - pretty and tree rendering
 - immutable mutation primitives
-- random legal mutation sampler
 
 ### HypoEvolve app layer (`hypoevolve/`)
 - natural-language input orchestration
@@ -94,7 +93,14 @@ search:
   iterations: 5
   random_seed: 42
 archive:
-  top_k: 5
+  coverage_bins:
+    - 0.05
+    - 0.15
+    - 0.30
+  complexity_bins:
+    - 3
+    - 5
+    - 8
 output:
   base_dir: .hypoevolve/runs
 logging:
@@ -235,7 +241,7 @@ This is still an MVP / research-stage system.
 Not implemented yet:
 - real data-driven evaluator logic
 - strong LLM-guided parser/evaluator integration
-- MAP-Elites / islands / migration
+- islands / migration
 - distributed runtime
 - production-grade experiment management
 

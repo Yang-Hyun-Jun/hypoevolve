@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from elg import AtomicNode, Hypothesis
-from hypoevolve.archive import Archive
+from hypoevolve.archive import MAPElitesArchive
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.controller import HypoEvolveController
 
@@ -129,7 +129,7 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {}})(),
             llm_client=object(),
         )
-        archive = Archive()
+        archive = MAPElitesArchive()
         parent = Hypothesis(root=AtomicNode("A"))
         entry = archive.add(
             parent,
@@ -168,7 +168,7 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {}})(),
             llm_client=object(),
         )
-        archive = Archive()
+        archive = MAPElitesArchive()
         parent = Hypothesis(root=AtomicNode("A"))
         archive.add(parent, {"combined_score": 0.1}, metadata={"hypothesis_nl": "A"})
         child = Hypothesis(root=AtomicNode("B"))
@@ -208,7 +208,7 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {}})(),
             llm_client=object(),
         )
-        archive = Archive()
+        archive = MAPElitesArchive()
         archive.add(
             Hypothesis(root=AtomicNode("A")),
             {"combined_score": 0.1},
@@ -227,7 +227,7 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {}})(),
             llm_client=object(),
         )
-        archive = Archive()
+        archive = MAPElitesArchive()
         parent = Hypothesis(root=AtomicNode("A"))
         entry = archive.add(
             parent,

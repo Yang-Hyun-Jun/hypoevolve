@@ -45,7 +45,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "hypoevolve.yaml"
             config_path.write_text(
-                "archive:\n  top_k: 5\nsearch:\n  iterations: 1\n",
+                "search:\n  iterations: 1\n",
                 encoding="utf-8",
             )
             fake_result = SimpleNamespace(
@@ -105,7 +105,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "hypoevolve.yaml"
             config_path.write_text(
-                "archive:\n  top_k: 5\nsearch:\n  iterations: 1\nworkers:\n  enabled: true\n  count: 2\n",
+                "search:\n  iterations: 1\nworkers:\n  enabled: true\n  count: 2\n",
                 encoding="utf-8",
             )
             fake_result = SimpleNamespace(
