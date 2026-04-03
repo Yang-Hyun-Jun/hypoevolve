@@ -29,7 +29,7 @@ from .helper import (
     build_steering_prompt_variables,
 )
 from .executor import CodeExecutor, ExecutionResult, LocalSubprocessExecutor
-from .llm import LLMClient, LLMError, LLMResponse
+from .llm import LLMClient, LLMError
 from .logger import configure_logger, logger
 from .mutation import MutationDecision, steer_mutation
 from .parser import ParseError, llm_hypothesis_to_natural_language, llm_make_hypothesis_measurable, llm_parse_hypothesis, parse_hypothesis_text
@@ -59,7 +59,6 @@ __all__ = [
     "LLMClient",
     "LLMError",
     "LLMConfig",
-    "LLMResponse",
     "LoggingConfig",
     "MAPElitesArchive",
     "MutationDecision",

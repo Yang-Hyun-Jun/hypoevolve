@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import dataclass
 from typing import Any, Dict, List
 
 from .config import LLMConfig
@@ -11,12 +10,6 @@ from .config import LLMConfig
 
 class LLMError(RuntimeError):
     pass
-
-
-@dataclass(slots=True)
-class LLMResponse:
-    text: str
-    raw: Any | None = None
 
 
 class LLMClient:
