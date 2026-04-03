@@ -1,5 +1,5 @@
 llm:
-  api_key: "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"
+  api_key: ""
   api_base: https://openrouter.ai/api/v1
   model: deepseek/deepseek-v3.2
   temperature: 0.8
@@ -15,17 +15,23 @@ evaluator:
     horizon: 1
   seed: 42
 search:
-  iterations: 20
-  parent_explore_prob: 0.3
+  iterations: 30
   steering_retries: 2
   random_steering_prob: 0.2
   random_seed: 42
 archive:
-  top_k: 5
+  coverage_bins:
+    - 0.05
+    - 0.15
+    - 0.30
+  complexity_bins:
+    - 3
+    - 5
+    - 8
 output:
   base_dir: .hypoevolve/runs
 logging:
   level: INFO
 workers:
   enabled: true
-  count: 4
+  count: 10
