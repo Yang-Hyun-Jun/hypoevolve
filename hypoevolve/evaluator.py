@@ -1,3 +1,5 @@
+"""Evaluator interfaces and LLM-driven evaluation orchestration."""
+
 from __future__ import annotations
 
 import ast
@@ -18,10 +20,14 @@ from hypoevolve.prompts import load_and_render_prompt, load_prompt
 
 
 class Evaluator(Protocol):
+    """Protocol for objects that can score a hypothesis."""
+
     def evaluate(self, hypothesis: Hypothesis) -> Dict[str, object]: ...
 
 
 class LLMEvaluator:
+    """Generate and execute evaluator code to score a hypothesis candidate."""
+
     REQUIRED_KEYS = (
         "combined_score",
         "precision",
@@ -50,6 +56,7 @@ class LLMEvaluator:
         self.codegen_retries = max(0, llm_client.config.retries)
 
     def evaluate(self, hypothesis: Hypothesis) -> Dict[str, object]:
+        """Score one hypothesis and return a normalized metric payload."""
         accessor = DatasetAccessor(self.dataset_schema)
         system_prompt = load_prompt("evaluator", "system.md")
         base_user_prompt = load_and_render_prompt(
@@ -212,4 +219,5 @@ class LLMEvaluator:
 def evaluate_hypothesis(
     hypothesis: Hypothesis, evaluator: Evaluator
 ) -> Dict[str, object]:
+    """Delegate hypothesis evaluation through the configured evaluator."""
     return evaluator.evaluate(hypothesis)

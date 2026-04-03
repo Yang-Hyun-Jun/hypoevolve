@@ -1,3 +1,5 @@
+"""Human-readable rendering helpers for ELG nodes and hypotheses."""
+
 from __future__ import annotations
 
 from typing import List, Union
@@ -8,6 +10,7 @@ Renderable = Union[AtomicNode, LogicalNode, RelationNode, Hypothesis]
 
 
 def label_of(node: Renderable) -> str:
+    """Return the display label for one renderable ELG object."""
     if isinstance(node, Hypothesis):
         return "Hypothesis"
     if isinstance(node, AtomicNode):
@@ -20,6 +23,7 @@ def label_of(node: Renderable) -> str:
 
 
 def children_of(node: Renderable) -> List[Renderable]:
+    """Return the renderable children of one ELG object."""
     if isinstance(node, Hypothesis):
         return [node.root]
     if isinstance(node, AtomicNode):
@@ -30,6 +34,7 @@ def children_of(node: Renderable) -> List[Renderable]:
 
 
 def render_pretty(node: Renderable, indent: int = 0) -> str:
+    """Render an ELG object as nested function-style text."""
     if isinstance(node, Hypothesis):
         return render_pretty(node.root, indent=indent)
     if isinstance(node, AtomicNode):
@@ -43,6 +48,7 @@ def render_pretty(node: Renderable, indent: int = 0) -> str:
 
 
 def render_tree(node: Renderable) -> str:
+    """Render an ELG object as an ASCII tree."""
     lines = [label_of(node)]
     for index, child in enumerate(children_of(node)):
         is_last = index == len(children_of(node)) - 1

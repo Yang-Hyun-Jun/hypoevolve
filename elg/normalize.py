@@ -1,3 +1,5 @@
+"""Normalization helpers for canonicalizing equivalent ELG structures."""
+
 from __future__ import annotations
 
 from typing import List
@@ -7,10 +9,12 @@ from .ir import AtomicNode, Hypothesis, LogicalNode, LogicalOp, Node, RelationNo
 
 
 def normalize_hypothesis(hypothesis: Hypothesis) -> Hypothesis:
+    """Normalize a hypothesis into a canonical structural form."""
     return Hypothesis(root=normalize_node(hypothesis.root), params=dict(hypothesis.params))
 
 
 def normalize_node(node: Node) -> Node:
+    """Normalize one ELG node recursively."""
     if isinstance(node, AtomicNode):
         return AtomicNode(
             name=node.name,

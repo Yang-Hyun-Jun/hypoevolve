@@ -1,3 +1,5 @@
+"""Configuration models and lightweight config loading for HypoEvolve."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,11 +9,15 @@ from typing import Any, Dict, List
 from .simple_yaml import SimpleYAMLError, ensure_mapping, parse_simple_yaml
 
 class ConfigError(ValueError):
+    """Raised when a HypoEvolve configuration file is invalid."""
+
     pass
 
 
 @dataclass(slots=True)
 class LLMConfig:
+    """Settings for the LLM client used across the pipeline."""
+
     model: str = "deepseek/deepseek-v3.2"
     temperature: float = 0.2
     max_tokens: int = 2000
@@ -24,11 +30,15 @@ class LLMConfig:
 
 @dataclass(slots=True)
 class ParserConfig:
+    """Settings for natural-language parsing retries."""
+
     retries: int = 1
 
 
 @dataclass(slots=True)
 class EvaluatorConfig:
+    """Settings for hypothesis evaluation against dataset-backed code."""
+
     dataset_schema_path: str = "dataset.yaml"
     parameters: Dict[str, Any] = field(default_factory=dict)
     seed: int = 42
@@ -36,6 +46,8 @@ class EvaluatorConfig:
 
 @dataclass(slots=True)
 class SearchConfig:
+    """Settings for the outer search loop and steering behavior."""
+
     iterations: int = 5
     steering_retries: int = 2
     random_steering_prob: float = 0.2
@@ -44,6 +56,8 @@ class SearchConfig:
 
 @dataclass(slots=True)
 class ArchiveConfig:
+    """Settings for archive bucketing and per-cell elite retention."""
+
     coverage_bins: List[float] = field(default_factory=lambda: [0.05, 0.15, 0.30])
     complexity_bins: List[int] = field(default_factory=lambda: [3, 5, 8])
     per_cell_top_k: int = 10
@@ -51,22 +65,30 @@ class ArchiveConfig:
 
 @dataclass(slots=True)
 class OutputConfig:
+    """Settings for runtime artifact output paths."""
+
     base_dir: str = ".hypoevolve/runs"
 
 
 @dataclass(slots=True)
 class LoggingConfig:
+    """Settings for CLI and runtime logging output."""
+
     level: str = "INFO"
 
 
 @dataclass(slots=True)
 class WorkerConfig:
+    """Settings for optional multi-process worker execution."""
+
     enabled: bool = False
     count: int = 1
 
 
 @dataclass(slots=True)
 class HypoEvolveConfig:
+    """Top-level configuration bundle for a HypoEvolve run."""
+
     llm: LLMConfig = field(default_factory=LLMConfig)
     parser: ParserConfig = field(default_factory=ParserConfig)
     evaluator: EvaluatorConfig = field(default_factory=EvaluatorConfig)
@@ -78,6 +100,7 @@ class HypoEvolveConfig:
 
 
 def load_config(path: str | Path | None = None) -> HypoEvolveConfig:
+    """Load a config file or return default settings when no path is given."""
     if path is None:
         return HypoEvolveConfig()
 

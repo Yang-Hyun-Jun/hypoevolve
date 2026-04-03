@@ -1,3 +1,5 @@
+"""Click-based command-line interface for the HypoEvolve project."""
+
 from __future__ import annotations
 
 import importlib.metadata as metadata
@@ -44,6 +46,7 @@ CLI_TIPS = (
 
 
 def _detect_version() -> str:
+    """Return the installed package version or ``dev`` for local checkouts."""
     try:
         return metadata.version("openresearch")
     except metadata.PackageNotFoundError:
@@ -51,6 +54,8 @@ def _detect_version() -> str:
 
 
 class StyledGroup(click.Group):
+    """Customize help output with the project's banner and grouped sections."""
+
     def get_help(self, ctx: click.Context) -> str:
         command_rows = []
         for name in self.list_commands(ctx):
@@ -92,6 +97,7 @@ def app(ctx: click.Context) -> None:
 @click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
 @click.option("--workers", type=int, default=None, help="Override the local worker count for this run.")
 def run(hypothesis: str, config: str | None, workers: int | None) -> int:
+    """Run the hypothesis evolution loop from one natural-language seed."""
     try:
         loaded = _load_runtime_config(config)
         configure_logger(loaded.logging.level)
@@ -128,6 +134,7 @@ def run(hypothesis: str, config: str | None, workers: int | None) -> int:
 @click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
 @click.option("--tree", is_flag=True, help="Render as an ASCII tree instead of the pretty ELG form.")
 def render(hypothesis: str, config: str | None, tree: bool) -> int:
+    """Parse one hypothesis and render it as ELG text or an ASCII tree."""
     try:
         loaded = _load_runtime_config(config)
         configure_logger(loaded.logging.level)
@@ -150,6 +157,7 @@ def render(hypothesis: str, config: str | None, tree: bool) -> int:
 @app.command(help="Inspect a saved best/checkpoint JSON artifact.")
 @click.argument("path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 def inspect(path: Path) -> int:
+    """Print a saved best/checkpoint artifact in a human-readable form."""
     payload = json.loads(path.read_text(encoding="utf-8"))
     _echo_banner()
     _echo_kv_rows("Artifact", [("Path", str(path))])
@@ -177,6 +185,7 @@ def inspect(path: Path) -> int:
 @app.command(help="Show environment and config diagnostics.")
 @click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
 def doctor(config: str | None) -> int:
+    """Report environment and configuration diagnostics for the CLI."""
     _echo_banner()
     config_path = Path(config or DEFAULT_CONFIG_PATH)
     rows = [
@@ -223,6 +232,7 @@ def doctor(config: str | None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point that returns a shell-friendly exit code."""
     try:
         result = app.main(args=argv, prog_name="hypoevolve", standalone_mode=False)
         return 0 if result is None else int(result)
@@ -237,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _load_runtime_config(config: str | None) -> HypoEvolveConfig:
+    """Load an explicit config or fall back to the default config path."""
     config_path = Path(config or DEFAULT_CONFIG_PATH)
     if config_path.exists():
         return load_config(config_path)

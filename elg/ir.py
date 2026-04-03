@@ -1,3 +1,5 @@
+"""Core immutable data structures for Executable Logic Graphs."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,23 +8,31 @@ from typing import Any, Dict, List, Union
 
 
 class AtomicType(str, Enum):
+    """Supported semantic types for atomic propositions."""
+
     BOOLEAN = "boolean"
     NUMERIC = "numeric"
     ABSTRACT = "abstract"
 
 
 class AtomicSource(str, Enum):
+    """Origin categories for atomic propositions."""
+
     PRIMITIVE = "primitive"
     SEMANTIC = "semantic"
 
 
 class LogicalOp(str, Enum):
+    """Logical operators supported by ELG logical nodes."""
+
     AND = "AND"
     OR = "OR"
     NOT = "NOT"
 
 
 class RelationType(str, Enum):
+    """Relation operators supported by ELG relation nodes."""
+
     IMPLIES = "IMPLIES"
     SUPPORT = "SUPPORT"
     CONTRADICT = "CONTRADICT"
@@ -31,6 +41,8 @@ class RelationType(str, Enum):
 
 @dataclass(slots=True)
 class AtomicNode:
+    """Represent one measurable or semantic atomic proposition."""
+
     name: str
     type: AtomicType | str = AtomicType.ABSTRACT
     source: AtomicSource | str = AtomicSource.SEMANTIC
@@ -61,6 +73,8 @@ Node = Union["AtomicNode", "LogicalNode", "RelationNode"]
 
 @dataclass(slots=True)
 class LogicalNode:
+    """Represent a logical composition of one or more child nodes."""
+
     op: LogicalOp | str
     inputs: List[Node]
     params: Dict[str, Any] = field(default_factory=dict)
@@ -89,6 +103,8 @@ class LogicalNode:
 
 @dataclass(slots=True)
 class RelationNode:
+    """Represent a two-sided relation between a condition and a target."""
+
     type: RelationType | str
     inputs: List[Node]
     params: Dict[str, Any] = field(default_factory=dict)
@@ -121,6 +137,8 @@ class RelationNode:
 
 @dataclass(slots=True)
 class Hypothesis:
+    """Wrap one ELG root node as a hypothesis object."""
+
     root: Node
     params: Dict[str, Any] = field(default_factory=dict)
 
@@ -129,4 +147,5 @@ class Hypothesis:
 
 
 def node_to_dict(node: Node) -> Dict[str, Any]:
+    """Convert any ELG node to its JSON-serializable dictionary form."""
     return node.to_dict()

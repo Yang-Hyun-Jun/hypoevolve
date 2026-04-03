@@ -1,3 +1,5 @@
+"""Public package exports for the HypoEvolve application layer."""
+
 from .archive import ArchiveEntry, MAPElitesArchive
 from .config import (
     ArchiveConfig,

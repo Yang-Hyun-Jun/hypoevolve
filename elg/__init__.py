@@ -1,3 +1,5 @@
+"""Public package exports for the Executable Logic Graph core."""
+
 from .codec import hypothesis_from_dict, hypothesis_from_json, hypothesis_to_json, node_from_dict
 from .ir import (
     AtomicNode,

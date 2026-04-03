@@ -1,3 +1,5 @@
+"""Worker task payloads and execution helpers for parallel evaluation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,6 +18,8 @@ from hypoevolve.parser import ParseError, llm_hypothesis_to_natural_language
 
 @dataclass(slots=True)
 class WorkerTask:
+    """Serialize the inputs needed for one worker-side mutation step."""
+
     parent_hypothesis: Dict[str, Any]
     parent_metrics: Dict[str, object]
     iteration: int
@@ -33,6 +37,8 @@ class WorkerTask:
 
 @dataclass(slots=True)
 class WorkerResult:
+    """Return the outcome of one worker-side mutation and evaluation step."""
+
     child_hypothesis: Dict[str, Any]
     metrics: Dict[str, object]
     iteration: int
@@ -45,6 +51,7 @@ class WorkerResult:
 
 
 def run_worker_task(task: WorkerTask) -> WorkerResult:
+    """Execute one worker task from parent selection through child scoring."""
     logger.info("worker iteration {} started", task.iteration)
     parent = hypothesis_from_dict(task.parent_hypothesis)
     llm = LLMClient(LLMConfig(**task.llm_config))

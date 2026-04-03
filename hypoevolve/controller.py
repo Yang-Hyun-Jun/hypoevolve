@@ -1,3 +1,5 @@
+"""Top-level orchestration for hypothesis evolution runs."""
+
 from __future__ import annotations
 
 import random
@@ -32,6 +34,8 @@ from hypoevolve.workers import WorkerTask, run_worker_task
 
 @dataclass(slots=True)
 class RunResult:
+    """Summarize the final outcome of one evolution run."""
+
     run_dir: Path
     best_hypothesis: Hypothesis
     best_metrics: Dict[str, object]
@@ -39,6 +43,8 @@ class RunResult:
 
 
 class HypoEvolveController:
+    """Coordinate parsing, evaluation, mutation steering, and persistence."""
+
     def __init__(
         self,
         config: HypoEvolveConfig,
@@ -53,6 +59,7 @@ class HypoEvolveController:
         self.executor_factory = executor_factory or ProcessPoolExecutor
 
     def run(self, hypothesis_text: str) -> RunResult:
+        """Execute the full evolution loop for one natural-language seed."""
         run_dir = create_run_dir(self.config.output.base_dir)
         configure_logger(
             self.config.logging.level,

@@ -1,3 +1,5 @@
+"""Prompt-variable builders shared by parser, evaluator, and steering flows."""
+
 from __future__ import annotations
 
 import json
@@ -14,6 +16,7 @@ def build_evaluator_prompt_variables(
     schema: DatasetSchema,
     accessor: DatasetAccessor,
 ) -> Dict[str, str]:
+    """Build the string variables used in evaluator prompt templates."""
     column_specs = "\n".join(
         f"- {column.name}: {column.description or ''}".rstrip()
         for column in schema.columns
@@ -45,6 +48,7 @@ def build_evaluator_runtime_wrapper(
     dataset_schema_path: str | Path,
     parameters: dict[str, object] | None = None,
 ) -> str:
+    """Build the wrapper script that executes generated evaluator code."""
     parameters_literal = "None"
 
     if parameters is not None:
@@ -80,6 +84,7 @@ def build_steering_prompt_variables(
     recent_history: Sequence[Mapping[str, object]] | None = None,
     top_hypotheses: Sequence[ArchiveEntry] | None = None,
 ) -> Dict[str, str]:
+    """Build the string variables used in mutation-steering prompts."""
     metric_definitions = (
         "- precision = P(target | condition)\n"
         "- baseline = P(target)\n"

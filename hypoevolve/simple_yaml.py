@@ -1,18 +1,24 @@
+"""Minimal YAML-like parsing helpers used by config and dataset loaders."""
+
 from __future__ import annotations
 
 from typing import Any
 
 
 class SimpleYAMLError(ValueError):
+    """Raised when the lightweight YAML parser encounters invalid input."""
+
     pass
 
 
 def ensure_mapping(data: Any, name: str) -> None:
+    """Require that a parsed object is a mapping."""
     if not isinstance(data, dict):
         raise SimpleYAMLError(f"{name} must be a mapping")
 
 
 def parse_simple_yaml(text: str) -> dict[str, Any]:
+    """Parse a small YAML subset into Python dict/list/scalar structures."""
     lines: list[tuple[int, str]] = []
     for raw_line in text.splitlines():
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):

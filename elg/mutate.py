@@ -1,3 +1,5 @@
+"""Immutable tree-edit helpers for local ELG mutations."""
+
 from __future__ import annotations
 
 from typing import List, Tuple
@@ -8,6 +10,7 @@ Path = Tuple[int, ...]
 
 
 def get_node_at_path(hypothesis: Hypothesis, path: Path) -> Node:
+    """Return the node found at a positional path within a hypothesis."""
     node = hypothesis.root
     for index in path:
         children = _children_of(node)
@@ -18,12 +21,14 @@ def get_node_at_path(hypothesis: Hypothesis, path: Path) -> Node:
 
 
 def iter_paths(hypothesis: Hypothesis) -> List[Path]:
+    """Enumerate every valid node path in a hypothesis tree."""
     paths: List[Path] = []
     _collect_paths(hypothesis.root, (), paths)
     return paths
 
 
 def replace_at_path(hypothesis: Hypothesis, path: Path, new_node: Node) -> Hypothesis:
+    """Return a new hypothesis with one subtree replaced at ``path``."""
     if not path:
         return Hypothesis(root=new_node, params=dict(hypothesis.params))
     return Hypothesis(
@@ -33,12 +38,14 @@ def replace_at_path(hypothesis: Hypothesis, path: Path, new_node: Node) -> Hypot
 
 
 def mutate_replace_subtree(hypothesis: Hypothesis, path: Path, new_node: Node) -> Hypothesis:
+    """Replace the subtree at ``path`` with ``new_node``."""
     return replace_at_path(hypothesis, path, new_node)
 
 
 def mutate_replace_child(
     hypothesis: Hypothesis, path: Path, child_index: int, new_child: Node
 ) -> Hypothesis:
+    """Replace one direct child beneath the node located at ``path``."""
     parent = get_node_at_path(hypothesis, path)
     if isinstance(parent, LogicalNode):
         updated_inputs = list(parent.inputs)
@@ -62,6 +69,7 @@ def mutate_replace_child(
 def mutate_logical_operator(
     hypothesis: Hypothesis, path: Path, new_op: LogicalOp | str
 ) -> Hypothesis:
+    """Change the logical operator at ``path`` while preserving inputs."""
     node = get_node_at_path(hypothesis, path)
     if not isinstance(node, LogicalNode):
         raise TypeError("Target node is not a LogicalNode")
@@ -75,6 +83,7 @@ def mutate_logical_operator(
 def mutate_relation_type(
     hypothesis: Hypothesis, path: Path, new_type: RelationType | str
 ) -> Hypothesis:
+    """Change the relation type at ``path`` while preserving both sides."""
     node = get_node_at_path(hypothesis, path)
     if not isinstance(node, RelationNode):
         raise TypeError("Target node is not a RelationNode")
@@ -86,6 +95,7 @@ def mutate_relation_type(
 
 
 def mutate_wrap_not(hypothesis: Hypothesis, path: Path) -> Hypothesis:
+    """Wrap the node at ``path`` in a ``NOT`` logical node."""
     node = get_node_at_path(hypothesis, path)
     return replace_at_path(
         hypothesis,
@@ -95,6 +105,7 @@ def mutate_wrap_not(hypothesis: Hypothesis, path: Path) -> Hypothesis:
 
 
 def mutate_unwrap_not(hypothesis: Hypothesis, path: Path) -> Hypothesis:
+    """Remove a ``NOT`` node at ``path`` and return its only child."""
     node = get_node_at_path(hypothesis, path)
     if not isinstance(node, LogicalNode) or node.op is not LogicalOp.NOT:
         raise TypeError("Target node is not a NOT logical node")
@@ -102,6 +113,7 @@ def mutate_unwrap_not(hypothesis: Hypothesis, path: Path) -> Hypothesis:
 
 
 def mutate_append_child(hypothesis: Hypothesis, path: Path, new_child: Node) -> Hypothesis:
+    """Append a child to an ``AND`` or ``OR`` node at ``path``."""
     node = get_node_at_path(hypothesis, path)
     if not isinstance(node, LogicalNode) or node.op not in (LogicalOp.AND, LogicalOp.OR):
         raise TypeError("Children can only be appended to AND/OR logical nodes")
@@ -113,6 +125,7 @@ def mutate_append_child(hypothesis: Hypothesis, path: Path, new_child: Node) -> 
 
 
 def mutate_remove_child(hypothesis: Hypothesis, path: Path, child_index: int) -> Hypothesis:
+    """Remove one child from an ``AND`` or ``OR`` node at ``path``."""
     node = get_node_at_path(hypothesis, path)
     if not isinstance(node, LogicalNode) or node.op not in (LogicalOp.AND, LogicalOp.OR):
         raise TypeError("Children can only be removed from AND/OR logical nodes")

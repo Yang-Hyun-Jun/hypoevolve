@@ -1,3 +1,5 @@
+"""Project logging setup with a Loguru-first fallback implementation."""
+
 from __future__ import annotations
 
 import sys
@@ -55,6 +57,7 @@ except Exception:  # noqa: BLE001
 
 
 def configure_logger(level: str = "INFO", log_path: str | Path | None = None) -> Any:
+    """Configure stderr logging and an optional file sink for the project."""
     _logger.remove()
     _logger.add(
         sys.stderr,

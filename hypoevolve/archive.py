@@ -1,3 +1,5 @@
+"""Archive storage and parent-sampling utilities for HypoEvolve."""
+
 from __future__ import annotations
 
 import math
@@ -14,6 +16,8 @@ Cell = Tuple[int, int]
 
 @dataclass(slots=True)
 class ArchiveEntry:
+    """Store one hypothesis candidate and its archive metadata."""
+
     hypothesis: Hypothesis
     metrics: Dict[str, object]
     fingerprint: str
@@ -43,6 +47,8 @@ class ArchiveEntry:
 
 @dataclass(slots=True)
 class SamplingStats:
+    """Track parent-selection outcomes for UCB-style sampling."""
+
     pulls: int = 0
     total_reward: float = 0.0
     last_reward: float = 0.0
@@ -55,6 +61,8 @@ class SamplingStats:
 
 
 class MAPElitesArchive:
+    """Store top-k elites per cell and sample parents from occupied cells."""
+
     UCB_EXPLORATION_WEIGHT = 0.01
 
     def __init__(
@@ -102,6 +110,7 @@ class MAPElitesArchive:
         iteration: int = 0,
         metadata: Optional[Dict[str, object]] = None,
     ) -> ArchiveEntry:
+        """Insert a candidate into its cell and keep only the top-k entries."""
         descriptor = self.describe(hypothesis, metrics)
         coverage = descriptor["coverage"]
         complexity = descriptor["complexity"]
@@ -151,6 +160,7 @@ class MAPElitesArchive:
         hypothesis: Hypothesis,
         metrics: Dict[str, object],
     ) -> Dict[str, object]:
+        """Compute the MAP-Elites descriptor for a hypothesis/metric pair."""
         coverage = _coerce_coverage(metrics.get("coverage"))
         complexity = count_nodes(hypothesis)
         cell = (
@@ -174,6 +184,7 @@ class MAPElitesArchive:
         self,
         rng: Optional[random.Random] = None,
     ) -> ArchiveEntry:
+        """Sample one parent by uniform cell choice and within-cell UCB."""
         if not self._cells:
             raise ValueError("Cannot sample from an empty archive")
         chooser = rng or random.Random()
@@ -191,12 +202,14 @@ class MAPElitesArchive:
         return selected
 
     def record_parent_outcome(self, fingerprint: str, reward: float) -> None:
+        """Record the observed reward after sampling an entry as a parent."""
         stats = self._stats_for(fingerprint)
         numeric_reward = float(reward) if math.isfinite(float(reward)) else 0.0
         stats.total_reward += numeric_reward
         stats.last_reward = numeric_reward
 
     def sampling_stats(self, fingerprint: str | None = None) -> Dict[str, object]:
+        """Return aggregated sampling statistics for one entry or all entries."""
         if fingerprint is not None:
             stats = self._stats_for(fingerprint)
             return _sampling_stats_dict(stats)
@@ -265,10 +278,12 @@ class MAPElitesArchive:
         return stats.mean_reward + exploration_bonus
 
 def coverage_bin(coverage: float, bins: List[float]) -> int:
+    """Map a coverage value to its coverage-bin index."""
     return bisect_right(bins, coverage)
 
 
 def complexity_bin(complexity: int, bins: List[int]) -> int:
+    """Map a complexity value to its complexity-bin index."""
     return bisect_left(bins, complexity)
 
 

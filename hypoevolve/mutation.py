@@ -1,3 +1,5 @@
+"""LLM-guided mutation steering for measurable ELG hypotheses."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,6 +16,8 @@ from hypoevolve.prompts import load_and_render_prompt, load_prompt
 
 @dataclass(slots=True)
 class MutationDecision:
+    """Bundle the child hypothesis and reasoning returned by steering."""
+
     child_hypothesis: Hypothesis
     domain_reason: str
     score_reason: str
@@ -35,6 +39,7 @@ def steer_mutation(
     use_random_steering: bool = False,
     retries: int = 2,
 ) -> MutationDecision:
+    """Ask the LLM for a locally mutated child hypothesis and rationale."""
     prompt_dir = "steering-random" if use_random_steering else "steering"
     system_prompt_template = (
         STEERING_RANDOM_SYSTEM_PROMPT if use_random_steering else STEERING_SYSTEM_PROMPT

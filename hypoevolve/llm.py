@@ -1,3 +1,5 @@
+"""Thin OpenAI-compatible client wrappers for text and JSON generation."""
+
 from __future__ import annotations
 
 import json
@@ -9,10 +11,14 @@ from .config import LLMConfig
 
 
 class LLMError(RuntimeError):
+    """Raised when the configured LLM client cannot produce a valid response."""
+
     pass
 
 
 class LLMClient:
+    """Wrap an OpenAI-compatible chat-completions client for project use."""
+
     def __init__(self, config: LLMConfig):
         self.config = config
         self.api_key = config.api_key or os.getenv("OPENAI_API_KEY")
@@ -20,6 +26,7 @@ class LLMClient:
         self._client = None
 
     def generate_text(self, system: str, user: str, **kwargs: Any) -> str:
+        """Generate free-form text with retry handling."""
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -40,6 +47,7 @@ class LLMClient:
         raise LLMError(f"LLM text generation failed: {last_error}")
 
     def generate_json(self, system: str, user: str, **kwargs: Any) -> Dict[str, Any]:
+        """Generate a JSON object by parsing the model's text output."""
         text = self.generate_text(system, user, **kwargs)
         payload = _extract_json_payload(text)
         retries = kwargs.get("json_retries", 0)
@@ -92,6 +100,7 @@ class LLMClient:
 
 
 def _extract_json_payload(text: str) -> str:
+    """Remove simple Markdown code fences around a JSON payload."""
     stripped = text.strip()
     if stripped.startswith("```"):
         lines = stripped.splitlines()

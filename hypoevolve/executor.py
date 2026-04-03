@@ -1,3 +1,5 @@
+"""Helpers for running generated evaluator code in a local subprocess."""
+
 from __future__ import annotations
 
 import shutil
@@ -12,6 +14,8 @@ from typing import Dict, Optional, Protocol
 
 @dataclass(slots=True)
 class ExecutionResult:
+    """Capture stdout, stderr, and runtime metadata for one execution."""
+
     stdout: str
     stderr: str
     exit_code: int
@@ -21,11 +25,15 @@ class ExecutionResult:
 
 
 class CodeExecutor(Protocol):
+    """Protocol for objects that can execute generated evaluation code."""
+
     def execute(self, code: str, files: Optional[Dict[str, str]] = None) -> ExecutionResult:
         ...
 
 
 class LocalSubprocessExecutor:
+    """Execute generated code in a temporary working directory."""
+
     def __init__(
         self,
         python_bin: Optional[str] = None,
@@ -37,6 +45,7 @@ class LocalSubprocessExecutor:
         self.cleanup = cleanup
 
     def execute(self, code: str, files: Optional[Dict[str, str]] = None) -> ExecutionResult:
+        """Run code plus support files and return the captured result."""
         start = time.monotonic()
         work_dir = Path(tempfile.mkdtemp(prefix="hypoevolve-exec-"))
         self._write_files(work_dir, code, files or {})

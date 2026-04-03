@@ -1,3 +1,5 @@
+"""Dataset schema models and parquet access helpers for evaluation code."""
+
 from __future__ import annotations
 
 import importlib
@@ -9,29 +11,39 @@ from .simple_yaml import SimpleYAMLError, ensure_mapping, parse_simple_yaml
 
 
 class DatasetSchemaError(ValueError):
+    """Raised when dataset schema loading or access fails."""
+
     pass
 
 
 @dataclass(slots=True)
 class ColumnSpec:
+    """Describe one available dataset column."""
+
     name: str
     description: str | None = None
 
 
 @dataclass(slots=True)
 class DataFile:
+    """Map one entity name to its backing dataset file."""
+
     entity: str
     path: str
 
 
 @dataclass(slots=True)
 class IndexSpec:
+    """Describe the logical index field for dataset records."""
+
     name: str | None = None
     dtype: str | None = None
 
 
 @dataclass(slots=True)
 class DatasetSchema:
+    """Represent the dataset files and columns available to evaluators."""
+
     files: List[DataFile] = field(default_factory=list)
     index: IndexSpec = field(default_factory=IndexSpec)
     columns: List[ColumnSpec] = field(default_factory=list)
@@ -39,6 +51,8 @@ class DatasetSchema:
 
 
 class DatasetAccessor:
+    """Provide a small runtime interface for reading schema-backed parquet data."""
+
     def __init__(self, schema: DatasetSchema):
         self.schema = schema
 
@@ -55,12 +69,14 @@ class DatasetAccessor:
         return {column.name: column.description or "" for column in self.schema.columns}
 
     def load_dataframe(self, entity: str):
+        """Load one entity's parquet file as a dataframe."""
         file_path = self.file_map().get(entity)
         if file_path is None:
             raise DatasetSchemaError(f"Unknown entity: {entity}")
         return self._read_parquet_dataframe(file_path)
 
     def load_all_dataframes(self) -> Dict[str, object]:
+        """Load every declared entity into memory as dataframes."""
         return {
             entity: self._read_parquet_dataframe(path)
             for entity, path in self.file_map().items()
@@ -70,6 +86,7 @@ class DatasetAccessor:
         return self.load_dataframe(entity).head(n)
 
     def summary(self) -> Dict[str, object]:
+        """Return a serializable summary of the schema and file layout."""
         return {
             "description": self.schema.description,
             "index_name": self.schema.index.name,
@@ -93,6 +110,7 @@ class DatasetAccessor:
 
 
 def load_dataset_schema(path: str | Path) -> DatasetSchema:
+    """Load a dataset schema file and resolve relative file paths."""
     schema_path = Path(path)
     if not schema_path.exists():
         raise DatasetSchemaError(f"Dataset schema file not found: {schema_path}")
@@ -113,6 +131,7 @@ def load_dataset_schema(path: str | Path) -> DatasetSchema:
 
 
 def dataset_schema_from_dict(data: Dict[str, object]) -> DatasetSchema:
+    """Build a dataset schema object from a parsed mapping."""
     _ensure_mapping(data, "dataset schema")
 
     files_raw = data.get("files", [])

@@ -1,3 +1,5 @@
+"""Natural-language parsing and ELG validation helpers."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -9,6 +11,8 @@ from hypoevolve.prompts import load_prompt
 
 
 class ParseError(ValueError):
+    """Raised when an LLM payload cannot be parsed into valid ELG."""
+
     def __init__(self, message: str, errors: Optional[List[str]] = None):
         super().__init__(message)
         self.errors = errors or []
@@ -25,6 +29,7 @@ def parse_hypothesis_text(
     llm: LLMClient,
     retries: int = 1,
 ) -> Hypothesis:
+    """Convert natural-language hypothesis text into a normalized ELG object."""
     return llm_parse_hypothesis(text, llm=llm, retries=retries)
 
 
@@ -33,6 +38,7 @@ def llm_parse_hypothesis(
     llm: LLMClient,
     retries: int = 2,
 ) -> Hypothesis:
+    """Parse natural-language text into a normalized ELG hypothesis."""
     if not text or not text.strip():
         raise ParseError("Hypothesis text must be non-empty")
 
@@ -69,6 +75,7 @@ def llm_make_hypothesis_measurable(
     llm: LLMClient,
     retries: int = 2,
 ) -> Hypothesis:
+    """Rewrite a hypothesis into a more measurable ELG form."""
     errors: List[str] = []
     attempts = retries + 1
     logger.info("measurable conversion started")
@@ -108,6 +115,7 @@ def llm_hypothesis_to_natural_language(
     llm: LLMClient,
     retries: int = 2,
 ) -> str:
+    """Render a measurable ELG hypothesis back into natural language."""
     errors: List[str] = []
     attempts = retries + 1
     logger.info("natural-language rendering started")
@@ -137,6 +145,7 @@ def llm_hypothesis_to_natural_language(
 
 
 def _validate_parser_payload(payload: Dict[str, Any]) -> None:
+    """Validate that a payload matches the supported ELG JSON schema."""
     if not isinstance(payload, dict):
         raise ParseError("Parser payload must be a JSON object")
 
