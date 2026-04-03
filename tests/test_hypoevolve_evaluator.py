@@ -243,6 +243,37 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         self.assertEqual(metrics["used_parameters"]["RET_WINDOW"], 12)
         self.assertTrue(str(metrics["rationale"]).startswith("non_finite_metrics_sanitized"))
 
+    def test_llm_evaluator_fills_missing_required_fields(self):
+        llm = FakeLLMClient(
+            outputs=[
+                "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n"
+                "    return {'combined_score': 0.5, 'precision': 0.7, 'coverage': 0.4}\n"
+            ]
+        )
+        executor = FakeExecutor(
+            results=[
+                ExecutionResult(
+                    stdout='{"combined_score": 0.5, "precision": 0.7, "coverage": 0.4}',
+                    stderr="",
+                    exit_code=0,
+                    timed_out=False,
+                    duration_sec=0.01,
+                    work_dir="/tmp/fake",
+                )
+            ]
+        )
+        evaluator = LLMEvaluator(llm, self.schema, "dataset.yaml", executor=executor)
+        metrics = evaluator.evaluate(self.hypothesis)
+        self.assertEqual(metrics["combined_score"], 0.5)
+        self.assertEqual(metrics["precision"], 0.7)
+        self.assertEqual(metrics["coverage"], 0.4)
+        self.assertEqual(metrics["baseline"], 0.0)
+        self.assertEqual(metrics["uplift"], 0.0)
+        self.assertEqual(metrics["support_count"], 0)
+        self.assertEqual(metrics["total_count"], 0)
+        self.assertEqual(metrics["rationale"], "")
+        self.assertEqual(metrics["used_parameters"], {})
+
 
 if __name__ == "__main__":
     unittest.main()

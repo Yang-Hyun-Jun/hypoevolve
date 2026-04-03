@@ -135,12 +135,8 @@ class LLMEvaluator:
         return payload
 
     def _sanitize_payload(self, payload: Dict[str, object]) -> Dict[str, object]:
-        sanitized = dict(payload)
+        sanitized = self._validate_payload_contract(payload)
         non_finite_keys: list[str] = []
-
-        used_parameters = sanitized.get("used_parameters")
-        if not isinstance(used_parameters, dict):
-            sanitized["used_parameters"] = {}
 
         for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
             value = sanitized.get(key)
@@ -166,6 +162,38 @@ class LLMEvaluator:
             sanitized["rationale"] = (
                 f"{prefix}: {rationale}" if rationale else prefix
             )
+
+        return sanitized
+
+    def _validate_payload_contract(self, payload: Dict[str, object]) -> Dict[str, object]:
+        sanitized = {
+            "combined_score": 0.0,
+            "precision": 0.0,
+            "baseline": 0.0,
+            "coverage": 0.0,
+            "uplift": 0.0,
+            "support_count": 0,
+            "total_count": 0,
+            "rationale": "",
+            "used_parameters": {},
+        }
+        sanitized.update(payload)
+
+        if not isinstance(sanitized.get("used_parameters"), dict):
+            sanitized["used_parameters"] = {}
+
+        rationale = sanitized.get("rationale")
+        sanitized["rationale"] = rationale if isinstance(rationale, str) else ""
+
+        for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
+            value = sanitized.get(key)
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                sanitized[key] = 0.0
+
+        for key in ("support_count", "total_count"):
+            value = sanitized.get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                sanitized[key] = 0
 
         return sanitized
 

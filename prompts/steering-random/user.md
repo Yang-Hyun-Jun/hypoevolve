@@ -1,10 +1,11 @@
+# Current Parent Hypothesis (Natural Language)
+
+{{PARENT_HYPOTHESIS_NL}}
+
 # Current Parent Hypothesis (Measurable ELG)
 
 {{PARENT_HYPOTHESIS_MEASURABLE}}
 
-# Current Parent Hypothesis (Natural Language)
-
-{{PARENT_HYPOTHESIS_NL}}
 
 # Task
 

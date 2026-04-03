@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -92,6 +91,7 @@ class HypoEvolveController:
         archive = MAPElitesArchive(
             coverage_bins=self.config.archive.coverage_bins,
             complexity_bins=self.config.archive.complexity_bins,
+            per_cell_top_k=self.config.archive.per_cell_top_k,
         )
         seed_metrics = evaluate_hypothesis(hypothesis, self.evaluator)
         logger.info(
@@ -185,6 +185,7 @@ class HypoEvolveController:
                         **steering_metadata,
                     },
                 )
+                archive.record_parent_outcome(parent_entry.fingerprint, score_delta)
                 recent_history.append(
                     {
                         "score_delta": score_delta,
@@ -219,7 +220,7 @@ class HypoEvolveController:
         self, archive: MAPElitesArchive, run_dir: Path, total_iterations: int
     ) -> None:
         worker_count = self.config.workers.count
-        pending = []
+        pending: dict[object, ArchiveEntry] = {}
         submitted = 0
         recent_history: list[Dict[str, object]] = []
 
@@ -237,22 +238,14 @@ class HypoEvolveController:
                     render_pretty(parent_entry.hypothesis).replace("\n", " "),
                 )
                 future = executor.submit(run_worker_task, task)
-                pending.append((future, parent_entry.hypothesis))
+                pending[future] = parent_entry
 
             while pending:
-                completed_index = next(
-                    (
-                        index
-                        for index, (future, _parent) in enumerate(pending)
-                        if future.done()
-                    ),
-                    None,
-                )
-                if completed_index is None:
-                    time.sleep(0.001)
+                future = next((candidate for candidate in pending if candidate.done()), None)
+                if future is None:
                     continue
 
-                future, parent = pending.pop(completed_index)
+                parent_entry = pending.pop(future)
                 result = future.result()
                 child = hypothesis_from_dict(result.child_hypothesis)
                 logger.info(
@@ -265,7 +258,7 @@ class HypoEvolveController:
                     archive,
                     run_dir,
                     result.iteration,
-                    parent,
+                    parent_entry.hypothesis,
                     child,
                     result.metrics,
                     {
@@ -280,6 +273,10 @@ class HypoEvolveController:
                         "operation_score_rankings": result.operation_score_rankings,
                         "random_steering": result.random_steering,
                     },
+                )
+                archive.record_parent_outcome(
+                    parent_entry.fingerprint,
+                    float(result.metrics.get("combined_score", 0.0)) - result.parent_score,
                 )
                 recent_history.append(
                     {
@@ -307,7 +304,7 @@ class HypoEvolveController:
                         render_pretty(next_parent_entry.hypothesis).replace("\n", " "),
                     )
                     next_future = executor.submit(run_worker_task, task)
-                    pending.append((next_future, next_parent_entry.hypothesis))
+                    pending[next_future] = next_parent_entry
 
     def _make_worker_task(
         self,

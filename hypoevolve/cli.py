@@ -27,6 +27,7 @@ CLI_TAGLINE = "LLM-guided ELG hypothesis evolution"
 CLI_SUBTITLE = "Evolve measurable ELG hypotheses from natural-language seeds."
 CLI_RULE = "─" * 56
 CONFIG_HELP = "Path to the project config file."
+DEFAULT_CONFIG_PATH = "hypoevolve.yaml"
 CLI_EXAMPLES = (
     "Quick start:\n"
     "  hypoevolve --version\n"
@@ -88,9 +89,9 @@ def app(ctx: click.Context) -> None:
 
 @app.command(help="Run the hypothesis evolution loop from a natural-language prompt.")
 @click.argument("hypothesis")
-@click.option("--config", default="hypoevolve.yaml", show_default=True, help=CONFIG_HELP)
+@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
 @click.option("--workers", type=int, default=None, help="Override the local worker count for this run.")
-def run(hypothesis: str, config: str, workers: int | None) -> int:
+def run(hypothesis: str, config: str | None, workers: int | None) -> int:
     try:
         loaded = _load_runtime_config(config)
         configure_logger(loaded.logging.level)
@@ -124,9 +125,9 @@ def run(hypothesis: str, config: str, workers: int | None) -> int:
 
 @app.command(help="Parse and render a natural-language hypothesis via the LLM parser.")
 @click.argument("hypothesis")
-@click.option("--config", default="hypoevolve.yaml", show_default=True, help=CONFIG_HELP)
+@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
 @click.option("--tree", is_flag=True, help="Render as an ASCII tree instead of the pretty ELG form.")
-def render(hypothesis: str, config: str, tree: bool) -> int:
+def render(hypothesis: str, config: str | None, tree: bool) -> int:
     try:
         loaded = _load_runtime_config(config)
         configure_logger(loaded.logging.level)
@@ -174,10 +175,10 @@ def inspect(path: Path) -> int:
 
 
 @app.command(help="Show environment and config diagnostics.")
-@click.option("--config", default="hypoevolve.yaml", show_default=True, help=CONFIG_HELP)
-def doctor(config: str) -> int:
+@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
+def doctor(config: str | None) -> int:
     _echo_banner()
-    config_path = Path(config)
+    config_path = Path(config or DEFAULT_CONFIG_PATH)
     rows = [
         ("Python", platform.python_version()),
         ("Platform", platform.platform()),
@@ -206,7 +207,17 @@ def doctor(config: str) -> int:
             _echo_kv_rows("Diagnostics", rows)
             return 1
     else:
-        rows.append(("Config ok", "using defaults"))
+        if config is None:
+            rows.append(("Config ok", "using defaults"))
+        else:
+            rows.extend(
+                [
+                    ("Config ok", "false"),
+                    ("Config error", f"Config file not found: {config_path}"),
+                ]
+            )
+            _echo_kv_rows("Diagnostics", rows)
+            return 1
     _echo_kv_rows("Diagnostics", rows)
     return 0
 
@@ -225,9 +236,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
-def _load_runtime_config(config: str) -> HypoEvolveConfig:
-    config_path = Path(config)
-    return load_config(config_path) if config_path.exists() else HypoEvolveConfig()
+def _load_runtime_config(config: str | None) -> HypoEvolveConfig:
+    config_path = Path(config or DEFAULT_CONFIG_PATH)
+    if config_path.exists():
+        return load_config(config_path)
+    if config is None:
+        return HypoEvolveConfig()
+    raise ConfigError(f"Config file not found: {config_path}")
 
 
 def _render_banner() -> str:

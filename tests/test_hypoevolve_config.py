@@ -39,6 +39,25 @@ class TestHypoEvolveConfig(unittest.TestCase):
             self.assertEqual(config.archive.coverage_bins, [0.02, 0.10, 0.25])
             self.assertEqual(config.archive.complexity_bins, [2, 4, 7])
 
+    def test_archive_per_cell_top_k_loads_and_validates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "hypoevolve.yaml"
+            path.write_text(
+                "archive:\n"
+                "  per_cell_top_k: 7\n",
+                encoding="utf-8",
+            )
+            config = load_config(path)
+            self.assertEqual(config.archive.per_cell_top_k, 7)
+
+            path.write_text(
+                "archive:\n"
+                "  per_cell_top_k: 0\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ConfigError):
+                load_config(path)
+
     def test_worker_config_loads(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "hypoevolve.yaml"

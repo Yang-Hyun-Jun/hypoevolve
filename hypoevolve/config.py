@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
+from .simple_yaml import SimpleYAMLError, ensure_mapping, parse_simple_yaml
 
 class ConfigError(ValueError):
     pass
@@ -45,6 +46,7 @@ class SearchConfig:
 class ArchiveConfig:
     coverage_bins: List[float] = field(default_factory=lambda: [0.05, 0.15, 0.30])
     complexity_bins: List[int] = field(default_factory=lambda: [3, 5, 8])
+    per_cell_top_k: int = 10
 
 
 @dataclass(slots=True)
@@ -83,7 +85,10 @@ def load_config(path: str | Path | None = None) -> HypoEvolveConfig:
     if not config_path.exists():
         raise ConfigError(f"Config file not found: {config_path}")
 
-    raw = _parse_simple_yaml(config_path.read_text(encoding="utf-8"))
+    try:
+        raw = parse_simple_yaml(config_path.read_text(encoding="utf-8"))
+    except SimpleYAMLError as exc:
+        raise ConfigError(str(exc)) from exc
     return _config_from_dict(raw)
 
 
@@ -126,7 +131,7 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
     archive = ArchiveConfig(
         **_filter_known(
             data.get("archive", {}),
-            {"coverage_bins", "complexity_bins"},
+            {"coverage_bins", "complexity_bins", "per_cell_top_k"},
         )
     )
     output = OutputConfig(**_filter_known(data.get("output", {}), {"base_dir"}))
@@ -148,6 +153,8 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
     if not evaluator.dataset_schema_path:
         raise ConfigError("evaluator.dataset_schema_path is required")
     _validate_archive_bins(archive.coverage_bins, archive.complexity_bins)
+    if archive.per_cell_top_k < 1:
+        raise ConfigError("archive.per_cell_top_k must be >= 1")
 
     return HypoEvolveConfig(
         llm=llm,
@@ -194,93 +201,7 @@ def _filter_known(data: Any, allowed: set[str]) -> Dict[str, Any]:
 
 
 def _ensure_mapping(data: Any, name: str) -> None:
-    if not isinstance(data, dict):
-        raise ConfigError(f"{name} must be a mapping")
-
-
-def _parse_simple_yaml(text: str) -> Dict[str, Any]:
-    lines: List[Tuple[int, str]] = []
-    for raw_line in text.splitlines():
-        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
-            continue
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        lines.append((indent, raw_line.strip()))
-
-    if not lines:
-        return {}
-
-    index, result = _parse_block(lines, 0, 0)
-    if index != len(lines):
-        raise ConfigError("Failed to parse configuration fully")
-    if not isinstance(result, dict):
-        raise ConfigError("Top-level config must be a mapping")
-    return result
-
-
-def _parse_block(
-    lines: List[Tuple[int, str]], index: int, indent: int
-) -> Tuple[int, Any]:
-    container: Any = None
-
-    while index < len(lines):
-        current_indent, text = lines[index]
-        if current_indent < indent:
-            break
-        if current_indent > indent:
-            raise ConfigError(f"Unexpected indentation near: {text}")
-
-        if text == "-" or text.startswith("- "):
-            if container is None:
-                container = []
-            elif not isinstance(container, list):
-                raise ConfigError("Cannot mix list and mapping items at same level")
-            value_text = "" if text == "-" else text[2:].strip()
-            if not value_text:
-                index, value = _parse_block(lines, index + 1, indent + 2)
-            else:
-                value = _parse_scalar(value_text)
-                index += 1
-            container.append(value)
-            continue
-
-        if container is None:
-            container = {}
-        elif not isinstance(container, dict):
-            raise ConfigError("Cannot mix mapping and list items at same level")
-
-        if ":" not in text:
-            raise ConfigError(f"Invalid mapping line: {text}")
-        key, rest = text.split(":", 1)
-        key = key.strip()
-        rest = rest.strip()
-        if rest:
-            container[key] = _parse_scalar(rest)
-            index += 1
-        else:
-            index, value = _parse_block(lines, index + 1, indent + 2)
-            container[key] = value
-
-    if container is None:
-        container = {}
-    return index, container
-
-
-def _parse_scalar(value: str) -> Any:
-    lowered = value.lower()
-    if lowered in {"true", "false"}:
-        return lowered == "true"
-    if lowered in {"null", "none"}:
-        return None
-    if (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
-        return value[1:-1]
     try:
-        return int(value)
-    except ValueError:
-        pass
-    try:
-        return float(value)
-    except ValueError:
-        pass
-    return value
+        ensure_mapping(data, name)
+    except SimpleYAMLError as exc:
+        raise ConfigError(str(exc)) from exc

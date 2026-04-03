@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List
 
-from .config import _ensure_mapping, _parse_simple_yaml
+from .simple_yaml import SimpleYAMLError, ensure_mapping, parse_simple_yaml
 
 
 class DatasetSchemaError(ValueError):
@@ -96,7 +96,10 @@ def load_dataset_schema(path: str | Path) -> DatasetSchema:
     schema_path = Path(path)
     if not schema_path.exists():
         raise DatasetSchemaError(f"Dataset schema file not found: {schema_path}")
-    raw = _parse_simple_yaml(schema_path.read_text(encoding="utf-8"))
+    try:
+        raw = parse_simple_yaml(schema_path.read_text(encoding="utf-8"))
+    except SimpleYAMLError as exc:
+        raise DatasetSchemaError(str(exc)) from exc
     schema = dataset_schema_from_dict(raw)
     base_dir = schema_path.resolve().parent
     resolved_files = []
@@ -159,3 +162,10 @@ def dataset_schema_from_dict(data: Dict[str, object]) -> DatasetSchema:
         if data.get("description") is not None
         else None,
     )
+
+
+def _ensure_mapping(data: object, name: str) -> None:
+    try:
+        ensure_mapping(data, name)
+    except SimpleYAMLError as exc:
+        raise DatasetSchemaError(str(exc)) from exc

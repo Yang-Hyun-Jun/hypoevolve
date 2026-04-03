@@ -41,28 +41,54 @@ class ArchiveEntry:
         return score if math.isfinite(score) else 0.0
 
 
+@dataclass(slots=True)
+class SamplingStats:
+    pulls: int = 0
+    total_reward: float = 0.0
+    last_reward: float = 0.0
+
+    @property
+    def mean_reward(self) -> float:
+        if self.pulls < 1:
+            return 0.0
+        return self.total_reward / self.pulls
+
+
 class MAPElitesArchive:
+    UCB_EXPLORATION_WEIGHT = 0.01
+
     def __init__(
         self,
         coverage_bins: Optional[List[float]] = None,
         complexity_bins: Optional[List[int]] = None,
+        per_cell_top_k: int = 10,
     ):
         coverage_bins = coverage_bins or [0.05, 0.15, 0.30]
         complexity_bins = complexity_bins or [3, 5, 8]
+
         if not coverage_bins:
             raise ValueError("coverage_bins must not be empty")
         if not complexity_bins:
             raise ValueError("complexity_bins must not be empty")
+        if per_cell_top_k < 1:
+            raise ValueError("per_cell_top_k must be >= 1")
+
         self.coverage_bins = [float(value) for value in coverage_bins]
         self.complexity_bins = [int(value) for value in complexity_bins]
-        self._cells: Dict[Cell, ArchiveEntry] = {}
+        self.per_cell_top_k = int(per_cell_top_k)
+        self._cells: Dict[Cell, List[ArchiveEntry]] = {}
+        self._sampling_stats: Dict[str, SamplingStats] = {}
 
     def __len__(self) -> int:
         return len(self._cells)
 
     @property
     def entries(self) -> List[ArchiveEntry]:
-        return sorted(self._cells.values(), key=lambda entry: entry.score, reverse=True)
+        return sorted(
+            (entry for cell_entries in self._cells.values() for entry in cell_entries),
+            key=lambda entry: entry.score,
+            reverse=True,
+        )
 
     @property
     def best(self) -> Optional[ArchiveEntry]:
@@ -93,11 +119,32 @@ class MAPElitesArchive:
             cell=cell,
         )
 
-        existing = self._cells.get(cell)
-        if existing is None or new_entry.score > existing.score:
-            self._cells[cell] = new_entry
-            return new_entry
-        return existing
+        cell_entries = list(self._cells.get(cell, []))
+        duplicate_index = next(
+            (
+                index
+                for index, entry in enumerate(cell_entries)
+                if entry.fingerprint == new_entry.fingerprint
+            ),
+            None,
+        )
+        
+        if duplicate_index is not None:
+            if cell_entries[duplicate_index].score >= new_entry.score:
+                return cell_entries[duplicate_index]
+            cell_entries.pop(duplicate_index)
+
+        cell_entries.append(new_entry)
+        cell_entries.sort(key=lambda entry: entry.score, reverse=True)
+        self._cells[cell] = cell_entries[: self.per_cell_top_k]
+        return next(
+            (
+                entry
+                for entry in self._cells[cell]
+                if entry.fingerprint == new_entry.fingerprint
+            ),
+            self._cells[cell][0],
+        )
 
     def describe(
         self,
@@ -110,6 +157,7 @@ class MAPElitesArchive:
             coverage_bin(coverage, self.coverage_bins),
             complexity_bin(complexity, self.complexity_bins),
         )
+        
         return {
             "coverage": coverage,
             "complexity": complexity,
@@ -126,20 +174,44 @@ class MAPElitesArchive:
         self,
         rng: Optional[random.Random] = None,
     ) -> ArchiveEntry:
-        ordered = self.entries
-        if not ordered:
+        if not self._cells:
             raise ValueError("Cannot sample from an empty archive")
         chooser = rng or random.Random()
         occupied_cells = sorted(self._cells)
         selected_cell = chooser.choice(occupied_cells)
-        return self._cells[selected_cell]
+        candidates = self._cells[selected_cell]
+        selected = max(
+            candidates,
+            key=lambda entry: (
+                self._ucb_score(entry, candidates),
+                entry.score,
+            ),
+        )
+        self._stats_for(selected.fingerprint).pulls += 1
+        return selected
+
+    def record_parent_outcome(self, fingerprint: str, reward: float) -> None:
+        stats = self._stats_for(fingerprint)
+        numeric_reward = float(reward) if math.isfinite(float(reward)) else 0.0
+        stats.total_reward += numeric_reward
+        stats.last_reward = numeric_reward
+
+    def sampling_stats(self, fingerprint: str | None = None) -> Dict[str, object]:
+        if fingerprint is not None:
+            stats = self._stats_for(fingerprint)
+            return _sampling_stats_dict(stats)
+        return {
+            key: _sampling_stats_dict(stats)
+            for key, stats in sorted(self._sampling_stats.items())
+        }
 
     def occupancy_stats(self) -> Dict[str, object]:
         coverage_counts = [0] * (len(self.coverage_bins) + 1)
         complexity_counts = [0] * (len(self.complexity_bins) + 1)
-        for entry in self._cells.values():
-            if entry.cell is None:
+        for cell_entries in self._cells.values():
+            if not cell_entries:
                 continue
+            entry = cell_entries[0]
             coverage_counts[entry.cell[0]] += 1
             complexity_counts[entry.cell[1]] += 1
         return {
@@ -171,6 +243,27 @@ class MAPElitesArchive:
             for entry in self.entries
         ]
 
+    def _stats_for(self, fingerprint_value: str) -> SamplingStats:
+        return self._sampling_stats.setdefault(fingerprint_value, SamplingStats())
+
+    def _ucb_score(
+        self,
+        entry: ArchiveEntry,
+        candidates: List[ArchiveEntry],
+    ) -> float:
+        stats = self._stats_for(entry.fingerprint)
+        if stats.pulls == 0:
+            return float("inf")
+
+        total_pulls = sum(self._stats_for(candidate.fingerprint).pulls for candidate in candidates)
+        if total_pulls <= 1:
+            return stats.mean_reward
+
+        exploration_bonus = self.UCB_EXPLORATION_WEIGHT * math.sqrt(
+            math.log(total_pulls) / stats.pulls
+        )
+        return stats.mean_reward + exploration_bonus
+
 def coverage_bin(coverage: float, bins: List[float]) -> int:
     return bisect_right(bins, coverage)
 
@@ -186,3 +279,12 @@ def _coerce_coverage(value: object) -> float:
     if not math.isfinite(numeric):
         return 0.0
     return min(1.0, max(0.0, numeric))
+
+
+def _sampling_stats_dict(stats: SamplingStats) -> Dict[str, float | int]:
+    return {
+        "pulls": stats.pulls,
+        "total_reward": stats.total_reward,
+        "mean_reward": stats.mean_reward,
+        "last_reward": stats.last_reward,
+    }
