@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
-from elg import hypothesis_from_dict, render_pretty
+from elg import fingerprint, hypothesis_from_dict, render_pretty
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import load_dataset_schema
@@ -33,6 +33,7 @@ class WorkerTask:
     steering_retries: int = 2
     recent_history: List[Dict[str, object]] = field(default_factory=list)
     top_hypotheses: List[Dict[str, object]] = field(default_factory=list)
+    seen_fingerprints: List[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -48,6 +49,8 @@ class WorkerResult:
     score_reason: str = ""
     operation_score_rankings: Dict[str, int] = field(default_factory=dict)
     random_steering: bool = False
+    child_fingerprint: str = ""
+    skipped_duplicate: bool = False
 
 
 def run_worker_task(task: WorkerTask) -> WorkerResult:
@@ -101,6 +104,28 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         task.iteration,
         decision.mutation_summary,
     )
+    child_fingerprint = fingerprint(decision.child_hypothesis)
+    if child_fingerprint in set(task.seen_fingerprints):
+        logger.info(
+            "worker iteration {} skipped duplicate child_fp={}",
+            task.iteration,
+            child_fingerprint,
+        )
+        return WorkerResult(
+            child_hypothesis=decision.child_hypothesis.to_dict(),
+            metrics={},
+            iteration=task.iteration,
+            mutation_summary=decision.mutation_summary,
+            parent_score=task.parent_score,
+            domain_reason=decision.domain_reason,
+            score_reason=decision.score_reason,
+            operation_score_rankings=dict(
+                getattr(decision, "operation_score_rankings", {})
+            ),
+            random_steering=task.use_random_steering,
+            child_fingerprint=child_fingerprint,
+            skipped_duplicate=True,
+        )
     metrics = evaluate_hypothesis(decision.child_hypothesis, evaluator)
     logger.info("worker iteration {} evaluation completed", task.iteration)
     return WorkerResult(
@@ -115,4 +140,5 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
             getattr(decision, "operation_score_rankings", {})
         ),
         random_steering=task.use_random_steering,
+        child_fingerprint=child_fingerprint,
     )

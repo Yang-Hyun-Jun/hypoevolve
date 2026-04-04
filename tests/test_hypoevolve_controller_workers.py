@@ -119,6 +119,9 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
             self.assertTrue((result.run_dir / "trace.jsonl").exists())
             self.assertTrue((result.run_dir / "checkpoint.json").exists())
             self.assertTrue((result.run_dir / "best.json").exists())
+            self.assertTrue((result.run_dir / "run_summary.json").exists())
+            self.assertTrue((result.run_dir / "score_history.json").exists())
+            self.assertTrue((result.run_dir / "report" / "report.md").exists())
 
     def test_single_process_fallback_when_workers_disabled(self):
         class FakeLLM:

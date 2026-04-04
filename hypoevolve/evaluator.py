@@ -22,7 +22,16 @@ from hypoevolve.prompts import load_and_render_prompt, load_prompt
 class Evaluator(Protocol):
     """Protocol for objects that can score a hypothesis."""
 
-    def evaluate(self, hypothesis: Hypothesis) -> Dict[str, object]: ...
+    def evaluate(self, hypothesis: Hypothesis) -> Dict[str, object]:
+        """Evaluate one hypothesis.
+
+        Args:
+            hypothesis: The hypothesis to score.
+
+        Returns:
+            dict[str, object]: The normalized evaluation payload.
+        """
+        ...
 
 
 class LLMEvaluator:
@@ -48,6 +57,18 @@ class LLMEvaluator:
         executor: CodeExecutor | None = None,
         parameters: dict[str, object] | None = None,
     ):
+        """Initialize one evaluator around an LLM and dataset schema.
+
+        Args:
+            llm_client: The LLM client used for evaluator code generation.
+            dataset_schema: The loaded dataset schema available to generated code.
+            dataset_schema_path: The on-disk schema path passed into the runtime wrapper.
+            executor: Optional code executor override.
+            parameters: Optional evaluator parameters forwarded to generated code.
+
+        Returns:
+            None.
+        """
         self.llm_client = llm_client
         self.dataset_schema = dataset_schema
         self.dataset_schema_path = dataset_schema_path
@@ -142,6 +163,14 @@ class LLMEvaluator:
         return payload
 
     def _sanitize_payload(self, payload: Dict[str, object]) -> Dict[str, object]:
+        """Normalize non-finite numeric values after contract validation.
+
+        Args:
+            payload: The raw payload returned by generated evaluator code.
+
+        Returns:
+            dict[str, object]: A sanitized payload safe for archive insertion.
+        """
         sanitized = self._validate_payload_contract(payload)
         non_finite_keys: list[str] = []
 
@@ -166,13 +195,21 @@ class LLMEvaluator:
             )
             rationale = str(sanitized.get("rationale", "")).strip()
             prefix = "non_finite_metrics_sanitized"
-            sanitized["rationale"] = (
-                f"{prefix}: {rationale}" if rationale else prefix
-            )
+            sanitized["rationale"] = f"{prefix}: {rationale}" if rationale else prefix
 
         return sanitized
 
-    def _validate_payload_contract(self, payload: Dict[str, object]) -> Dict[str, object]:
+    def _validate_payload_contract(
+        self, payload: Dict[str, object]
+    ) -> Dict[str, object]:
+        """Enforce required output keys and basic value types.
+
+        Args:
+            payload: The raw payload returned by generated evaluator code.
+
+        Returns:
+            dict[str, object]: A payload with required keys and safe fallback types.
+        """
         sanitized = {
             "combined_score": 0.0,
             "precision": 0.0,
@@ -205,6 +242,14 @@ class LLMEvaluator:
         return sanitized
 
     def _strip_code_fences(self, text: str) -> str:
+        """Remove leading and trailing Markdown code fences.
+
+        Args:
+            text: The raw model output text.
+
+        Returns:
+            str: The unfenced code body.
+        """
         stripped = text.strip()
         if not stripped.startswith("```"):
             return stripped

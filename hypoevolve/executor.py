@@ -27,7 +27,18 @@ class ExecutionResult:
 class CodeExecutor(Protocol):
     """Protocol for objects that can execute generated evaluation code."""
 
-    def execute(self, code: str, files: Optional[Dict[str, str]] = None) -> ExecutionResult:
+    def execute(
+        self, code: str, files: Optional[Dict[str, str]] = None
+    ) -> ExecutionResult:
+        """Execute one code snippet plus optional support files.
+
+        Args:
+            code: The main program body to execute.
+            files: Optional support files written alongside the main program.
+
+        Returns:
+            ExecutionResult: The captured execution result.
+        """
         ...
 
 
@@ -40,6 +51,16 @@ class LocalSubprocessExecutor:
         timeout: int = 30,
         cleanup: bool = False,
     ):
+        """Configure a subprocess-backed code executor.
+
+        Args:
+            python_bin: The Python interpreter used for execution.
+            timeout: The subprocess timeout in seconds.
+            cleanup: Whether to delete the temp work directory after execution.
+
+        Returns:
+            None.
+        """
         self.python_bin = python_bin or sys.executable
         self.timeout = timeout
         self.cleanup = cleanup
@@ -84,6 +105,16 @@ class LocalSubprocessExecutor:
         return result
 
     def _write_files(self, work_dir: Path, code: str, files: Dict[str, str]) -> None:
+        """Materialize one executable work directory.
+
+        Args:
+            work_dir: The temporary execution directory.
+            code: The contents for `main.py`.
+            files: Additional relative-path file contents.
+
+        Returns:
+            None.
+        """
         (work_dir / "main.py").write_text(code, encoding="utf-8")
         for relative_path, content in files.items():
             target = work_dir / relative_path

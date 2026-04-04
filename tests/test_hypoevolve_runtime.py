@@ -4,7 +4,15 @@ import unittest
 from pathlib import Path
 
 from elg import AtomicNode, Hypothesis
-from hypoevolve.runtime import create_run_dir, write_artifact, write_best, write_checkpoint, write_trace
+from hypoevolve.runtime import (
+    create_run_dir,
+    write_artifact,
+    write_best,
+    write_checkpoint,
+    write_run_summary,
+    write_score_history,
+    write_trace,
+)
 
 
 class TestHypoEvolveRuntime(unittest.TestCase):
@@ -15,7 +23,11 @@ class TestHypoEvolveRuntime(unittest.TestCase):
             write_checkpoint(run_dir, {'iteration': 0})
             write_best(run_dir, Hypothesis(root=AtomicNode('A')), {'combined_score': 0.5})
             write_artifact(run_dir, 'seed', {'hello': 'world'})
+            write_run_summary(run_dir, {'iterations_requested': 1})
+            write_score_history(run_dir, [{'iteration': 0, 'score': 0.5}])
             self.assertTrue((run_dir / 'trace.jsonl').exists())
             self.assertTrue((run_dir / 'checkpoint.json').exists())
             self.assertTrue((run_dir / 'best.json').exists())
+            self.assertTrue((run_dir / 'run_summary.json').exists())
+            self.assertTrue((run_dir / 'score_history.json').exists())
             self.assertTrue((run_dir / 'artifacts' / 'seed.json').exists())

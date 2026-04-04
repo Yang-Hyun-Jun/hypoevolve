@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 
 from .simple_yaml import SimpleYAMLError, ensure_mapping, parse_simple_yaml
 
+
 class ConfigError(ValueError):
     """Raised when a HypoEvolve configuration file is invalid."""
 

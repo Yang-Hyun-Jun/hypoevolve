@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from elg import AtomicNode, Hypothesis
+from elg import AtomicNode, Hypothesis, fingerprint
 from hypoevolve.archive import MAPElitesArchive
+from hypoevolve.artifacts import RunArtifactRecorder
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.controller import HypoEvolveController
 
@@ -61,6 +62,13 @@ class TestHypoEvolveController(unittest.TestCase):
             self.assertTrue((result.run_dir / 'trace.jsonl').exists())
             self.assertTrue((result.run_dir / 'checkpoint.json').exists())
             self.assertTrue((result.run_dir / 'best.json').exists())
+            self.assertTrue((result.run_dir / 'run_summary.json').exists())
+            self.assertTrue((result.run_dir / 'score_history.json').exists())
+            self.assertTrue((result.run_dir / 'report' / 'report.md').exists())
+            self.assertTrue((result.run_dir / 'report' / 'assets' / 'score_progression.svg').exists())
+            report_text = (result.run_dir / 'report' / 'report.md').read_text(encoding='utf-8')
+            self.assertIn('Best ELG', report_text)
+            self.assertIn('If A then B.', report_text)
             self.assertIn('combined_score', result.best_metrics)
 
     def test_run_uses_mutation_steering_when_enabled(self):
@@ -179,14 +187,35 @@ class TestHypoEvolveController(unittest.TestCase):
         ):
             run_dir = Path(tmp)
             (run_dir / "artifacts").mkdir(exist_ok=True)
-            controller._reflect_result(
-                archive=archive,
+            recorder = RunArtifactRecorder(
                 run_dir=run_dir,
+                seed_input_text="if A then B",
+                worker_count=1,
+                workers_enabled=False,
+                dataset_schema_path="dataset.yaml",
+            )
+            descriptor, best_updated = controller._record_archive_result(
+                archive=archive,
                 iteration=1,
-                parent_hypothesis=parent,
                 child_hypothesis=child,
                 child_metrics={"combined_score": 0.2},
-                metadata={"mutation_summary": "Applied a replace_atomic-style local mutation."},
+                metadata={
+                    "mutation_summary": "Applied a replace_atomic-style local mutation."
+                },
+            )
+            recorder.record_iteration_result(
+                archive=archive,
+                iteration=1,
+                parent_hypothesis=parent,
+                parent_fingerprint=archive.entries[-1].fingerprint,
+                child_hypothesis=child,
+                child_metrics={"combined_score": 0.2},
+                metadata={
+                    "mutation_summary": "Applied a replace_atomic-style local mutation.",
+                    "hypothesis_nl": "B in natural language.",
+                },
+                descriptor=descriptor,
+                best_updated=best_updated,
             )
 
             checkpoint = json.loads(
@@ -218,6 +247,7 @@ class TestHypoEvolveController(unittest.TestCase):
         task, _parent = controller._make_worker_task(archive, iteration=1, recent_history=[])
 
         self.assertEqual(task.parent_hypothesis_nl, "Cached A.")
+        self.assertEqual(task.seen_fingerprints, [fingerprint(Hypothesis(root=AtomicNode("A")))])
 
     def test_choose_mutation_can_use_random_steering_prompt(self):
         config = HypoEvolveConfig()
@@ -253,3 +283,68 @@ class TestHypoEvolveController(unittest.TestCase):
 
         self.assertTrue(steer_mutation_mock.call_args.kwargs["use_random_steering"])
         self.assertTrue(metadata["random_steering"])
+
+    def test_run_skips_duplicate_child_before_evaluation(self):
+        config = HypoEvolveConfig()
+        config.search.iterations = 1
+
+        seed = Hypothesis(root=AtomicNode("A"))
+        fake_decision = type(
+            "FakeDecision",
+            (),
+            {
+                "child_hypothesis": Hypothesis(root=AtomicNode("A")),
+                "domain_reason": "Duplicate child.",
+                "score_reason": "Should skip repeated eval.",
+                "operation_score_rankings": {"replace_atomic_feature": 1},
+                "mutation_summary": "Proposed an already known hypothesis.",
+            },
+        )()
+
+        call_count = 0
+
+        def fake_evaluate(hypothesis, evaluator):
+            nonlocal call_count
+            call_count += 1
+            if call_count > 1:
+                raise AssertionError("duplicate child should skip evaluation")
+            return {"combined_score": 0.5}
+
+        with tempfile.TemporaryDirectory() as tmp, patch(
+            "hypoevolve.controller.parse_hypothesis_text",
+            return_value=seed,
+        ), patch(
+            "hypoevolve.controller.llm_make_hypothesis_measurable",
+            return_value=seed,
+        ), patch(
+            "hypoevolve.controller.llm_hypothesis_to_natural_language",
+            return_value="A",
+        ), patch(
+            "hypoevolve.controller.steer_mutation",
+            return_value=fake_decision,
+        ), patch(
+            "hypoevolve.controller.evaluate_hypothesis",
+            side_effect=fake_evaluate,
+        ):
+            config.output.base_dir = tmp
+            controller = HypoEvolveController(
+                config,
+                evaluator=type(
+                    "FakeEvaluator",
+                    (),
+                    {"evaluate": lambda self, hypothesis: {"combined_score": 0.5}},
+                )(),
+                llm_client=object(),
+            )
+            result = controller.run("if A then B")
+
+            trace_lines = (result.run_dir / "trace.jsonl").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            log_text = (result.run_dir / "hypoevolve.log").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertEqual(call_count, 1)
+        self.assertEqual(len(trace_lines), 1)
+        self.assertIn("[run.duplicate_summary] total_skips=1", log_text)

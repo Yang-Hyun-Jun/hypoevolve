@@ -20,6 +20,14 @@ class LLMClient:
     """Wrap an OpenAI-compatible chat-completions client for project use."""
 
     def __init__(self, config: LLMConfig):
+        """Initialize one reusable LLM client wrapper.
+
+        Args:
+            config: The LLM configuration to use for requests.
+
+        Returns:
+            None.
+        """
         self.config = config
         self.api_key = config.api_key or os.getenv("OPENAI_API_KEY")
         self.api_base = config.api_base
@@ -68,6 +76,15 @@ class LLMClient:
         raise LLMError(f"LLM JSON generation failed: {last_error}")
 
     def _call_openai(self, messages: List[Dict[str, str]], **kwargs: Any) -> str:
+        """Submit one chat-completions request.
+
+        Args:
+            messages: The chat message list sent to the model.
+            **kwargs: Optional request overrides such as model or temperature.
+
+        Returns:
+            str: The text content returned by the model.
+        """
         client = self._get_client()
         response = client.chat.completions.create(
             model=kwargs.get("model", self.config.model),
@@ -81,6 +98,14 @@ class LLMClient:
         return str(content)
 
     def _get_client(self) -> Any:
+        """Lazily construct and cache the OpenAI client.
+
+        Args:
+            None.
+
+        Returns:
+            Any: The initialized OpenAI client instance.
+        """
         if self._client is not None:
             return self._client
         if not self.api_key:

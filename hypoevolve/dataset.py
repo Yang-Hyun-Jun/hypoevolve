@@ -54,18 +54,58 @@ class DatasetAccessor:
     """Provide a small runtime interface for reading schema-backed parquet data."""
 
     def __init__(self, schema: DatasetSchema):
+        """Bind one dataset schema to a lightweight accessor.
+
+        Args:
+            schema: The resolved dataset schema to expose.
+
+        Returns:
+            None.
+        """
         self.schema = schema
 
     def entities(self) -> List[str]:
+        """Return the declared entity names.
+
+        Args:
+            None.
+
+        Returns:
+            list[str]: The entity names from the schema.
+        """
         return [item.entity for item in self.schema.files]
 
     def file_map(self) -> Dict[str, Path]:
+        """Return the entity-to-file mapping.
+
+        Args:
+            None.
+
+        Returns:
+            dict[str, Path]: Resolved file paths keyed by entity.
+        """
         return {item.entity: Path(item.path) for item in self.schema.files}
 
     def column_names(self) -> List[str]:
+        """Return the declared column names.
+
+        Args:
+            None.
+
+        Returns:
+            list[str]: The schema column names.
+        """
         return [column.name for column in self.schema.columns]
 
     def column_descriptions(self) -> Dict[str, str]:
+        """Return column descriptions keyed by column name.
+
+        Args:
+            None.
+
+        Returns:
+            dict[str, str]: Column descriptions with empty-string fallbacks.
+        """
         return {column.name: column.description or "" for column in self.schema.columns}
 
     def load_dataframe(self, entity: str):
@@ -83,6 +123,15 @@ class DatasetAccessor:
         }
 
     def head(self, entity: str, n: int = 5):
+        """Return the first `n` rows for one entity dataframe.
+
+        Args:
+            entity: The entity to inspect.
+            n: The number of rows to return.
+
+        Returns:
+            pandas.DataFrame: The dataframe head for the entity.
+        """
         return self.load_dataframe(entity).head(n)
 
     def summary(self) -> Dict[str, object]:
@@ -98,6 +147,14 @@ class DatasetAccessor:
         }
 
     def _read_parquet_dataframe(self, path: Path):
+        """Load one parquet file into a dataframe.
+
+        Args:
+            path: The parquet file path to read.
+
+        Returns:
+            pandas.DataFrame: The loaded dataframe.
+        """
         if path.suffix.lower() != ".parquet":
             raise DatasetSchemaError("DatasetAccessor only supports .parquet files")
         try:
@@ -184,6 +241,15 @@ def dataset_schema_from_dict(data: Dict[str, object]) -> DatasetSchema:
 
 
 def _ensure_mapping(data: object, name: str) -> None:
+    """Raise `DatasetSchemaError` unless the value is a mapping.
+
+    Args:
+        data: The value to validate.
+        name: The human-readable label for error messages.
+
+    Returns:
+        None.
+    """
     try:
         ensure_mapping(data, name)
     except SimpleYAMLError as exc:

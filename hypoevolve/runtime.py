@@ -62,3 +62,23 @@ def write_artifact(run_dir: Path, name: str, payload: Dict[str, Any]) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+def write_run_summary(run_dir: Path, payload: Dict[str, Any]) -> Path:
+    """Write one run-level summary payload."""
+    path = run_dir / "run_summary.json"
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return path
+
+
+def write_score_history(run_dir: Path, payload: list[Dict[str, Any]]) -> Path:
+    """Write iteration-level score history for one run."""
+    path = run_dir / "score_history.json"
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return path

@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -50,6 +51,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
             )
             fake_result = SimpleNamespace(
                 run_dir=Path(tmp) / "run1",
+                report_path=Path(tmp) / "run1" / "report" / "report.md",
                 best_hypothesis=SimpleNamespace(),
                 best_metrics={"combined_score": 0.9},
             )
@@ -63,6 +65,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Run Summary", result.output)
+        self.assertIn("Report", result.output)
         self.assertIn("Metric highlights", result.output)
         self.assertIn("Best hypothesis", result.output)
         self.assertIn('"combined_score": 0.9', result.output)
@@ -101,6 +104,18 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("Metrics", result.output)
         self.assertIn('"combined_score": 0.5', result.output)
 
+    def test_inspect_subcommand_json_mode_returns_raw_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            payload_path = Path(tmp) / "best.json"
+            payload_path.write_text(
+                '{"metrics": {"combined_score": 0.5}, "hello": "world"}',
+                encoding="utf-8",
+            )
+            result = self.runner.invoke(cli.app, ["inspect", str(payload_path), "--json"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('"hello": "world"', result.output)
+        self.assertIn('"combined_score": 0.5', result.output)
+
     def test_run_subcommand_with_workers(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "hypoevolve.yaml"
@@ -110,6 +125,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
             )
             fake_result = SimpleNamespace(
                 run_dir=Path(tmp) / "run2",
+                report_path=Path(tmp) / "run2" / "report" / "report.md",
                 best_hypothesis=SimpleNamespace(),
                 best_metrics={"combined_score": 0.8},
             )
@@ -141,6 +157,70 @@ class TestHypoEvolveCLI(unittest.TestCase):
         with self.runner.isolated_filesystem():
             config = cli._load_runtime_config(None)
         self.assertEqual(config.search.iterations, 5)
+
+    def test_runs_latest_json_returns_newest_run_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "hypoevolve.yaml"
+            runs_dir = Path(tmp) / "runs"
+            runs_dir.mkdir()
+            older = runs_dir / "older"
+            newer = runs_dir / "newer"
+            older.mkdir()
+            newer.mkdir()
+            os.utime(older, (1, 1))
+            os.utime(newer, (2, 2))
+            config_path.write_text(f"output:\n  base_dir: {runs_dir}\n", encoding="utf-8")
+            result = self.runner.invoke(
+                cli.app,
+                ["runs", "latest", "--config", str(config_path), "--json"],
+            )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn(str(newer), result.output)
+
+    def test_status_json_reads_run_summary_and_report_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run1"
+            (run_dir / "report").mkdir(parents=True)
+            (run_dir / "run_summary.json").write_text(
+                '{"iterations_requested": 10, "best_score": 0.7, "best_hypothesis_nl": "If A then B.", "archive_size": 4, "duplicate_skips_total": 2}',
+                encoding="utf-8",
+            )
+            (run_dir / "checkpoint.json").write_text(
+                '{"iteration": 10, "archive_size": 4}',
+                encoding="utf-8",
+            )
+            (run_dir / "score_history.json").write_text("[]", encoding="utf-8")
+            (run_dir / "report" / "report.md").write_text("# report\n", encoding="utf-8")
+            result = self.runner.invoke(cli.app, ["status", str(run_dir), "--json"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('"status": "completed"', result.output)
+        self.assertIn('"best_score": 0.7', result.output)
+        self.assertIn('"report_path"', result.output)
+
+    def test_report_json_regenerates_missing_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run1"
+            run_dir.mkdir()
+            (run_dir / "best.json").write_text(
+                '{"hypothesis": {"root": {"kind": "atomic", "name": "A", "type": "boolean", "source": "primitive", "params": {}}, "params": {}}, "metrics": {"combined_score": 0.5}}',
+                encoding="utf-8",
+            )
+            (run_dir / "checkpoint.json").write_text(
+                '{"iteration": 0, "archive_size": 1, "archive": [], "best_hypothesis": {"root": {"kind": "atomic", "name": "A", "type": "boolean", "source": "primitive", "params": {}}, "params": {}}, "best_metrics": {"combined_score": 0.5}}',
+                encoding="utf-8",
+            )
+            (run_dir / "run_summary.json").write_text(
+                '{"iterations_requested": 1, "best_score": 0.5, "best_hypothesis_nl": "A", "archive_size": 1, "duplicate_skips_total": 0, "best_fingerprint": ""}',
+                encoding="utf-8",
+            )
+            (run_dir / "score_history.json").write_text(
+                '[{"iteration": 0, "score": 0.5, "best_updated": true, "hypothesis_nl": "A"}]',
+                encoding="utf-8",
+            )
+            result = self.runner.invoke(cli.app, ["report", str(run_dir), "--json"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('"report_path"', result.output)
+        self.assertIn("report.md", result.output)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,14 @@ class ArchiveEntry:
 
     @property
     def score(self) -> float:
+        """Return one stable numeric score for archive ranking.
+
+        Args:
+            None.
+
+        Returns:
+            float: The finite combined score or a fallback average over numeric metrics.
+        """
         if "combined_score" in self.metrics and isinstance(
             self.metrics["combined_score"], (int, float)
         ):
@@ -55,6 +63,14 @@ class SamplingStats:
 
     @property
     def mean_reward(self) -> float:
+        """Return the average observed reward for one sampled parent.
+
+        Args:
+            None.
+
+        Returns:
+            float: The mean reward across recorded pulls.
+        """
         if self.pulls < 1:
             return 0.0
         return self.total_reward / self.pulls
@@ -71,6 +87,16 @@ class MAPElitesArchive:
         complexity_bins: Optional[List[int]] = None,
         per_cell_top_k: int = 10,
     ):
+        """Initialize one compact MAP-Elites-like archive.
+
+        Args:
+            coverage_bins: Sorted coverage split points used for descriptor binning.
+            complexity_bins: Sorted node-count split points used for descriptor binning.
+            per_cell_top_k: Maximum number of elites retained per occupied cell.
+
+        Returns:
+            None.
+        """
         coverage_bins = coverage_bins or [0.05, 0.15, 0.30]
         complexity_bins = complexity_bins or [3, 5, 8]
 
@@ -88,10 +114,26 @@ class MAPElitesArchive:
         self._sampling_stats: Dict[str, SamplingStats] = {}
 
     def __len__(self) -> int:
+        """Return the number of occupied archive cells.
+
+        Args:
+            None.
+
+        Returns:
+            int: The count of occupied cells.
+        """
         return len(self._cells)
 
     @property
     def entries(self) -> List[ArchiveEntry]:
+        """Return all retained entries sorted by descending score.
+
+        Args:
+            None.
+
+        Returns:
+            list[ArchiveEntry]: The flattened archive contents.
+        """
         return sorted(
             (entry for cell_entries in self._cells.values() for entry in cell_entries),
             key=lambda entry: entry.score,
@@ -100,6 +142,14 @@ class MAPElitesArchive:
 
     @property
     def best(self) -> Optional[ArchiveEntry]:
+        """Return the current global best entry.
+
+        Args:
+            None.
+
+        Returns:
+            ArchiveEntry | None: The highest-scoring retained entry if present.
+        """
         items = self.entries
         return items[0] if items else None
 
@@ -219,6 +269,14 @@ class MAPElitesArchive:
         }
 
     def occupancy_stats(self) -> Dict[str, object]:
+        """Summarize occupied archive cells along each descriptor axis.
+
+        Args:
+            None.
+
+        Returns:
+            dict[str, object]: Counts per coverage bin, complexity bin, and occupied cells.
+        """
         coverage_counts = [0] * (len(self.coverage_bins) + 1)
         complexity_counts = [0] * (len(self.complexity_bins) + 1)
         for cell_entries in self._cells.values():
@@ -234,6 +292,14 @@ class MAPElitesArchive:
         }
 
     def occupancy_summary(self) -> str:
+        """Render a compact human-readable occupancy summary.
+
+        Args:
+            None.
+
+        Returns:
+            str: One-line descriptor occupancy text.
+        """
         stats = self.occupancy_stats()
         coverage_text = ",".join(str(value) for value in stats["coverage_counts"])
         complexity_text = ",".join(
@@ -242,6 +308,14 @@ class MAPElitesArchive:
         return f"cells={stats['occupied_cells']} cov=[{coverage_text}] cmp=[{complexity_text}]"
 
     def snapshot(self) -> List[Dict[str, object]]:
+        """Return a serializable snapshot of retained archive entries.
+
+        Args:
+            None.
+
+        Returns:
+            list[dict[str, object]]: Archive entries ready for persistence.
+        """
         return [
             {
                 "fingerprint": entry.fingerprint,
@@ -257,6 +331,14 @@ class MAPElitesArchive:
         ]
 
     def _stats_for(self, fingerprint_value: str) -> SamplingStats:
+        """Return mutable sampling stats for one fingerprint.
+
+        Args:
+            fingerprint_value: The hypothesis fingerprint to track.
+
+        Returns:
+            SamplingStats: The mutable stats bucket for that fingerprint.
+        """
         return self._sampling_stats.setdefault(fingerprint_value, SamplingStats())
 
     def _ucb_score(
@@ -264,6 +346,15 @@ class MAPElitesArchive:
         entry: ArchiveEntry,
         candidates: List[ArchiveEntry],
     ) -> float:
+        """Compute one UCB-style sampling score within a cell.
+
+        Args:
+            entry: The candidate being ranked.
+            candidates: The competing candidates in the same occupied cell.
+
+        Returns:
+            float: The exploitation-plus-exploration score.
+        """
         stats = self._stats_for(entry.fingerprint)
         if stats.pulls == 0:
             return float("inf")
@@ -288,6 +379,14 @@ def complexity_bin(complexity: int, bins: List[int]) -> int:
 
 
 def _coerce_coverage(value: object) -> float:
+    """Clamp one arbitrary coverage-like value into `[0, 1]`.
+
+    Args:
+        value: The raw coverage value to coerce.
+
+    Returns:
+        float: A finite normalized coverage value.
+    """
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return 0.0
     numeric = float(value)
@@ -297,6 +396,14 @@ def _coerce_coverage(value: object) -> float:
 
 
 def _sampling_stats_dict(stats: SamplingStats) -> Dict[str, float | int]:
+    """Serialize sampling stats into plain JSON-friendly fields.
+
+    Args:
+        stats: The sampling stats object to serialize.
+
+    Returns:
+        dict[str, float | int]: A shallow stats mapping.
+    """
     return {
         "pulls": stats.pulls,
         "total_reward": stats.total_reward,
