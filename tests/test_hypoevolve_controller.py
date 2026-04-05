@@ -348,3 +348,64 @@ class TestHypoEvolveController(unittest.TestCase):
         self.assertEqual(call_count, 1)
         self.assertEqual(len(trace_lines), 1)
         self.assertIn("[run.duplicate_summary] total_skips=1", log_text)
+
+    def test_run_without_seed_generates_initial_hypothesis(self):
+        config = HypoEvolveConfig()
+        config.search.iterations = 1
+
+        seed = Hypothesis(root=AtomicNode("A"))
+        fake_tree_result = type(
+            "FakeTreeResult",
+            (),
+            {"hypothesis": "Generated seed hypothesis."},
+        )()
+
+        with tempfile.TemporaryDirectory() as tmp, patch(
+            "hypoevolve.controller.generate_random_tree_pair_hypothesis",
+            return_value=fake_tree_result,
+        ) as generate_seed_mock, patch(
+            "hypoevolve.controller.parse_hypothesis_text",
+            return_value=seed,
+        ) as parse_mock, patch(
+            "hypoevolve.controller.llm_make_hypothesis_measurable",
+            return_value=seed,
+        ), patch(
+            "hypoevolve.controller.llm_hypothesis_to_natural_language",
+            return_value="A",
+        ), patch(
+            "hypoevolve.controller.steer_mutation",
+            return_value=type(
+                "FakeDecision",
+                (),
+                {
+                    "child_hypothesis": Hypothesis(root=AtomicNode("B")),
+                    "domain_reason": "",
+                    "score_reason": "",
+                    "operation_score_rankings": {"replace_atomic_feature": 1},
+                    "mutation_summary": "Applied a replace_atomic-style local mutation.",
+                },
+            )(),
+        ), patch(
+            "hypoevolve.controller.evaluate_hypothesis",
+            return_value={"combined_score": 0.5},
+        ):
+            config.output.base_dir = tmp
+            controller = HypoEvolveController(
+                config,
+                evaluator=type(
+                    "FakeEvaluator",
+                    (),
+                    {"evaluate": lambda self, hypothesis: {"combined_score": 0.5}},
+                )(),
+                llm_client=object(),
+            )
+            result = controller.run()
+
+        generate_seed_mock.assert_called_once()
+        parse_mock.assert_called_once_with(
+            "Generated seed hypothesis.",
+            llm=controller.llm_client,
+            retries=config.parser.retries,
+        )
+        self.assertTrue(result.seed_generated)
+        self.assertEqual(result.seed_input_text, "Generated seed hypothesis.")

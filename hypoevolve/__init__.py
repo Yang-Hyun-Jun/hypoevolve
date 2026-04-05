@@ -30,6 +30,13 @@ from .helper import (
     build_evaluator_runtime_wrapper,
     build_steering_prompt_variables,
 )
+from .hypo import (
+    HypothesisGenerationError,
+    TreePairHypothesis,
+    build_hypothesis_prompt_variables,
+    generate_random_tree_pair_hypothesis,
+    llm_generate_hypothesis_from_trees,
+)
 from .executor import CodeExecutor, ExecutionResult, LocalSubprocessExecutor
 from .llm import LLMClient, LLMError
 from .logger import configure_logger, logger
@@ -44,6 +51,7 @@ __all__ = [
     "ArchiveConfig",
     "build_evaluator_prompt_variables",
     "build_evaluator_runtime_wrapper",
+    "build_hypothesis_prompt_variables",
     "build_steering_prompt_variables",
     "ColumnSpec",
     "ConfigError",
@@ -55,6 +63,7 @@ __all__ = [
     "Evaluator",
     "EvaluatorConfig",
     "ExecutionResult",
+    "TreePairHypothesis",
     "LLMEvaluator",
     "HypoEvolveConfig",
     "HypoEvolveController",
@@ -64,6 +73,7 @@ __all__ = [
     "LoggingConfig",
     "MAPElitesArchive",
     "MutationDecision",
+    "HypothesisGenerationError",
     "WorkerConfig",
     "OutputConfig",
     "ParseError",
@@ -73,7 +83,9 @@ __all__ = [
     "steer_mutation",
     "create_run_dir",
     "evaluate_hypothesis",
+    "generate_random_tree_pair_hypothesis",
     "llm_hypothesis_to_natural_language",
+    "llm_generate_hypothesis_from_trees",
     "llm_make_hypothesis_measurable",
     "llm_parse_hypothesis",
     "configure_logger",

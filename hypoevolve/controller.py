@@ -14,6 +14,7 @@ from hypoevolve.artifacts import RunArtifactRecorder
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.dataset import load_dataset_schema
 from hypoevolve.evaluator import Evaluator, LLMEvaluator, evaluate_hypothesis
+from hypoevolve.hypo import generate_random_tree_pair_hypothesis
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import configure_logger, logger
 from hypoevolve.mutation import steer_mutation
@@ -36,6 +37,8 @@ class RunResult:
     best_metrics: Dict[str, object]
     iterations: int
     report_path: Path
+    seed_input_text: str
+    seed_generated: bool
 
 
 class HypoEvolveController:
@@ -65,12 +68,13 @@ class HypoEvolveController:
         self.rng = random.Random(config.search.random_seed)
         self.executor_factory = executor_factory or ProcessPoolExecutor
 
-    def run(self, hypothesis_text: str) -> RunResult:
+    def run(self, hypothesis_text: str | None = None) -> RunResult:
         """Execute the full evolution loop for one natural-language seed."""
+        seed_input_text, seed_generated = self._resolve_seed_input_text(hypothesis_text)
         run_dir = create_run_dir(self.config.output.base_dir)
         recorder = RunArtifactRecorder(
             run_dir=run_dir,
-            seed_input_text=hypothesis_text,
+            seed_input_text=seed_input_text,
             worker_count=self.config.workers.count,
             workers_enabled=self.config.workers.enabled,
             dataset_schema_path=self.config.evaluator.dataset_schema_path,
@@ -87,7 +91,7 @@ class HypoEvolveController:
             self.config.evaluator.dataset_schema_path,
         )
         hypothesis = parse_hypothesis_text(
-            hypothesis_text,
+            seed_input_text,
             llm=self.llm_client,
             retries=self.config.parser.retries,
         )
@@ -273,7 +277,20 @@ class HypoEvolveController:
             best_metrics=best.metrics,
             iterations=self.config.search.iterations,
             report_path=report_path,
+            seed_input_text=seed_input_text,
+            seed_generated=seed_generated,
         )
+
+    def _resolve_seed_input_text(self, hypothesis_text: str | None) -> tuple[str, bool]:
+        """Return the explicit seed text or synthesize one when absent."""
+        if hypothesis_text and hypothesis_text.strip():
+            return hypothesis_text.strip(), False
+        generated = generate_random_tree_pair_hypothesis(llm=self.llm_client)
+        logger.info(
+            "[seed.generate] hypothesis={}",
+            generated.hypothesis.replace("\n", " "),
+        )
+        return generated.hypothesis, True
 
     def _run_with_workers(
         self,

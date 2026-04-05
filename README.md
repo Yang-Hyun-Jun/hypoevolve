@@ -161,6 +161,22 @@ Inspect a saved `best.json` or `checkpoint.json` file.
 hypoevolve inspect .hypoevolve/runs/<run-id>/best.json
 ```
 
+### `runs status`
+Inspect one run by run id.
+
+```bash
+hypoevolve runs status <run-id>
+hypoevolve runs status <run-id> --json
+```
+
+### `runs report`
+Return or regenerate the markdown report for one run id.
+
+```bash
+hypoevolve runs report <run-id>
+hypoevolve runs report <run-id> --json
+```
+
 ### `doctor`
 Show environment and config diagnostics.
 

@@ -13,6 +13,7 @@ import click
 from elg import hypothesis_from_dict, render_pretty, render_tree
 from hypoevolve.config import ConfigError, HypoEvolveConfig, load_config
 from hypoevolve.controller import HypoEvolveController
+from hypoevolve.hypo import HypothesisGenerationError, generate_random_tree_pair_hypothesis
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import configure_logger, logger
 from hypoevolve.parser import ParseError, parse_hypothesis_text
@@ -35,8 +36,11 @@ CLI_EXAMPLES = (
     "Quick start:\n"
     "  hypoevolve --version\n"
     "  hypoevolve run \"if BTC momentum drops then DOGE jumps\"\n"
+    "  hypoevolve run\n"
+    "  hypoevolve seed\n"
     "  hypoevolve render \"if A then B\" --tree\n"
     "  hypoevolve inspect .hypoevolve/runs/latest/best.json\n"
+    "  hypoevolve runs status <run-id> --json\n"
     "  hypoevolve doctor"
 )
 CLI_TIPS = (
@@ -94,10 +98,10 @@ def app(ctx: click.Context) -> None:
 
 
 @app.command(help="Run the hypothesis evolution loop from a natural-language prompt.")
-@click.argument("hypothesis")
+@click.argument("hypothesis", required=False)
 @click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
 @click.option("--workers", type=int, default=None, help="Override the local worker count for this run.")
-def run(hypothesis: str, config: str | None, workers: int | None) -> int:
+def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
     """Run the hypothesis evolution loop from one natural-language seed."""
     try:
         loaded = _load_runtime_config(config)
@@ -107,6 +111,8 @@ def run(hypothesis: str, config: str | None, workers: int | None) -> int:
             loaded.workers.enabled = workers > 1
         logger.info("cli run command started")
         result = HypoEvolveController(loaded).run(hypothesis)
+        seed_generated = bool(getattr(result, "seed_generated", False))
+        seed_input_text = str(getattr(result, "seed_input_text", "") or "")
         _echo_banner()
         _echo_kv_rows(
             "Run Summary",
@@ -114,9 +120,12 @@ def run(hypothesis: str, config: str | None, workers: int | None) -> int:
                 ("Status", "ok"),
                 ("Run directory", str(result.run_dir)),
                 ("Report", str(result.report_path)),
+                ("Seed source", "generated" if seed_generated else "provided"),
                 ("Workers", str(loaded.workers.count)),
             ],
         )
+        if seed_generated and seed_input_text:
+            _echo_block("Seed hypothesis", seed_input_text)
         _echo_metric_highlights(result.best_metrics)
         _echo_block("Best hypothesis", render_pretty(result.best_hypothesis))
         _echo_block(
@@ -125,8 +134,31 @@ def run(hypothesis: str, config: str | None, workers: int | None) -> int:
         )
         logger.info("cli run command completed")
         return 0
-    except (ConfigError, ParseError) as exc:
+    except (ConfigError, ParseError, HypothesisGenerationError) as exc:
         logger.error("cli run command failed: {}", exc)
+        _echo_error(exc)
+        return 1
+
+
+@app.command(help="Generate one random natural-language seed hypothesis from sampled feature trees.")
+@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
+@click.option("--max-depth", type=int, default=3, show_default=True, help="Maximum sampled tree depth.")
+def seed(config: str | None, max_depth: int) -> int:
+    """Generate one random seed hypothesis without running evolution."""
+    try:
+        loaded = _load_runtime_config(config)
+        configure_logger(loaded.logging.level)
+        result = generate_random_tree_pair_hypothesis(
+            llm=LLMClient(loaded.llm),
+            max_depth=max_depth,
+        )
+        _echo_banner()
+        _echo_block("Feature tree A", result.tree_a.render(return_str=True))
+        _echo_block("Feature tree B", result.tree_b.render(return_str=True))
+        _echo_block("Generated hypothesis", result.hypothesis)
+        return 0
+    except (ConfigError, HypothesisGenerationError) as exc:
+        logger.error("cli seed command failed: {}", exc)
         _echo_error(exc)
         return 1
 
@@ -258,6 +290,60 @@ def runs_latest(config: str | None, as_json: bool) -> int:
         _echo_json(payload)
         return 0
     click.echo(str(latest))
+    return 0
+
+
+@runs.command("status", help="Show compact run status by run id.")
+@click.argument("run_id")
+@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
+@click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON output.")
+def runs_status(run_id: str, config: str | None, as_json: bool) -> int:
+    """Show run status for one run id."""
+    try:
+        run_dir = _run_dir_from_id(_resolve_runs_base_dir(config), run_id)
+    except ConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
+    payload = _status_payload(run_dir)
+    if as_json:
+        _echo_json(payload)
+        return 0
+    _echo_banner()
+    _echo_kv_rows(
+        "Run Status",
+        [
+            ("Run id", run_id),
+            ("Run directory", payload["run_dir"]),
+            ("Status", payload["status"]),
+            ("Iteration", f'{payload["current_iteration"]}/{payload["iterations_requested"]}'),
+            ("Best score", str(payload["best_score"])),
+            ("Archive size", str(payload["archive_size"])),
+            ("Duplicate skips", str(payload["duplicate_skips_total"])),
+            ("Report", str(payload["report_path"] or "-")),
+        ],
+    )
+    if payload["best_hypothesis_nl"]:
+        _echo_block("Best hypothesis summary", str(payload["best_hypothesis_nl"]))
+    return 0
+
+
+@runs.command("report", help="Return or regenerate the markdown report by run id.")
+@click.argument("run_id")
+@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
+@click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON output.")
+def runs_report(run_id: str, config: str | None, as_json: bool) -> int:
+    """Return the report path for one run id."""
+    try:
+        run_dir = _run_dir_from_id(_resolve_runs_base_dir(config), run_id)
+    except ConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
+    report_path = run_dir / "report" / "report.md"
+    if not report_path.exists():
+        report_path = generate_run_report(run_dir).markdown_path
+    payload = {"run_id": run_id, "run_dir": str(run_dir), "report_path": str(report_path)}
+    if as_json:
+        _echo_json(payload)
+        return 0
+    click.echo(str(report_path))
     return 0
 
 
@@ -400,6 +486,18 @@ def _latest_run_dir(base_dir: Path) -> Path | None:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
+def _resolve_runs_base_dir(config: str | None) -> Path:
+    loaded = _load_runtime_config(config)
+    return Path(loaded.output.base_dir)
+
+
+def _run_dir_from_id(base_dir: Path, run_id: str) -> Path:
+    run_dir = base_dir / run_id
+    if not run_dir.exists() or not run_dir.is_dir():
+        raise ConfigError(f"Run id not found under {base_dir}: {run_id}")
+    return run_dir
+
+
 def _status_payload(run_dir: Path) -> dict[str, object]:
     summary_path = run_dir / "run_summary.json"
     checkpoint_path = run_dir / "checkpoint.json"
@@ -423,7 +521,12 @@ def _status_payload(run_dir: Path) -> dict[str, object]:
         best_entries = [item for item in score_history if item.get("best_updated")]
         if best_entries:
             best_hypothesis_nl = best_entries[-1].get("hypothesis_nl", "")
-    status_text = "completed" if summary_path.exists() else "running"
+    if summary_path.exists():
+        status_text = "completed"
+    elif checkpoint_path.exists():
+        status_text = "running"
+    else:
+        status_text = "failed"
     return {
         "run_dir": str(run_dir),
         "status": status_text,
