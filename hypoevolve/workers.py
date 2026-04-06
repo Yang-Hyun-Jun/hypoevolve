@@ -55,6 +55,8 @@ class WorkerResult:
     random_steering: bool = False
     child_fingerprint: str = ""
     skipped_duplicate: bool = False
+    skipped_steering_error: bool = False
+    steering_error: str = ""
     evaluation_artifacts: Dict[str, object] = field(default_factory=dict)
 
 
@@ -94,16 +96,33 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         )
         for item in task.top_hypotheses
     ]
-    decision = steer_mutation(
-        parent_hypothesis=parent,
-        parent_hypothesis_nl=parent_nl,
-        current_metrics=task.parent_metrics,
-        llm=llm,
-        recent_history=task.recent_history,
-        top_hypotheses=top_hypotheses,
-        use_random_steering=task.use_random_steering,
-        retries=task.steering_retries,
-    )
+    try:
+        decision = steer_mutation(
+            parent_hypothesis=parent,
+            parent_hypothesis_nl=parent_nl,
+            current_metrics=task.parent_metrics,
+            llm=llm,
+            recent_history=task.recent_history,
+            top_hypotheses=top_hypotheses,
+            use_random_steering=task.use_random_steering,
+            retries=task.steering_retries,
+        )
+    except ParseError as exc:
+        logger.error(
+            "worker iteration {} skipped after steering failure: {}",
+            task.iteration,
+            exc,
+        )
+        return WorkerResult(
+            child_hypothesis={},
+            metrics={},
+            iteration=task.iteration,
+            mutation_summary="steering_failed",
+            parent_score=task.parent_score,
+            random_steering=task.use_random_steering,
+            skipped_steering_error=True,
+            steering_error=str(exc),
+        )
     logger.info(
         "worker iteration {} produced mutation_summary={}",
         task.iteration,

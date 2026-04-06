@@ -167,11 +167,29 @@ class HypoEvolveController:
                     parent_entry.cell,
                     render_pretty(parent_entry.hypothesis).replace("\n", " "),
                 )
-                mutation_sample, steering_metadata = self._choose_mutation(
-                    parent_entry,
-                    recent_history,
-                    archive,
-                )
+                try:
+                    mutation_sample, steering_metadata = self._choose_mutation(
+                        parent_entry,
+                        recent_history,
+                        archive,
+                    )
+                except ParseError as exc:
+                    logger.error(
+                        "[iter.skip_steering_error] i={} parent_fp={} error={}",
+                        iteration,
+                        parent_entry.fingerprint,
+                        str(exc).replace("\n", " "),
+                    )
+                    archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
+                    recorder.record_steering_skip(
+                        iteration=iteration,
+                        parent_fingerprint=parent_entry.fingerprint,
+                        parent_score=parent_entry.score,
+                        best_score_after=archive.best.score if archive.best else 0.0,
+                        worker_mode=False,
+                        error=str(exc),
+                    )
+                    continue
                 logger.info(
                     "[iter.steer] i={} mutation_summary={} score_reason={} domain_reason={}",
                     iteration,
@@ -351,6 +369,41 @@ class HypoEvolveController:
 
                 parent_entry = pending.pop(future)
                 result = future.result()
+                if result.skipped_steering_error:
+                    logger.error(
+                        "[worker.skip_steering_error] i={} error={}",
+                        result.iteration,
+                        result.steering_error.replace("\n", " "),
+                    )
+                    archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
+                    recorder.record_steering_skip(
+                        iteration=result.iteration,
+                        parent_fingerprint=parent_entry.fingerprint,
+                        parent_score=parent_entry.score,
+                        best_score_after=archive.best.score if archive.best else 0.0,
+                        worker_mode=True,
+                        error=result.steering_error,
+                    )
+                    if submitted < total_iterations:
+                        submitted += 1
+                        task, next_parent_entry = self._make_worker_task(
+                            archive,
+                            submitted,
+                            recent_history[-3:],
+                            known_fingerprints=known_fingerprints,
+                        )
+                        logger.info(
+                            "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
+                            submitted,
+                            archive.best.score if archive.best else 0.0,
+                            next_parent_entry.cell,
+                            render_pretty(next_parent_entry.hypothesis).replace(
+                                "\n", " "
+                            ),
+                        )
+                        next_future = executor.submit(run_worker_task, task)
+                        pending[next_future] = next_parent_entry
+                    continue
                 if result.skipped_duplicate:
                     logger.info(
                         "[worker.skip_duplicate] i={} child_fp={}",

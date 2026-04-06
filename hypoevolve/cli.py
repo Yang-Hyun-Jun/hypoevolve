@@ -284,6 +284,9 @@ def doctor(config: str | None) -> int:
                 [
                     ("Config ok", "true"),
                     ("Archive type", "MAP-Elites"),
+                    ("LLM model", loaded.llm.model),
+                    ("LLM api base", loaded.llm.api_base),
+                    ("LLM api key", "configured" if loaded.llm.api_key else "auto"),
                     ("Coverage bins", str(loaded.archive.coverage_bins)),
                     ("Complexity bins", str(loaded.archive.complexity_bins)),
                     ("Iterations", str(loaded.search.iterations)),

@@ -270,3 +270,67 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
             lines = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
             self.assertEqual(lines[0]["iteration"], 0)
             self.assertEqual(lines[1]["iteration"], 2)
+
+    def test_worker_steering_failure_is_skipped_not_fatal(self):
+        class FakeLLM:
+            def generate_json(self, system, user, **kwargs):
+                return {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                    ],
+                    "params": {},
+                }
+
+            def generate_text(self, system, user, **kwargs):
+                return "If A then B."
+
+        def fake_run_worker_task(task):
+            if task.iteration == 1:
+                return WorkerResult(
+                    child_hypothesis={},
+                    metrics={},
+                    iteration=task.iteration,
+                    mutation_summary="steering_failed",
+                    parent_score=task.parent_score,
+                    skipped_steering_error=True,
+                    steering_error="Failed to steer mutation via LLM",
+                )
+            return WorkerResult(
+                child_hypothesis=task.parent_hypothesis,
+                metrics={"combined_score": 0.6},
+                iteration=task.iteration,
+                mutation_summary="Applied a change_relation_type-style local mutation.",
+                parent_score=task.parent_score,
+                domain_reason="Use a plausible local relation-type mutation.",
+                score_reason="Use a local relation-type mutation.",
+                operation_score_rankings={"change_relation_type": 1},
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = HypoEvolveConfig()
+            config.search.iterations = 2
+            config.output.base_dir = tmp
+            config.workers.enabled = True
+            config.workers.count = 1 + 1
+            config.evaluator.dataset_schema_path = str(Path(tmp) / "dataset.yaml")
+            Path(config.evaluator.dataset_schema_path).write_text(
+                "description: test\nindex:\n  name: close_time\n  dtype: datetime64[us]\nfiles:\n  -\n    entity: BTCUSDT\n    path: /tmp/BTCUSDT.parquet\ncolumns:\n  -\n    name: CLOSE\n",
+                encoding="utf-8",
+            )
+            with patch("hypoevolve.controller.run_worker_task", side_effect=fake_run_worker_task):
+                controller = HypoEvolveController(
+                    config,
+                    llm_client=FakeLLM(),
+                    evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {"combined_score": 0.5}})(),
+                    executor_factory=FakeExecutor,
+                )
+                result = controller.run("if A then B")
+
+            history = json.loads(
+                (result.run_dir / "score_history.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(history[1]["status"], "skipped_steering_error")
+            self.assertEqual(history[2]["status"], "evaluated")

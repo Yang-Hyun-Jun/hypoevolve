@@ -83,7 +83,9 @@ HypoEvolve uses a minimal config file:
 
 ```yaml
 llm:
-  model: gpt-4o-mini
+  api_key: EMPTY
+  model: DeepSeek-R1-Distill-Qwen-14B
+  api_base: http://127.0.0.1:8000/v1
   temperature: 0.2
   max_tokens: 2000
 parser:
@@ -111,6 +113,16 @@ workers:
 ```
 
 See `hypoevolve.yaml` for the current default example.
+
+Recommended usage is to switch providers entirely in `hypoevolve.yaml`:
+
+- local vLLM: set `api_base: http://127.0.0.1:8000/v1`, your local `model`, and
+  keep `api_key: EMPTY` (or any other dummy string)
+- OpenRouter or other hosted providers: replace `api_base`, `model`, and
+  `api_key` in the same file
+
+`api_key` from `hypoevolve.yaml` is used first, so you do not need environment
+variables for normal provider switching.
 
 ---
 

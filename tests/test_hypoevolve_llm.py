@@ -3,7 +3,12 @@ import unittest
 from unittest.mock import patch
 
 from hypoevolve.config import LLMConfig
-from hypoevolve.llm import LLMClient, LLMError, _extract_json_payload
+from hypoevolve.llm import (
+    LLMClient,
+    LLMError,
+    _extract_json_payload,
+    _is_local_endpoint,
+)
 
 
 class _FakeMessage:
@@ -49,6 +54,23 @@ class TestHypoEvolveLLM(unittest.TestCase):
             client = LLMClient(LLMConfig())
             self.assertEqual(client.api_key, "env-key")
 
+    def test_explicit_api_key_beats_environment(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "env-key"}, clear=True):
+            client = LLMClient(
+                LLMConfig(
+                    api_key="yaml-key",
+                    api_base="https://openrouter.ai/api/v1",
+                )
+            )
+            self.assertEqual(client.api_key, "yaml-key")
+
+    def test_local_endpoint_uses_placeholder_api_key(self):
+        with patch.dict(os.environ, {}, clear=True):
+            client = LLMClient(
+                LLMConfig(api_key=None, api_base="http://127.0.0.1:8000/v1")
+            )
+            self.assertEqual(client.api_key, "EMPTY")
+
     def test_generate_text_uses_stubbed_client(self):
         client = LLMClient(LLMConfig(api_key="test-key"))
         client._client = _FakeClient("hello")
@@ -67,7 +89,14 @@ class TestHypoEvolveLLM(unittest.TestCase):
             client.generate_json("sys", "user")
 
     def test_generate_text_raises_without_api_key(self):
-        client = LLMClient(LLMConfig(api_key=None))
         with patch.dict(os.environ, {}, clear=True):
+            client = LLMClient(
+                LLMConfig(api_key=None, api_base="https://example.com/v1")
+            )
             with self.assertRaises(LLMError):
                 client.generate_text("sys", "user")
+
+    def test_is_local_endpoint_detects_loopback_hosts(self):
+        self.assertTrue(_is_local_endpoint("http://localhost:8000/v1"))
+        self.assertTrue(_is_local_endpoint("http://127.0.0.1:8000/v1"))
+        self.assertFalse(_is_local_endpoint("https://openrouter.ai/api/v1"))

@@ -9,6 +9,7 @@ from hypoevolve.archive import MAPElitesArchive
 from hypoevolve.artifacts import RunArtifactRecorder
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.controller import HypoEvolveController
+from hypoevolve.parser import ParseError
 
 
 class TestHypoEvolveController(unittest.TestCase):
@@ -129,6 +130,52 @@ class TestHypoEvolveController(unittest.TestCase):
             ]
             self.assertTrue(trace[1]["metadata"]["steered"])
             self.assertIn("replace_atomic-style", trace[1]["metadata"]["mutation_summary"])
+
+    def test_run_skips_iteration_when_steering_fails(self):
+        class FakeLLM:
+            def generate_json(self, system, user, **kwargs):
+                return {
+                    "kind": "relation",
+                    "type": "IMPLIES",
+                    "inputs": [
+                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                    ],
+                    "params": {},
+                }
+
+            def generate_text(self, system, user, **kwargs):
+                return "If A then B."
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = HypoEvolveConfig()
+            config.search.iterations = 1
+            config.output.base_dir = tmp
+            config.evaluator.dataset_schema_path = str(Path(tmp) / "dataset.yaml")
+            Path(config.evaluator.dataset_schema_path).write_text(
+                "description: test\nindex:\n  name: close_time\n  dtype: datetime64[us]\nfiles:\n  -\n    entity: BTCUSDT\n    path: /tmp/BTCUSDT.parquet\ncolumns:\n  -\n    name: CLOSE\n",
+                encoding="utf-8",
+            )
+            fake_evaluator = type(
+                "FakeEvaluator",
+                (),
+                {"evaluate": lambda self, hypothesis: {"combined_score": 0.5}},
+            )()
+            controller = HypoEvolveController(
+                config, evaluator=fake_evaluator, llm_client=FakeLLM()
+            )
+            with patch(
+                "hypoevolve.controller.steer_mutation",
+                side_effect=ParseError("Failed to steer mutation via LLM"),
+            ):
+                result = controller.run("if A then B")
+
+            history = json.loads(
+                (result.run_dir / "score_history.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(len(history), 2)
+            self.assertEqual(history[1]["status"], "skipped_steering_error")
+            self.assertIn("Failed to steer mutation via LLM", history[1]["error"])
 
     def test_choose_mutation_reuses_cached_parent_hypothesis_nl(self):
         config = HypoEvolveConfig()

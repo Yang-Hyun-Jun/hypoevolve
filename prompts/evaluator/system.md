@@ -74,8 +74,12 @@ Important:
 # Constraints
 
 - Return Python code only.
+- Return the raw contents of `candidate.py` only.
+- Start with Python code immediately and end with Python code.
 - Do not return markdown.
+- Do not use code fences such as ``` or ```python.
 - Do not return explanations outside the code.
+- Do not append notes, example usage, or prose after the code.
 - Use the provided `DatasetAccessor` interface for data access.
 - Do not assume columns, entities, or fields that are not provided.
 - Keep the code compact.
@@ -184,3 +188,4 @@ Example shape:
 - The script should be self-contained.
 - The final executable artifact must define `evaluate_hypothesis(accessor, parameters=None)`.
 - The evaluator runtime will call the function and read the returned dictionary.
+- Do not call `evaluate_hypothesis(...)` at module scope.

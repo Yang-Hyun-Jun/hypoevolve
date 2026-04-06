@@ -2,6 +2,22 @@ from hypoevolve.hypo.nodes import nodes
 from hypoevolve.hypo.tree.base import HypoTree
 from hypoevolve.hypo.tree.generator import HypoTreeGenerator
 
+LABELS = [
+    "OPEN",
+    "HIGH",
+    "LOW",
+    "CLOSE",
+    "VOLUME",
+    "PREMIUM_INDEX_CLOSE",
+    "PREMIUM_INDEX_OPEN",
+    "PREMIUM_INDEX_HIGH",
+    "PREMIUM_INDEX_LOW",
+    "TAKER_BUY_VOLUME",
+    "TAKER_SELL_VOLUME",
+    "FUNDING_SCORE",
+    "ORDER_FLOW_IMBALANCE",
+]
+
 
 def generate_trees(
     generator: HypoTreeGenerator,
@@ -73,59 +89,14 @@ def get_nodes() -> list:
         nodes.PullbackWithinBand(period=P, k=0.5),
         nodes.DrawdownExceed(pct=0.1, lookback=P),
         nodes.JumpDetect(period=P, q_tail=0.1),
-        # Data nodes
-        nodes.DATA(
-            label="OPEN",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="HIGH",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="LOW",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="CLOSE",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="VOLUME",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="PREMIUM_INDEX_CLOSE",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="PREMIUM_INDEX_OPEN",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="PREMIUM_INDEX_HIGH",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="PREMIUM_INDEX_LOW",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="TAKER_BUY_VOLUME",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="TAKER_SELL_VOLUME",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="FUNDING_SCORE",
-            **DATA_KWARGS,
-        ),
-        nodes.DATA(
-            label="ORDER_FLOW_IMBALANCE",
-            **DATA_KWARGS,
-        ),
     ]
+
+    NODES.extend(
+        nodes.DATA(
+            label=label,
+            **DATA_KWARGS,
+        )
+        for label in LABELS
+    )
 
     return NODES

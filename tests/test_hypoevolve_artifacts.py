@@ -86,21 +86,30 @@ class TestRunArtifactRecorder(unittest.TestCase):
             self.assertTrue((run_dir / "trace.jsonl").exists())
             self.assertTrue((run_dir / "run_summary.json").exists())
             self.assertTrue((run_dir / "score_history.json").exists())
-            self.assertTrue((run_dir / "artifacts" / "seed_candidate.py").exists())
-            self.assertTrue((run_dir / "artifacts" / "iteration_0001_candidate.py").exists())
+            self.assertFalse((run_dir / "artifacts" / "seed_candidate.py").exists())
+            self.assertFalse(
+                (run_dir / "artifacts" / "iteration_0001_candidate.py").exists()
+            )
             self.assertTrue((run_dir / "artifacts" / "top_evaluators.json").exists())
             self.assertTrue(report_path.exists())
             self.assertTrue((run_dir / "report" / "assets" / "score_progression.svg").exists())
             score_history = json.loads(
                 (run_dir / "score_history.json").read_text(encoding="utf-8")
             )
+            iteration_payload = json.loads(
+                (run_dir / "artifacts" / "iteration_0001.json").read_text(
+                    encoding="utf-8"
+                )
+            )
             self.assertEqual(len(score_history), 3)
             self.assertEqual(recorder.duplicate_skips_solo, 1)
+            self.assertNotIn("evaluation_artifacts", iteration_payload)
             top_manifest = json.loads(
                 (run_dir / "artifacts" / "top_evaluators.json").read_text(encoding="utf-8")
             )
             self.assertEqual(len(top_manifest), 1)
             self.assertIn("candidate_code", top_manifest[0])
+            self.assertTrue((run_dir / top_manifest[0]["candidate_code"]).exists())
             self.assertIn(
                 "Child B.",
                 (run_dir / "report" / "report.md").read_text(encoding="utf-8"),

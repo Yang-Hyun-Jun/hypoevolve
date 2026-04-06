@@ -34,6 +34,14 @@ class TestHypoEvolvePrompts(unittest.TestCase):
         self.assertIn("close_time", rendered)
         self.assertIn("accessor.load_dataframe(entity)", rendered)
 
+    def test_evaluator_prompts_require_raw_python_only(self):
+        system_prompt = load_prompt("evaluator", "system.md")
+        user_prompt = load_prompt("evaluator", "user.md")
+        self.assertIn("Do not use code fences", system_prompt)
+        self.assertIn("Do not call `evaluate_hypothesis(...)` at module scope.", system_prompt)
+        self.assertIn("Return only raw Python source for `candidate.py`.", user_prompt)
+        self.assertIn("Do not add explanations, notes, or example usage.", user_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

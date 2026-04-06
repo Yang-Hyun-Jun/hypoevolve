@@ -19,11 +19,11 @@ class ConfigError(ValueError):
 class LLMConfig:
     """Settings for the LLM client used across the pipeline."""
 
-    model: str = "deepseek/deepseek-v3.2"
+    model: str = "DeepSeek-R1-Distill-Qwen-14B"
     temperature: float = 0.2
     max_tokens: int = 2000
     api_key: str | None = None
-    api_base: str = "https://openrouter.ai/api/v1"
+    api_base: str = "http://127.0.0.1:8000/v1"
     timeout: int = 60
     retries: int = 1
     retry_delay: float = 1.0

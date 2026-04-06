@@ -9,6 +9,8 @@ class TestHypoEvolveConfig(unittest.TestCase):
     def test_load_defaults_when_no_path(self):
         config = load_config(None)
         self.assertIsInstance(config, HypoEvolveConfig)
+        self.assertEqual(config.llm.model, "DeepSeek-R1-Distill-Qwen-14B")
+        self.assertEqual(config.llm.api_base, "http://127.0.0.1:8000/v1")
         self.assertEqual(config.archive.coverage_bins, [0.05, 0.15, 0.30])
         self.assertEqual(config.archive.complexity_bins, [3, 5, 8])
 
@@ -20,6 +22,21 @@ class TestHypoEvolveConfig(unittest.TestCase):
             self.assertEqual(config.search.iterations, 3)
             self.assertEqual(config.archive.coverage_bins, [0.05, 0.15, 0.30])
             self.assertEqual(config.output.top_k_evaluator_code_artifacts, 5)
+
+    def test_llm_api_key_loads_from_yaml(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "hypoevolve.yaml"
+            path.write_text(
+                "llm:\n"
+                "  api_key: EMPTY\n"
+                "  api_base: http://127.0.0.1:8000/v1\n"
+                "  model: DeepSeek-R1-Distill-Qwen-14B\n",
+                encoding="utf-8",
+            )
+            config = load_config(path)
+            self.assertEqual(config.llm.api_key, "EMPTY")
+            self.assertEqual(config.llm.api_base, "http://127.0.0.1:8000/v1")
+            self.assertEqual(config.llm.model, "DeepSeek-R1-Distill-Qwen-14B")
 
     def test_output_top_k_evaluator_code_artifacts_loads_and_validates(self):
         with tempfile.TemporaryDirectory() as tmp:
