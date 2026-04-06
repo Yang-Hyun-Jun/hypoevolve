@@ -1,5 +1,5 @@
 llm:
-  api_key: "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"
+  api_key: ""
   api_base: https://openrouter.ai/api/v1
   model: deepseek/deepseek-v3.2
   temperature: 0.8
