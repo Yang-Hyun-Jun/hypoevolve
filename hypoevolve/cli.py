@@ -13,7 +13,10 @@ import click
 from elg import hypothesis_from_dict, render_pretty, render_tree
 from hypoevolve.config import ConfigError, HypoEvolveConfig, load_config
 from hypoevolve.controller import HypoEvolveController
-from hypoevolve.hypo import HypothesisGenerationError, generate_random_tree_pair_hypothesis
+from hypoevolve.hypo import (
+    HypothesisGenerationError,
+    generate_random_tree_pair_hypothesis,
+)
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import configure_logger, logger
 from hypoevolve.parser import ParseError, parse_hypothesis_text
@@ -35,10 +38,10 @@ DEFAULT_CONFIG_PATH = "hypoevolve.yaml"
 CLI_EXAMPLES = (
     "Quick start:\n"
     "  hypoevolve --version\n"
-    "  hypoevolve run \"if BTC momentum drops then DOGE jumps\"\n"
+    '  hypoevolve run "if BTC momentum drops then DOGE jumps"\n'
     "  hypoevolve run\n"
     "  hypoevolve seed\n"
-    "  hypoevolve render \"if A then B\" --tree\n"
+    '  hypoevolve render "if A then B" --tree\n'
     "  hypoevolve inspect .hypoevolve/runs/latest/best.json\n"
     "  hypoevolve runs status <run-id> --json\n"
     "  hypoevolve doctor"
@@ -99,8 +102,15 @@ def app(ctx: click.Context) -> None:
 
 @app.command(help="Run the hypothesis evolution loop from a natural-language prompt.")
 @click.argument("hypothesis", required=False)
-@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
-@click.option("--workers", type=int, default=None, help="Override the local worker count for this run.")
+@click.option(
+    "--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}."
+)
+@click.option(
+    "--workers",
+    type=int,
+    default=None,
+    help="Override the local worker count for this run.",
+)
 def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
     """Run the hypothesis evolution loop from one natural-language seed."""
     try:
@@ -113,6 +123,7 @@ def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
         result = HypoEvolveController(loaded).run(hypothesis)
         seed_generated = bool(getattr(result, "seed_generated", False))
         seed_input_text = str(getattr(result, "seed_input_text", "") or "")
+        seed_hypothesis = getattr(result, "seed_hypothesis", None)
         _echo_banner()
         _echo_kv_rows(
             "Run Summary",
@@ -127,10 +138,14 @@ def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
         if seed_generated and seed_input_text:
             _echo_block("Seed hypothesis", seed_input_text)
         _echo_metric_highlights(result.best_metrics)
+        if seed_hypothesis is not None:
+            _echo_block("Initial hypothesis", render_pretty(seed_hypothesis))
         _echo_block("Best hypothesis", render_pretty(result.best_hypothesis))
         _echo_block(
             "Best metrics",
-            json.dumps(result.best_metrics, ensure_ascii=False, indent=2, sort_keys=True),
+            json.dumps(
+                result.best_metrics, ensure_ascii=False, indent=2, sort_keys=True
+            ),
         )
         logger.info("cli run command completed")
         return 0
@@ -140,9 +155,19 @@ def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
         return 1
 
 
-@app.command(help="Generate one random natural-language seed hypothesis from sampled feature trees.")
-@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
-@click.option("--max-depth", type=int, default=3, show_default=True, help="Maximum sampled tree depth.")
+@app.command(
+    help="Generate one random natural-language seed hypothesis from sampled feature trees."
+)
+@click.option(
+    "--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}."
+)
+@click.option(
+    "--max-depth",
+    type=int,
+    default=3,
+    show_default=True,
+    help="Maximum sampled tree depth.",
+)
 def seed(config: str | None, max_depth: int) -> int:
     """Generate one random seed hypothesis without running evolution."""
     try:
@@ -165,8 +190,14 @@ def seed(config: str | None, max_depth: int) -> int:
 
 @app.command(help="Parse and render a natural-language hypothesis via the LLM parser.")
 @click.argument("hypothesis")
-@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
-@click.option("--tree", is_flag=True, help="Render as an ASCII tree instead of the pretty ELG form.")
+@click.option(
+    "--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}."
+)
+@click.option(
+    "--tree",
+    is_flag=True,
+    help="Render as an ASCII tree instead of the pretty ELG form.",
+)
 def render(hypothesis: str, config: str | None, tree: bool) -> int:
     """Parse one hypothesis and render it as ELG text or an ASCII tree."""
     try:
@@ -179,7 +210,10 @@ def render(hypothesis: str, config: str | None, tree: bool) -> int:
             retries=loaded.parser.retries,
         )
         _echo_banner()
-        _echo_block("Rendered hypothesis", render_tree(parsed) if tree else render_pretty(parsed))
+        _echo_block(
+            "Rendered hypothesis",
+            render_tree(parsed) if tree else render_pretty(parsed),
+        )
         logger.info("cli render command completed")
         return 0
     except (ConfigError, ParseError) as exc:
@@ -205,7 +239,9 @@ def inspect(path: Path, as_json: bool) -> int:
         if "metrics" in payload:
             _echo_block(
                 "Metrics",
-                json.dumps(payload["metrics"], ensure_ascii=False, indent=2, sort_keys=True),
+                json.dumps(
+                    payload["metrics"], ensure_ascii=False, indent=2, sort_keys=True
+                ),
             )
     elif "best_hypothesis" in payload and payload["best_hypothesis"] is not None:
         hypothesis = hypothesis_from_dict(payload["best_hypothesis"])
@@ -213,15 +249,24 @@ def inspect(path: Path, as_json: bool) -> int:
         if "best_metrics" in payload:
             _echo_block(
                 "Best metrics",
-                json.dumps(payload["best_metrics"], ensure_ascii=False, indent=2, sort_keys=True),
+                json.dumps(
+                    payload["best_metrics"],
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ),
             )
     else:
-        _echo_block("Payload", json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        _echo_block(
+            "Payload", json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
+        )
     return 0
 
 
 @app.command(help="Show environment and config diagnostics.")
-@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
+@click.option(
+    "--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}."
+)
 def doctor(config: str | None) -> int:
     """Report environment and configuration diagnostics for the CLI."""
     _echo_banner()
@@ -275,8 +320,12 @@ def runs() -> None:
 
 
 @runs.command("latest", help="Print the most recently updated run directory.")
-@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
-@click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON output.")
+@click.option(
+    "--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}."
+)
+@click.option(
+    "--json", "as_json", is_flag=True, help="Print machine-readable JSON output."
+)
 def runs_latest(config: str | None, as_json: bool) -> int:
     """Print the latest run directory."""
     loaded = _load_runtime_config(config)
@@ -295,8 +344,12 @@ def runs_latest(config: str | None, as_json: bool) -> int:
 
 @runs.command("status", help="Show compact run status by run id.")
 @click.argument("run_id")
-@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
-@click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON output.")
+@click.option(
+    "--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}."
+)
+@click.option(
+    "--json", "as_json", is_flag=True, help="Print machine-readable JSON output."
+)
 def runs_status(run_id: str, config: str | None, as_json: bool) -> int:
     """Show run status for one run id."""
     try:
@@ -314,7 +367,10 @@ def runs_status(run_id: str, config: str | None, as_json: bool) -> int:
             ("Run id", run_id),
             ("Run directory", payload["run_dir"]),
             ("Status", payload["status"]),
-            ("Iteration", f'{payload["current_iteration"]}/{payload["iterations_requested"]}'),
+            (
+                "Iteration",
+                f"{payload['current_iteration']}/{payload['iterations_requested']}",
+            ),
             ("Best score", str(payload["best_score"])),
             ("Archive size", str(payload["archive_size"])),
             ("Duplicate skips", str(payload["duplicate_skips_total"])),
@@ -328,8 +384,12 @@ def runs_status(run_id: str, config: str | None, as_json: bool) -> int:
 
 @runs.command("report", help="Return or regenerate the markdown report by run id.")
 @click.argument("run_id")
-@click.option("--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}.")
-@click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON output.")
+@click.option(
+    "--config", default=None, help=f"{CONFIG_HELP} Defaults to {DEFAULT_CONFIG_PATH}."
+)
+@click.option(
+    "--json", "as_json", is_flag=True, help="Print machine-readable JSON output."
+)
 def runs_report(run_id: str, config: str | None, as_json: bool) -> int:
     """Return the report path for one run id."""
     try:
@@ -339,7 +399,11 @@ def runs_report(run_id: str, config: str | None, as_json: bool) -> int:
     report_path = run_dir / "report" / "report.md"
     if not report_path.exists():
         report_path = generate_run_report(run_dir).markdown_path
-    payload = {"run_id": run_id, "run_dir": str(run_dir), "report_path": str(report_path)}
+    payload = {
+        "run_id": run_id,
+        "run_dir": str(run_dir),
+        "report_path": str(report_path),
+    }
     if as_json:
         _echo_json(payload)
         return 0
@@ -348,8 +412,12 @@ def runs_report(run_id: str, config: str | None, as_json: bool) -> int:
 
 
 @app.command(help="Show compact run status from persisted artifacts.")
-@click.argument("run_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
-@click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON output.")
+@click.argument(
+    "run_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
+@click.option(
+    "--json", "as_json", is_flag=True, help="Print machine-readable JSON output."
+)
 def status(run_dir: Path, as_json: bool) -> int:
     """Show run status for one run directory."""
     payload = _status_payload(run_dir)
@@ -362,7 +430,10 @@ def status(run_dir: Path, as_json: bool) -> int:
         [
             ("Run directory", payload["run_dir"]),
             ("Status", payload["status"]),
-            ("Iteration", f'{payload["current_iteration"]}/{payload["iterations_requested"]}'),
+            (
+                "Iteration",
+                f"{payload['current_iteration']}/{payload['iterations_requested']}",
+            ),
             ("Best score", str(payload["best_score"])),
             ("Archive size", str(payload["archive_size"])),
             ("Duplicate skips", str(payload["duplicate_skips_total"])),
@@ -375,8 +446,12 @@ def status(run_dir: Path, as_json: bool) -> int:
 
 
 @app.command(help="Return or regenerate the markdown report for one run.")
-@click.argument("run_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
-@click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON output.")
+@click.argument(
+    "run_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
+@click.option(
+    "--json", "as_json", is_flag=True, help="Print machine-readable JSON output."
+)
 def report(run_dir: Path, as_json: bool) -> int:
     """Return the report path for one run directory."""
     report_path = run_dir / "report" / "report.md"

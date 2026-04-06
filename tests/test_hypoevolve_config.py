@@ -19,6 +19,26 @@ class TestHypoEvolveConfig(unittest.TestCase):
             config = load_config(path)
             self.assertEqual(config.search.iterations, 3)
             self.assertEqual(config.archive.coverage_bins, [0.05, 0.15, 0.30])
+            self.assertEqual(config.output.top_k_evaluator_code_artifacts, 5)
+
+    def test_output_top_k_evaluator_code_artifacts_loads_and_validates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "hypoevolve.yaml"
+            path.write_text(
+                "output:\n"
+                "  top_k_evaluator_code_artifacts: 3\n",
+                encoding="utf-8",
+            )
+            config = load_config(path)
+            self.assertEqual(config.output.top_k_evaluator_code_artifacts, 3)
+
+            path.write_text(
+                "output:\n"
+                "  top_k_evaluator_code_artifacts: 0\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ConfigError):
+                load_config(path)
 
     def test_archive_bins_load_from_yaml(self):
         with tempfile.TemporaryDirectory() as tmp:

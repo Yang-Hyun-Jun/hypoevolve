@@ -409,3 +409,4 @@ class TestHypoEvolveController(unittest.TestCase):
         )
         self.assertTrue(result.seed_generated)
         self.assertEqual(result.seed_input_text, "Generated seed hypothesis.")
+        self.assertIsNotNone(result.seed_hypothesis)

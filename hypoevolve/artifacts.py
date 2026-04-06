@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
 from elg import Hypothesis, fingerprint, render_pretty
 from hypoevolve.archive import MAPElitesArchive
@@ -31,6 +33,7 @@ class RunArtifactRecorder:
     score_history: list[Dict[str, object]] = field(default_factory=list)
     duplicate_skips_solo: int = 0
     duplicate_skips_worker: int = 0
+    top_k_code_artifacts: int = 5
 
     def record_seed(
         self,
@@ -40,6 +43,7 @@ class RunArtifactRecorder:
         metrics: Dict[str, object],
         metadata: Dict[str, object],
         descriptor: Dict[str, object],
+        evaluation_artifacts: Dict[str, Any] | None = None,
     ) -> None:
         """Persist the seed candidate and initialize run history.
 
@@ -65,6 +69,10 @@ class RunArtifactRecorder:
         )
         write_best(self.run_dir, archive.best.hypothesis, archive.best.metrics)
         write_checkpoint(self.run_dir, self._checkpoint_payload(archive, 0))
+        evaluation_paths = self._persist_evaluation_artifacts(
+            "seed",
+            evaluation_artifacts or {},
+        )
         write_artifact(
             self.run_dir,
             "seed",
@@ -72,6 +80,7 @@ class RunArtifactRecorder:
                 "input_text": self.seed_input_text,
                 "hypothesis": hypothesis.to_dict(),
                 "metrics": metrics,
+                "evaluation_artifacts": evaluation_paths,
             },
         )
         self.score_history.append(
@@ -139,6 +148,7 @@ class RunArtifactRecorder:
         metadata: Dict[str, object],
         descriptor: Dict[str, object],
         best_updated: bool,
+        evaluation_artifacts: Dict[str, Any] | None = None,
     ) -> None:
         """Persist one evaluated iteration result and append history.
 
@@ -168,6 +178,10 @@ class RunArtifactRecorder:
         )
         write_checkpoint(self.run_dir, self._checkpoint_payload(archive, iteration))
         write_best(self.run_dir, archive.best.hypothesis, archive.best.metrics)
+        evaluation_paths = self._persist_evaluation_artifacts(
+            f"iteration_{iteration:04d}",
+            evaluation_artifacts or {},
+        )
         write_artifact(
             self.run_dir,
             f"iteration_{iteration:04d}",
@@ -182,6 +196,7 @@ class RunArtifactRecorder:
                 "hypothesis": child_hypothesis.to_dict(),
                 "worker_mode": metadata.get("worker_mode", False),
                 "map_elites": descriptor["map_elites"],
+                "evaluation_artifacts": evaluation_paths,
             },
         )
         self.score_history.append(
@@ -244,7 +259,98 @@ class RunArtifactRecorder:
                 "best_hypothesis_nl": best_hypothesis_nl,
             },
         )
+        self._materialize_top_k_evaluator_artifacts(archive)
         return generate_run_report(self.run_dir).markdown_path
+
+    def _persist_evaluation_artifacts(
+        self,
+        artifact_name: str,
+        evaluation_artifacts: Dict[str, Any],
+    ) -> Dict[str, object]:
+        """Persist generated evaluator code files and return relative paths."""
+        if not evaluation_artifacts:
+            return {}
+        artifacts_dir = self.run_dir / "artifacts"
+        payload: Dict[str, object] = {}
+
+        candidate_code = evaluation_artifacts.get("candidate_code")
+        if isinstance(candidate_code, str) and candidate_code.strip():
+            candidate_path = artifacts_dir / f"{artifact_name}_candidate.py"
+            candidate_path.write_text(candidate_code.rstrip() + "\n", encoding="utf-8")
+            payload["candidate_code"] = str(candidate_path.relative_to(self.run_dir))
+
+        wrapper_code = evaluation_artifacts.get("wrapper_code")
+        if isinstance(wrapper_code, str) and wrapper_code.strip():
+            wrapper_path = artifacts_dir / f"{artifact_name}_wrapper.py"
+            wrapper_path.write_text(wrapper_code.rstrip() + "\n", encoding="utf-8")
+            payload["wrapper_code"] = str(wrapper_path.relative_to(self.run_dir))
+
+        metadata = {
+            key: value
+            for key, value in evaluation_artifacts.items()
+            if key not in {"candidate_code", "wrapper_code"}
+        }
+        if metadata:
+            metadata_path = artifacts_dir / f"{artifact_name}_evaluation.json"
+            metadata_path.write_text(
+                json.dumps(metadata, ensure_ascii=False, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            payload["metadata"] = str(metadata_path.relative_to(self.run_dir))
+
+        return payload
+
+    def _materialize_top_k_evaluator_artifacts(
+        self,
+        archive: MAPElitesArchive,
+    ) -> None:
+        """Copy evaluator code for the top-ranked archive entries into one folder."""
+        top_entries = archive.entries[: self.top_k_code_artifacts]
+        top_dir = self.run_dir / "artifacts" / "top_evaluators"
+        top_dir.mkdir(parents=True, exist_ok=True)
+        manifest: list[Dict[str, object]] = []
+
+        for rank, entry in enumerate(top_entries, start=1):
+            source_prefix = (
+                "seed" if entry.iteration == 0 else f"iteration_{entry.iteration:04d}"
+            )
+            source_candidate = (
+                self.run_dir / "artifacts" / f"{source_prefix}_candidate.py"
+            )
+            source_wrapper = self.run_dir / "artifacts" / f"{source_prefix}_wrapper.py"
+            source_metadata = (
+                self.run_dir / "artifacts" / f"{source_prefix}_evaluation.json"
+            )
+            label = f"rank_{rank:02d}_{source_prefix}_{entry.fingerprint[:8]}"
+            item: Dict[str, object] = {
+                "rank": rank,
+                "iteration": entry.iteration,
+                "fingerprint": entry.fingerprint,
+                "score": entry.score,
+                "hypothesis": render_pretty(entry.hypothesis),
+                "metrics": dict(entry.metrics),
+            }
+
+            if source_candidate.exists():
+                dest_candidate = top_dir / f"{label}_candidate.py"
+                shutil.copyfile(source_candidate, dest_candidate)
+                item["candidate_code"] = str(dest_candidate.relative_to(self.run_dir))
+            if source_wrapper.exists():
+                dest_wrapper = top_dir / f"{label}_wrapper.py"
+                shutil.copyfile(source_wrapper, dest_wrapper)
+                item["wrapper_code"] = str(dest_wrapper.relative_to(self.run_dir))
+            if source_metadata.exists():
+                dest_metadata = top_dir / f"{label}_evaluation.json"
+                shutil.copyfile(source_metadata, dest_metadata)
+                item["metadata"] = str(dest_metadata.relative_to(self.run_dir))
+
+            manifest.append(item)
+
+        manifest_path = self.run_dir / "artifacts" / "top_evaluators.json"
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
 
     def _checkpoint_payload(
         self, archive: MAPElitesArchive, iteration: int

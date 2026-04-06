@@ -69,6 +69,7 @@ class OutputConfig:
     """Settings for runtime artifact output paths."""
 
     base_dir: str = ".hypoevolve/runs"
+    top_k_evaluator_code_artifacts: int = 5
 
 
 @dataclass(slots=True)
@@ -158,7 +159,12 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
             {"coverage_bins", "complexity_bins", "per_cell_top_k"},
         )
     )
-    output = OutputConfig(**_filter_known(data.get("output", {}), {"base_dir"}))
+    output = OutputConfig(
+        **_filter_known(
+            data.get("output", {}),
+            {"base_dir", "top_k_evaluator_code_artifacts"},
+        )
+    )
     logging = LoggingConfig(**_filter_known(data.get("logging", {}), {"level"}))
     workers = WorkerConfig(
         **_filter_known(data.get("workers", {}), {"enabled", "count"})
@@ -179,6 +185,8 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
     _validate_archive_bins(archive.coverage_bins, archive.complexity_bins)
     if archive.per_cell_top_k < 1:
         raise ConfigError("archive.per_cell_top_k must be >= 1")
+    if output.top_k_evaluator_code_artifacts < 1:
+        raise ConfigError("output.top_k_evaluator_code_artifacts must be >= 1")
 
     return HypoEvolveConfig(
         llm=llm,

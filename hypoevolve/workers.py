@@ -9,7 +9,11 @@ from elg import fingerprint, hypothesis_from_dict, render_pretty
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import load_dataset_schema
-from hypoevolve.evaluator import LLMEvaluator, evaluate_hypothesis
+from hypoevolve.evaluator import (
+    LLMEvaluator,
+    evaluate_hypothesis,
+    get_evaluation_artifacts,
+)
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import logger
 from hypoevolve.mutation import steer_mutation
@@ -51,6 +55,7 @@ class WorkerResult:
     random_steering: bool = False
     child_fingerprint: str = ""
     skipped_duplicate: bool = False
+    evaluation_artifacts: Dict[str, object] = field(default_factory=dict)
 
 
 def run_worker_task(task: WorkerTask) -> WorkerResult:
@@ -141,4 +146,5 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         ),
         random_steering=task.use_random_steering,
         child_fingerprint=child_fingerprint,
+        evaluation_artifacts=get_evaluation_artifacts(evaluator),
     )

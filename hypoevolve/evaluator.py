@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 import json
 import math
-from typing import Dict, Protocol
+from typing import Any, Dict, Protocol
 
 from elg import Hypothesis
 from hypoevolve.dataset import DatasetAccessor, DatasetSchema
@@ -75,6 +75,7 @@ class LLMEvaluator:
         self.executor = executor or LocalSubprocessExecutor()
         self.parameters = dict(parameters) if parameters is not None else None
         self.codegen_retries = max(0, llm_client.config.retries)
+        self.last_evaluation_artifacts: Dict[str, Any] = {}
 
     def evaluate(self, hypothesis: Hypothesis) -> Dict[str, object]:
         """Score one hypothesis and return a normalized metric payload."""
@@ -92,6 +93,7 @@ class LLMEvaluator:
             self.parameters,
         )
         last_error = ""
+        self.last_evaluation_artifacts = {}
 
         for attempt in range(self.codegen_retries + 1):
             user_prompt = base_user_prompt
@@ -111,6 +113,11 @@ class LLMEvaluator:
                     self.llm_client.generate_text(system_prompt, user_prompt)
                 )
                 logger.info("evaluator code generation attempt {}", attempt + 1)
+                self.last_evaluation_artifacts = {
+                    "candidate_code": code,
+                    "wrapper_code": wrapper,
+                    "attempt": attempt + 1,
+                }
 
                 # Code Syntax Check
                 try:
@@ -135,6 +142,7 @@ class LLMEvaluator:
                     raise RuntimeError(
                         f"Generated evaluator code failed with exit_code={execution.exit_code}: {stderr}"
                     )
+                self.last_evaluation_artifacts["work_dir"] = execution.work_dir
 
                 stdout = execution.stdout.strip()
                 if not stdout:
@@ -266,3 +274,9 @@ def evaluate_hypothesis(
 ) -> Dict[str, object]:
     """Delegate hypothesis evaluation through the configured evaluator."""
     return evaluator.evaluate(hypothesis)
+
+
+def get_evaluation_artifacts(evaluator: object) -> Dict[str, Any]:
+    """Return evaluator-side debug artifacts such as generated code, when available."""
+    artifacts = getattr(evaluator, "last_evaluation_artifacts", {})
+    return dict(artifacts) if isinstance(artifacts, dict) else {}

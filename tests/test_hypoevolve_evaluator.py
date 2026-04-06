@@ -5,7 +5,7 @@ from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import ColumnSpec, DataFile, DatasetAccessor, DatasetSchema, IndexSpec
-from hypoevolve.evaluator import LLMEvaluator, evaluate_hypothesis
+from hypoevolve.evaluator import LLMEvaluator, evaluate_hypothesis, get_evaluation_artifacts
 from hypoevolve.executor import ExecutionResult
 from hypoevolve.helper import (
     build_evaluator_prompt_variables,
@@ -164,6 +164,10 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         self.assertEqual(metrics["rationale"], "ok")
         self.assertEqual(metrics["used_parameters"]["RET_WINDOW"], 12)
         self.assertIn("candidate.py", executor.calls[0]["files"])
+        artifacts = get_evaluation_artifacts(evaluator)
+        self.assertIn("candidate_code", artifacts)
+        self.assertIn("wrapper_code", artifacts)
+        self.assertEqual(artifacts["work_dir"], "/tmp/fake")
 
     def test_llm_evaluator_retries_after_invalid_code(self):
         llm = FakeLLMClient(

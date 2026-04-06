@@ -52,11 +52,16 @@ class TestHypoEvolveCLI(unittest.TestCase):
             fake_result = SimpleNamespace(
                 run_dir=Path(tmp) / "run1",
                 report_path=Path(tmp) / "run1" / "report" / "report.md",
+                seed_hypothesis=SimpleNamespace(),
                 best_hypothesis=SimpleNamespace(),
                 best_metrics={"combined_score": 0.9},
             )
             with patch("hypoevolve.cli.HypoEvolveController") as controller_cls, patch(
-                "hypoevolve.cli.render_pretty", return_value="IMPLIES(\n  A,\n  B\n)"
+                "hypoevolve.cli.render_pretty",
+                side_effect=[
+                    "IMPLIES(\n  SEED_A,\n  SEED_B\n)",
+                    "IMPLIES(\n  BEST_A,\n  BEST_B\n)",
+                ],
             ):
                 controller_cls.return_value.run.return_value = fake_result
                 result = self.runner.invoke(
@@ -67,7 +72,14 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("Run Summary", result.output)
         self.assertIn("Report", result.output)
         self.assertIn("Metric highlights", result.output)
+        self.assertIn("Initial hypothesis", result.output)
         self.assertIn("Best hypothesis", result.output)
+        self.assertIn("IMPLIES(\n  SEED_A,\n  SEED_B\n)", result.output)
+        self.assertIn("IMPLIES(\n  BEST_A,\n  BEST_B\n)", result.output)
+        self.assertLess(
+            result.output.index("Initial hypothesis"),
+            result.output.index("Best hypothesis"),
+        )
         self.assertIn('"combined_score": 0.9', result.output)
 
     def test_run_subcommand_without_hypothesis_uses_generated_seed_path(self):
@@ -77,13 +89,18 @@ class TestHypoEvolveCLI(unittest.TestCase):
             fake_result = SimpleNamespace(
                 run_dir=Path(tmp) / "run-seed",
                 report_path=Path(tmp) / "run-seed" / "report" / "report.md",
+                seed_hypothesis=SimpleNamespace(),
                 best_hypothesis=SimpleNamespace(),
                 best_metrics={"combined_score": 0.7},
                 seed_input_text="Generated seed hypothesis.",
                 seed_generated=True,
             )
             with patch("hypoevolve.cli.HypoEvolveController") as controller_cls, patch(
-                "hypoevolve.cli.render_pretty", return_value="IMPLIES(\n  A,\n  B\n)"
+                "hypoevolve.cli.render_pretty",
+                side_effect=[
+                    "IMPLIES(\n  SEED_A,\n  SEED_B\n)",
+                    "IMPLIES(\n  BEST_A,\n  BEST_B\n)",
+                ],
             ):
                 controller_cls.return_value.run.return_value = fake_result
                 result = self.runner.invoke(
@@ -96,6 +113,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("generated", result.output)
         self.assertIn("Seed hypothesis", result.output)
         self.assertIn("Generated seed hypothesis.", result.output)
+        self.assertIn("Initial hypothesis", result.output)
         controller_cls.return_value.run.assert_called_once_with(None)
 
     def test_seed_subcommand_prints_trees_and_hypothesis(self):

@@ -18,6 +18,7 @@ class TestRunArtifactRecorder(unittest.TestCase):
                 worker_count=1,
                 workers_enabled=False,
                 dataset_schema_path="dataset.yaml",
+                top_k_code_artifacts=1,
             )
             archive = MAPElitesArchive()
 
@@ -32,6 +33,11 @@ class TestRunArtifactRecorder(unittest.TestCase):
                 metrics=seed_metrics,
                 metadata=seed_metadata,
                 descriptor=seed_descriptor,
+                evaluation_artifacts={
+                    "candidate_code": "def evaluate_hypothesis():\n    return {'combined_score': 0.1}\n",
+                    "wrapper_code": "print('seed wrapper')\n",
+                    "work_dir": "/tmp/seed",
+                },
             )
 
             child = Hypothesis(root=AtomicNode("B"))
@@ -52,6 +58,11 @@ class TestRunArtifactRecorder(unittest.TestCase):
                 metadata=child_metadata,
                 descriptor=child_descriptor,
                 best_updated=True,
+                evaluation_artifacts={
+                    "candidate_code": "def evaluate_hypothesis():\n    return {'combined_score': 0.3}\n",
+                    "wrapper_code": "print('child wrapper')\n",
+                    "work_dir": "/tmp/child",
+                },
             )
 
             recorder.record_duplicate_skip(
@@ -75,6 +86,9 @@ class TestRunArtifactRecorder(unittest.TestCase):
             self.assertTrue((run_dir / "trace.jsonl").exists())
             self.assertTrue((run_dir / "run_summary.json").exists())
             self.assertTrue((run_dir / "score_history.json").exists())
+            self.assertTrue((run_dir / "artifacts" / "seed_candidate.py").exists())
+            self.assertTrue((run_dir / "artifacts" / "iteration_0001_candidate.py").exists())
+            self.assertTrue((run_dir / "artifacts" / "top_evaluators.json").exists())
             self.assertTrue(report_path.exists())
             self.assertTrue((run_dir / "report" / "assets" / "score_progression.svg").exists())
             score_history = json.loads(
@@ -82,6 +96,11 @@ class TestRunArtifactRecorder(unittest.TestCase):
             )
             self.assertEqual(len(score_history), 3)
             self.assertEqual(recorder.duplicate_skips_solo, 1)
+            top_manifest = json.loads(
+                (run_dir / "artifacts" / "top_evaluators.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(len(top_manifest), 1)
+            self.assertIn("candidate_code", top_manifest[0])
             self.assertIn(
                 "Child B.",
                 (run_dir / "report" / "report.md").read_text(encoding="utf-8"),

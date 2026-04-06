@@ -13,7 +13,12 @@ from hypoevolve.archive import ArchiveEntry, MAPElitesArchive
 from hypoevolve.artifacts import RunArtifactRecorder
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.dataset import load_dataset_schema
-from hypoevolve.evaluator import Evaluator, LLMEvaluator, evaluate_hypothesis
+from hypoevolve.evaluator import (
+    Evaluator,
+    LLMEvaluator,
+    evaluate_hypothesis,
+    get_evaluation_artifacts,
+)
 from hypoevolve.hypo import generate_random_tree_pair_hypothesis
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import configure_logger, logger
@@ -33,6 +38,7 @@ class RunResult:
     """Summarize the final outcome of one evolution run."""
 
     run_dir: Path
+    seed_hypothesis: Hypothesis
     best_hypothesis: Hypothesis
     best_metrics: Dict[str, object]
     iterations: int
@@ -78,6 +84,7 @@ class HypoEvolveController:
             worker_count=self.config.workers.count,
             workers_enabled=self.config.workers.enabled,
             dataset_schema_path=self.config.evaluator.dataset_schema_path,
+            top_k_code_artifacts=self.config.output.top_k_evaluator_code_artifacts,
         )
         configure_logger(
             self.config.logging.level,
@@ -119,6 +126,7 @@ class HypoEvolveController:
             per_cell_top_k=self.config.archive.per_cell_top_k,
         )
         seed_metrics = evaluate_hypothesis(hypothesis, self.evaluator)
+        seed_evaluation_artifacts = get_evaluation_artifacts(self.evaluator)
         logger.info(
             "[seed.eval] score={:.6f} precision={} baseline={} coverage={} uplift={}",
             float(seed_metrics.get("combined_score", 0.0)),
@@ -144,6 +152,7 @@ class HypoEvolveController:
             metrics=seed_metrics,
             metadata=seed_metadata,
             descriptor=seed_descriptor,
+            evaluation_artifacts=seed_evaluation_artifacts,
         )
 
         if not self.config.workers.enabled or self.config.workers.count == 1:
@@ -190,6 +199,7 @@ class HypoEvolveController:
                     )
                     continue
                 child_metrics = evaluate_hypothesis(mutation_sample, self.evaluator)
+                child_evaluation_artifacts = get_evaluation_artifacts(self.evaluator)
                 logger.info(
                     "[iter.eval] i={} score={:.6f} precision={} baseline={} coverage={} uplift={}",
                     iteration,
@@ -228,6 +238,7 @@ class HypoEvolveController:
                     },
                     descriptor=descriptor,
                     best_updated=best_updated,
+                    evaluation_artifacts=child_evaluation_artifacts,
                 )
                 known_fingerprints.add(child_fingerprint)
                 archive.record_parent_outcome(parent_entry.fingerprint, score_delta)
@@ -273,6 +284,7 @@ class HypoEvolveController:
         )
         return RunResult(
             run_dir=run_dir,
+            seed_hypothesis=hypothesis,
             best_hypothesis=best.hypothesis,
             best_metrics=best.metrics,
             iterations=self.config.search.iterations,
@@ -421,6 +433,7 @@ class HypoEvolveController:
                     },
                     descriptor=descriptor,
                     best_updated=best_updated,
+                    evaluation_artifacts=result.evaluation_artifacts,
                 )
                 if result.child_fingerprint:
                     known_fingerprints.add(result.child_fingerprint)
