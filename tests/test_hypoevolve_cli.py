@@ -122,8 +122,35 @@ class TestHypoEvolveCLI(unittest.TestCase):
             tree_b=SimpleNamespace(render=lambda return_str=False: "TREE B"),
             hypothesis="Generated hypothesis.",
         )
-        with patch("hypoevolve.cli.generate_random_tree_pair_hypothesis", return_value=fake_result):
-            result = self.runner.invoke(cli.app, ["seed"])
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "hypoevolve.yaml"
+            dataset_path = Path(tmp) / "seed-dataset.yaml"
+            dataset_path.write_text(
+                "description: seed dataset\n"
+                "index:\n"
+                "  name: close_time\n"
+                "  dtype: datetime64[us]\n"
+                "files:\n"
+                "  -\n"
+                "    entity: BTCUSDT\n"
+                "    path: data/BTCUSDT.parquet\n"
+                "columns:\n"
+                "  -\n"
+                "    name: CLOSE\n",
+                encoding="utf-8",
+            )
+            config_path.write_text(
+                "evaluator:\n"
+                f"  dataset_schema_path: {dataset_path}\n",
+                encoding="utf-8",
+            )
+            with patch(
+                "hypoevolve.cli.generate_random_tree_pair_hypothesis",
+                return_value=fake_result,
+            ) as generate_mock:
+                result = self.runner.invoke(
+                    cli.app, ["seed", "--config", str(config_path)]
+                )
 
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Feature tree A", result.output)
@@ -132,6 +159,11 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("TREE B", result.output)
         self.assertIn("Generated hypothesis", result.output)
         self.assertIn("Generated hypothesis.", result.output)
+        generate_mock.assert_called_once()
+        self.assertEqual(
+            generate_mock.call_args.kwargs["dataset_schema_path"],
+            str(dataset_path),
+        )
 
     def test_doctor_subcommand(self):
         result = self.runner.invoke(cli.app, ["doctor"])
@@ -155,7 +187,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             payload_path = Path(tmp) / "best.json"
             payload_path.write_text(
-                '{"hypothesis": {"kind": "atomic", "name": "A", "type": "boolean", "source": "primitive", "params": {}}, "metrics": {"combined_score": 0.5}}',
+                '{"hypothesis": {"kind": "atomic", "name": "A"}, "metrics": {"combined_score": 0.5}}',
                 encoding="utf-8",
             )
             with patch("hypoevolve.cli.hypothesis_from_dict", return_value=SimpleNamespace()), patch(
@@ -273,11 +305,11 @@ class TestHypoEvolveCLI(unittest.TestCase):
             run_dir = Path(tmp) / "run1"
             run_dir.mkdir()
             (run_dir / "best.json").write_text(
-                '{"hypothesis": {"root": {"kind": "atomic", "name": "A", "type": "boolean", "source": "primitive", "params": {}}, "params": {}}, "metrics": {"combined_score": 0.5}}',
+                '{"hypothesis": {"root": {"kind": "atomic", "name": "A"}}, "metrics": {"combined_score": 0.5}}',
                 encoding="utf-8",
             )
             (run_dir / "checkpoint.json").write_text(
-                '{"iteration": 0, "archive_size": 1, "archive": [], "best_hypothesis": {"root": {"kind": "atomic", "name": "A", "type": "boolean", "source": "primitive", "params": {}}, "params": {}}, "best_metrics": {"combined_score": 0.5}}',
+                '{"iteration": 0, "archive_size": 1, "archive": [], "best_hypothesis": {"root": {"kind": "atomic", "name": "A"}}, "best_metrics": {"combined_score": 0.5}}',
                 encoding="utf-8",
             )
             (run_dir / "run_summary.json").write_text(
@@ -322,11 +354,11 @@ class TestHypoEvolveCLI(unittest.TestCase):
             run_dir = runs_dir / run_id
             run_dir.mkdir(parents=True)
             (run_dir / "best.json").write_text(
-                '{"hypothesis": {"root": {"kind": "atomic", "name": "A", "type": "boolean", "source": "primitive", "params": {}}, "params": {}}, "metrics": {"combined_score": 0.5}}',
+                '{"hypothesis": {"root": {"kind": "atomic", "name": "A"}}, "metrics": {"combined_score": 0.5}}',
                 encoding="utf-8",
             )
             (run_dir / "checkpoint.json").write_text(
-                '{"iteration": 0, "archive_size": 1, "archive": [], "best_hypothesis": {"root": {"kind": "atomic", "name": "A", "type": "boolean", "source": "primitive", "params": {}}, "params": {}}, "best_metrics": {"combined_score": 0.5}}',
+                '{"iteration": 0, "archive_size": 1, "archive": [], "best_hypothesis": {"root": {"kind": "atomic", "name": "A"}}, "best_metrics": {"combined_score": 0.5}}',
                 encoding="utf-8",
             )
             (run_dir / "run_summary.json").write_text(

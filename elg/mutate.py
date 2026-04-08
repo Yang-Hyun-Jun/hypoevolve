@@ -30,11 +30,8 @@ def iter_paths(hypothesis: Hypothesis) -> List[Path]:
 def replace_at_path(hypothesis: Hypothesis, path: Path, new_node: Node) -> Hypothesis:
     """Return a new hypothesis with one subtree replaced at ``path``."""
     if not path:
-        return Hypothesis(root=new_node, params=dict(hypothesis.params))
-    return Hypothesis(
-        root=_replace_in_node(hypothesis.root, path, new_node),
-        params=dict(hypothesis.params),
-    )
+        return Hypothesis(root=new_node)
+    return Hypothesis(root=_replace_in_node(hypothesis.root, path, new_node))
 
 
 def mutate_replace_subtree(hypothesis: Hypothesis, path: Path, new_node: Node) -> Hypothesis:
@@ -53,7 +50,9 @@ def mutate_replace_child(
             raise IndexError("child_index is out of range")
         updated_inputs[child_index] = new_child
         return replace_at_path(
-            hypothesis, path, LogicalNode(parent.op, updated_inputs, params=dict(parent.params))
+            hypothesis,
+            path,
+            LogicalNode(parent.name, updated_inputs),
         )
     if isinstance(parent, RelationNode):
         updated_inputs = list(parent.inputs)
@@ -61,7 +60,9 @@ def mutate_replace_child(
             raise IndexError("child_index is out of range")
         updated_inputs[child_index] = new_child
         return replace_at_path(
-            hypothesis, path, RelationNode(parent.type, updated_inputs, params=dict(parent.params))
+            hypothesis,
+            path,
+            RelationNode(parent.name, updated_inputs),
         )
     raise TypeError("Only logical or relation nodes can replace children")
 
@@ -76,7 +77,7 @@ def mutate_logical_operator(
     return replace_at_path(
         hypothesis,
         path,
-        LogicalNode(new_op, list(node.inputs), params=dict(node.params)),
+        LogicalNode(new_op, list(node.inputs)),
     )
 
 
@@ -90,7 +91,7 @@ def mutate_relation_type(
     return replace_at_path(
         hypothesis,
         path,
-        RelationNode(new_type, list(node.inputs), params=dict(node.params)),
+        RelationNode(new_type, list(node.inputs)),
     )
 
 
@@ -107,7 +108,7 @@ def mutate_wrap_not(hypothesis: Hypothesis, path: Path) -> Hypothesis:
 def mutate_unwrap_not(hypothesis: Hypothesis, path: Path) -> Hypothesis:
     """Remove a ``NOT`` node at ``path`` and return its only child."""
     node = get_node_at_path(hypothesis, path)
-    if not isinstance(node, LogicalNode) or node.op is not LogicalOp.NOT:
+    if not isinstance(node, LogicalNode) or node.name is not LogicalOp.NOT:
         raise TypeError("Target node is not a NOT logical node")
     return replace_at_path(hypothesis, path, node.inputs[0])
 
@@ -115,19 +116,19 @@ def mutate_unwrap_not(hypothesis: Hypothesis, path: Path) -> Hypothesis:
 def mutate_append_child(hypothesis: Hypothesis, path: Path, new_child: Node) -> Hypothesis:
     """Append a child to an ``AND`` or ``OR`` node at ``path``."""
     node = get_node_at_path(hypothesis, path)
-    if not isinstance(node, LogicalNode) or node.op not in (LogicalOp.AND, LogicalOp.OR):
+    if not isinstance(node, LogicalNode) or node.name not in (LogicalOp.AND, LogicalOp.OR):
         raise TypeError("Children can only be appended to AND/OR logical nodes")
     return replace_at_path(
         hypothesis,
         path,
-        LogicalNode(node.op, list(node.inputs) + [new_child], params=dict(node.params)),
+        LogicalNode(node.name, list(node.inputs) + [new_child]),
     )
 
 
 def mutate_remove_child(hypothesis: Hypothesis, path: Path, child_index: int) -> Hypothesis:
     """Remove one child from an ``AND`` or ``OR`` node at ``path``."""
     node = get_node_at_path(hypothesis, path)
-    if not isinstance(node, LogicalNode) or node.op not in (LogicalOp.AND, LogicalOp.OR):
+    if not isinstance(node, LogicalNode) or node.name not in (LogicalOp.AND, LogicalOp.OR):
         raise TypeError("Children can only be removed from AND/OR logical nodes")
     if child_index < 0 or child_index >= len(node.inputs):
         raise IndexError("child_index is out of range")
@@ -135,7 +136,7 @@ def mutate_remove_child(hypothesis: Hypothesis, path: Path, child_index: int) ->
     return replace_at_path(
         hypothesis,
         path,
-        LogicalNode(node.op, remaining_inputs, params=dict(node.params)),
+        LogicalNode(node.name, remaining_inputs),
     )
 
 
@@ -170,7 +171,7 @@ def _children_of(node: Node) -> List[Node]:
 
 def _clone_with_children(node: Node, children: List[Node]) -> Node:
     if isinstance(node, LogicalNode):
-        return LogicalNode(node.op, children, params=dict(node.params))
+        return LogicalNode(node.name, children)
     if isinstance(node, RelationNode):
-        return RelationNode(node.type, children, params=dict(node.params))
+        return RelationNode(node.name, children)
     raise TypeError("Atomic nodes do not have children")

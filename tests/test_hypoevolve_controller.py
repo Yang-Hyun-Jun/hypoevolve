@@ -20,12 +20,11 @@ class TestHypoEvolveController(unittest.TestCase):
                     return {
                         "child_hypothesis": {
                             "kind": "relation",
-                            "type": "IMPLIES",
+                            "name": "IMPLIES",
                             "inputs": [
-                                {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
-                                {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                                {"kind": "atomic", "name": "A2"},
+                                {"kind": "atomic", "name": "B"},
                             ],
-                            "params": {},
                         },
                         "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                         "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
@@ -34,12 +33,11 @@ class TestHypoEvolveController(unittest.TestCase):
                     }
                 return {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
             def generate_text(self, system, user, **kwargs):
                 return "If A then B."
@@ -83,12 +81,11 @@ class TestHypoEvolveController(unittest.TestCase):
                     return {
                         "child_hypothesis": {
                             "kind": "relation",
-                            "type": "IMPLIES",
+                            "name": "IMPLIES",
                             "inputs": [
-                                {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
-                                {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                                {"kind": "atomic", "name": "A2"},
+                                {"kind": "atomic", "name": "B"},
                             ],
-                            "params": {},
                         },
                         "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                         "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
@@ -97,12 +94,11 @@ class TestHypoEvolveController(unittest.TestCase):
                     }
                 return {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
 
             def generate_text(self, system, user, **kwargs):
@@ -136,12 +132,11 @@ class TestHypoEvolveController(unittest.TestCase):
             def generate_json(self, system, user, **kwargs):
                 return {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
 
             def generate_text(self, system, user, **kwargs):
@@ -177,7 +172,7 @@ class TestHypoEvolveController(unittest.TestCase):
             self.assertEqual(history[1]["status"], "skipped_steering_error")
             self.assertIn("Failed to steer mutation via LLM", history[1]["error"])
 
-    def test_choose_mutation_reuses_cached_parent_hypothesis_nl(self):
+    def test_choose_mutation_uses_measurable_parent_only(self):
         config = HypoEvolveConfig()
         controller = HypoEvolveController(
             config,
@@ -186,11 +181,7 @@ class TestHypoEvolveController(unittest.TestCase):
         )
         archive = MAPElitesArchive()
         parent = Hypothesis(root=AtomicNode("A"))
-        entry = archive.add(
-            parent,
-            {"combined_score": 0.1},
-            metadata={"hypothesis_nl": "Cached A."},
-        )
+        entry = archive.add(parent, {"combined_score": 0.1})
         fake_decision = type(
             "FakeDecision",
             (),
@@ -203,20 +194,12 @@ class TestHypoEvolveController(unittest.TestCase):
             },
         )()
 
-        with patch(
-            "hypoevolve.controller.llm_hypothesis_to_natural_language",
-            side_effect=AssertionError("should reuse cached NL"),
-        ), patch(
-            "hypoevolve.controller.steer_mutation",
-            return_value=fake_decision,
-        ) as steer_mutation_mock:
+        with patch("hypoevolve.controller.steer_mutation", return_value=fake_decision) as steer_mutation_mock:
             controller._choose_mutation(entry, [], archive)
 
-        self.assertEqual(
-            steer_mutation_mock.call_args.kwargs["parent_hypothesis_nl"], "Cached A."
-        )
+        self.assertEqual(steer_mutation_mock.call_args.kwargs["parent_hypothesis"], parent)
 
-    def test_reflect_result_stores_child_hypothesis_nl_in_archive_metadata(self):
+    def test_reflect_result_does_not_store_child_hypothesis_nl_in_archive_metadata(self):
         config = HypoEvolveConfig()
         controller = HypoEvolveController(
             config,
@@ -225,13 +208,10 @@ class TestHypoEvolveController(unittest.TestCase):
         )
         archive = MAPElitesArchive()
         parent = Hypothesis(root=AtomicNode("A"))
-        archive.add(parent, {"combined_score": 0.1}, metadata={"hypothesis_nl": "A"})
+        archive.add(parent, {"combined_score": 0.1})
         child = Hypothesis(root=AtomicNode("B"))
 
-        with tempfile.TemporaryDirectory() as tmp, patch(
-            "hypoevolve.controller.llm_hypothesis_to_natural_language",
-            return_value="B in natural language.",
-        ):
+        with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
             (run_dir / "artifacts").mkdir(exist_ok=True)
             recorder = RunArtifactRecorder(
@@ -257,10 +237,7 @@ class TestHypoEvolveController(unittest.TestCase):
                 parent_fingerprint=archive.entries[-1].fingerprint,
                 child_hypothesis=child,
                 child_metrics={"combined_score": 0.2},
-                metadata={
-                    "mutation_summary": "Applied a replace_atomic-style local mutation.",
-                    "hypothesis_nl": "B in natural language.",
-                },
+                metadata={"mutation_summary": "Applied a replace_atomic-style local mutation."},
                 descriptor=descriptor,
                 best_updated=best_updated,
             )
@@ -269,15 +246,10 @@ class TestHypoEvolveController(unittest.TestCase):
                 (run_dir / "checkpoint.json").read_text(encoding="utf-8")
             )
 
-        self.assertEqual(
-            archive.best.metadata["hypothesis_nl"], "B in natural language."
-        )
-        self.assertEqual(
-            checkpoint["archive"][0]["metadata"]["hypothesis_nl"],
-            "B in natural language.",
-        )
+        self.assertNotIn("hypothesis_nl", archive.best.metadata)
+        self.assertNotIn("hypothesis_nl", checkpoint["archive"][0]["metadata"])
 
-    def test_make_worker_task_threads_cached_parent_hypothesis_nl(self):
+    def test_make_worker_task_does_not_thread_parent_hypothesis_nl(self):
         config = HypoEvolveConfig()
         controller = HypoEvolveController(
             config,
@@ -285,15 +257,11 @@ class TestHypoEvolveController(unittest.TestCase):
             llm_client=object(),
         )
         archive = MAPElitesArchive()
-        archive.add(
-            Hypothesis(root=AtomicNode("A")),
-            {"combined_score": 0.1},
-            metadata={"hypothesis_nl": "Cached A."},
-        )
+        archive.add(Hypothesis(root=AtomicNode("A")), {"combined_score": 0.1})
 
         task, _parent = controller._make_worker_task(archive, iteration=1, recent_history=[])
 
-        self.assertEqual(task.parent_hypothesis_nl, "Cached A.")
+        self.assertFalse(hasattr(task, "parent_hypothesis_nl"))
         self.assertEqual(task.seen_fingerprints, [fingerprint(Hypothesis(root=AtomicNode("A")))])
 
     def test_choose_mutation_can_use_random_steering_prompt(self):
@@ -306,11 +274,7 @@ class TestHypoEvolveController(unittest.TestCase):
         )
         archive = MAPElitesArchive()
         parent = Hypothesis(root=AtomicNode("A"))
-        entry = archive.add(
-            parent,
-            {"combined_score": 0.1},
-            metadata={"hypothesis_nl": "Cached A."},
-        )
+        entry = archive.add(parent, {"combined_score": 0.1})
         fake_decision = type(
             "FakeDecision",
             (),
@@ -449,6 +413,10 @@ class TestHypoEvolveController(unittest.TestCase):
             result = controller.run()
 
         generate_seed_mock.assert_called_once()
+        self.assertEqual(
+            generate_seed_mock.call_args.kwargs["dataset_schema_path"],
+            config.evaluator.dataset_schema_path,
+        )
         parse_mock.assert_called_once_with(
             "Generated seed hypothesis.",
             llm=controller.llm_client,

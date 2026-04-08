@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -115,10 +115,7 @@ class HypoEvolveController:
             "[seed.measurable] hypothesis={}",
             render_pretty(hypothesis).replace("\n", " "),
         )
-        seed_metadata = {
-            "source": "seed",
-            "hypothesis_nl": self._render_hypothesis_nl(hypothesis),
-        }
+        seed_metadata = {"source": "seed"}
 
         archive = MAPElitesArchive(
             coverage_bins=self.config.archive.coverage_bins,
@@ -252,7 +249,6 @@ class HypoEvolveController:
                         "parent_score": parent_entry.score,
                         "score_delta": score_delta,
                         **steering_metadata,
-                        "hypothesis_nl": render_pretty(mutation_sample),
                     },
                     descriptor=descriptor,
                     best_updated=best_updated,
@@ -283,7 +279,7 @@ class HypoEvolveController:
             archive=archive,
             iterations_requested=self.config.search.iterations,
             known_fingerprint_count=known_fingerprint_count,
-            best_hypothesis_nl=self._get_entry_hypothesis_nl(best) if best else "",
+            best_hypothesis_nl=self._render_hypothesis_nl(best.hypothesis) if best else "",
         )
         logger.info(
             "[run.duplicate_summary] total_skips={} solo_skips={} worker_skips={} known_fingerprints={}",
@@ -315,7 +311,10 @@ class HypoEvolveController:
         """Return the explicit seed text or synthesize one when absent."""
         if hypothesis_text and hypothesis_text.strip():
             return hypothesis_text.strip(), False
-        generated = generate_random_tree_pair_hypothesis(llm=self.llm_client)
+        generated = generate_random_tree_pair_hypothesis(
+            llm=self.llm_client,
+            dataset_schema_path=self.config.evaluator.dataset_schema_path,
+        )
         logger.info(
             "[seed.generate] hypothesis={}",
             generated.hypothesis.replace("\n", " "),
@@ -348,7 +347,7 @@ class HypoEvolveController:
             while submitted < min(worker_count, total_iterations):
                 submitted += 1
                 task, parent_entry = self._make_worker_task(
-                    archive, submitted, recent_history[-3:]
+                    archive, submitted, recent_history[-2:]
                 )
                 logger.info(
                     "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
@@ -361,170 +360,166 @@ class HypoEvolveController:
                 pending[future] = parent_entry
 
             while pending:
-                future = next(
-                    (candidate for candidate in pending if candidate.done()), None
-                )
-                if future is None:
-                    continue
+                done, _ = wait(tuple(pending), return_when=FIRST_COMPLETED)
 
-                parent_entry = pending.pop(future)
-                result = future.result()
-                if result.skipped_steering_error:
-                    logger.error(
-                        "[worker.skip_steering_error] i={} error={}",
-                        result.iteration,
-                        result.steering_error.replace("\n", " "),
-                    )
-                    archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
-                    recorder.record_steering_skip(
-                        iteration=result.iteration,
-                        parent_fingerprint=parent_entry.fingerprint,
-                        parent_score=parent_entry.score,
-                        best_score_after=archive.best.score if archive.best else 0.0,
-                        worker_mode=True,
-                        error=result.steering_error,
-                    )
-                    if submitted < total_iterations:
-                        submitted += 1
-                        task, next_parent_entry = self._make_worker_task(
-                            archive,
-                            submitted,
-                            recent_history[-3:],
-                            known_fingerprints=known_fingerprints,
+                for future in done:
+                    parent_entry = pending.pop(future)
+                    result = future.result()
+                    if result.skipped_steering_error:
+                        logger.error(
+                            "[worker.skip_steering_error] i={} error={}",
+                            result.iteration,
+                            result.steering_error.replace("\n", " "),
                         )
+                        archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
+                        recorder.record_steering_skip(
+                            iteration=result.iteration,
+                            parent_fingerprint=parent_entry.fingerprint,
+                            parent_score=parent_entry.score,
+                            best_score_after=archive.best.score if archive.best else 0.0,
+                            worker_mode=True,
+                            error=result.steering_error,
+                        )
+                        if submitted < total_iterations:
+                            submitted += 1
+                            task, next_parent_entry = self._make_worker_task(
+                                archive,
+                                submitted,
+                                recent_history[-2:],
+                                known_fingerprints=known_fingerprints,
+                            )
+                            logger.info(
+                                "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
+                                submitted,
+                                archive.best.score if archive.best else 0.0,
+                                next_parent_entry.cell,
+                                render_pretty(next_parent_entry.hypothesis).replace(
+                                    "\n", " "
+                                ),
+                            )
+                            next_future = executor.submit(run_worker_task, task)
+                            pending[next_future] = next_parent_entry
+                        continue
+                    if result.skipped_duplicate:
                         logger.info(
-                            "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
-                            submitted,
-                            archive.best.score if archive.best else 0.0,
-                            next_parent_entry.cell,
-                            render_pretty(next_parent_entry.hypothesis).replace(
-                                "\n", " "
-                            ),
+                            "[worker.skip_duplicate] i={} child_fp={}",
+                            result.iteration,
+                            result.child_fingerprint,
                         )
-                        next_future = executor.submit(run_worker_task, task)
-                        pending[next_future] = next_parent_entry
-                    continue
-                if result.skipped_duplicate:
+                        archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
+                        recorder.record_duplicate_skip(
+                            iteration=result.iteration,
+                            parent_fingerprint=parent_entry.fingerprint,
+                            child_fingerprint=result.child_fingerprint,
+                            parent_score=parent_entry.score,
+                            best_score_after=archive.best.score if archive.best else 0.0,
+                            worker_mode=True,
+                        )
+                        if submitted < total_iterations:
+                            submitted += 1
+                            task, next_parent_entry = self._make_worker_task(
+                                archive,
+                                submitted,
+                                recent_history[-2:],
+                                known_fingerprints=known_fingerprints,
+                            )
+                            logger.info(
+                                "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
+                                submitted,
+                                archive.best.score if archive.best else 0.0,
+                                next_parent_entry.cell,
+                                render_pretty(next_parent_entry.hypothesis).replace(
+                                    "\n", " "
+                                ),
+                            )
+                            next_future = executor.submit(run_worker_task, task)
+                            pending[next_future] = next_parent_entry
+                        continue
+                    child = hypothesis_from_dict(result.child_hypothesis)
                     logger.info(
-                        "[worker.skip_duplicate] i={} child_fp={}",
+                        "[worker.result] i={} mutation_summary={} score={:.6f}",
                         result.iteration,
-                        result.child_fingerprint,
+                        result.mutation_summary.replace("\n", " "),
+                        float(result.metrics.get("combined_score", 0.0)),
                     )
-                    archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
-                    recorder.record_duplicate_skip(
-                        iteration=result.iteration,
-                        parent_fingerprint=parent_entry.fingerprint,
-                        child_fingerprint=result.child_fingerprint,
-                        parent_score=parent_entry.score,
-                        best_score_after=archive.best.score if archive.best else 0.0,
-                        worker_mode=True,
-                    )
-                    if submitted < total_iterations:
-                        submitted += 1
-                        task, next_parent_entry = self._make_worker_task(
-                            archive,
-                            submitted,
-                            recent_history[-3:],
-                            known_fingerprints=known_fingerprints,
-                        )
-                        logger.info(
-                            "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
-                            submitted,
-                            archive.best.score if archive.best else 0.0,
-                            next_parent_entry.cell,
-                            render_pretty(next_parent_entry.hypothesis).replace(
-                                "\n", " "
-                            ),
-                        )
-                        next_future = executor.submit(run_worker_task, task)
-                        pending[next_future] = next_parent_entry
-                    continue
-                child = hypothesis_from_dict(result.child_hypothesis)
-                logger.info(
-                    "[worker.result] i={} mutation_summary={} score={:.6f}",
-                    result.iteration,
-                    result.mutation_summary.replace("\n", " "),
-                    float(result.metrics.get("combined_score", 0.0)),
-                )
-                descriptor, best_updated = self._record_archive_result(
-                    archive,
-                    result.iteration,
-                    child,
-                    result.metrics,
-                    {
-                        "parent_score": result.parent_score,
-                        "score_delta": float(result.metrics.get("combined_score", 0.0))
-                        - result.parent_score,
-                        "worker_mode": True,
-                        "steered": True,
-                        "mutation_summary": result.mutation_summary,
-                        "domain_reason": result.domain_reason,
-                        "score_reason": result.score_reason,
-                        "operation_score_rankings": result.operation_score_rankings,
-                        "random_steering": result.random_steering,
-                    },
-                )
-                recorder.record_iteration_result(
-                    archive=archive,
-                    iteration=result.iteration,
-                    parent_hypothesis=parent_entry.hypothesis,
-                    parent_fingerprint=parent_entry.fingerprint,
-                    child_hypothesis=child,
-                    child_metrics=result.metrics,
-                    metadata={
-                        "parent_score": result.parent_score,
-                        "score_delta": float(result.metrics.get("combined_score", 0.0))
-                        - result.parent_score,
-                        "worker_mode": True,
-                        "steered": True,
-                        "mutation_summary": result.mutation_summary,
-                        "domain_reason": result.domain_reason,
-                        "score_reason": result.score_reason,
-                        "operation_score_rankings": result.operation_score_rankings,
-                        "random_steering": result.random_steering,
-                        "hypothesis_nl": render_pretty(child),
-                    },
-                    descriptor=descriptor,
-                    best_updated=best_updated,
-                    evaluation_artifacts=result.evaluation_artifacts,
-                )
-                if result.child_fingerprint:
-                    known_fingerprints.add(result.child_fingerprint)
-                archive.record_parent_outcome(
-                    parent_entry.fingerprint,
-                    float(result.metrics.get("combined_score", 0.0))
-                    - result.parent_score,
-                )
-                recent_history.append(
-                    {
-                        "score_delta": float(result.metrics.get("combined_score", 0.0))
-                        - result.parent_score,
-                        "result_hypothesis": render_pretty(child),
-                        "steered": True,
-                        "mutation_summary": result.mutation_summary,
-                        "domain_reason": result.domain_reason,
-                        "score_reason": result.score_reason,
-                        "operation_score_rankings": result.operation_score_rankings,
-                        "random_steering": result.random_steering,
-                    }
-                )
-                if submitted < total_iterations:
-                    submitted += 1
-                    task, next_parent_entry = self._make_worker_task(
+                    descriptor, best_updated = self._record_archive_result(
                         archive,
-                        submitted,
-                        recent_history[-3:],
-                        known_fingerprints=known_fingerprints,
+                        result.iteration,
+                        child,
+                        result.metrics,
+                        {
+                            "parent_score": result.parent_score,
+                            "score_delta": float(result.metrics.get("combined_score", 0.0))
+                            - result.parent_score,
+                            "worker_mode": True,
+                            "steered": True,
+                            "mutation_summary": result.mutation_summary,
+                            "domain_reason": result.domain_reason,
+                            "score_reason": result.score_reason,
+                            "operation_score_rankings": result.operation_score_rankings,
+                            "random_steering": result.random_steering,
+                        },
                     )
-                    logger.info(
-                        "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
-                        submitted,
-                        archive.best.score if archive.best else 0.0,
-                        next_parent_entry.cell,
-                        render_pretty(next_parent_entry.hypothesis).replace("\n", " "),
+                    recorder.record_iteration_result(
+                        archive=archive,
+                        iteration=result.iteration,
+                        parent_hypothesis=parent_entry.hypothesis,
+                        parent_fingerprint=parent_entry.fingerprint,
+                        child_hypothesis=child,
+                        child_metrics=result.metrics,
+                        metadata={
+                            "parent_score": result.parent_score,
+                            "score_delta": float(result.metrics.get("combined_score", 0.0))
+                            - result.parent_score,
+                            "worker_mode": True,
+                            "steered": True,
+                            "mutation_summary": result.mutation_summary,
+                            "domain_reason": result.domain_reason,
+                            "score_reason": result.score_reason,
+                            "operation_score_rankings": result.operation_score_rankings,
+                            "random_steering": result.random_steering,
+                        },
+                        descriptor=descriptor,
+                        best_updated=best_updated,
+                        evaluation_artifacts=result.evaluation_artifacts,
                     )
-                    next_future = executor.submit(run_worker_task, task)
-                    pending[next_future] = next_parent_entry
+                    if result.child_fingerprint:
+                        known_fingerprints.add(result.child_fingerprint)
+                    archive.record_parent_outcome(
+                        parent_entry.fingerprint,
+                        float(result.metrics.get("combined_score", 0.0))
+                        - result.parent_score,
+                    )
+                    recent_history.append(
+                        {
+                            "score_delta": float(result.metrics.get("combined_score", 0.0))
+                            - result.parent_score,
+                            "result_hypothesis": render_pretty(child),
+                            "steered": True,
+                            "mutation_summary": result.mutation_summary,
+                            "domain_reason": result.domain_reason,
+                            "score_reason": result.score_reason,
+                            "operation_score_rankings": result.operation_score_rankings,
+                            "random_steering": result.random_steering,
+                        }
+                    )
+                    if submitted < total_iterations:
+                        submitted += 1
+                        task, next_parent_entry = self._make_worker_task(
+                            archive,
+                            submitted,
+                            recent_history[-2:],
+                            known_fingerprints=known_fingerprints,
+                        )
+                        logger.info(
+                            "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
+                            submitted,
+                            archive.best.score if archive.best else 0.0,
+                            next_parent_entry.cell,
+                            render_pretty(next_parent_entry.hypothesis).replace("\n", " "),
+                        )
+                        next_future = executor.submit(run_worker_task, task)
+                        pending[next_future] = next_parent_entry
         return recorder.duplicate_skips_worker, len(known_fingerprints)
 
     def _make_worker_task(
@@ -548,7 +543,6 @@ class HypoEvolveController:
         parent_entry = archive.sample_parent(self.rng)
         task = WorkerTask(
             parent_hypothesis=parent_entry.hypothesis.to_dict(),
-            parent_hypothesis_nl=self._get_entry_hypothesis_nl(parent_entry),
             parent_metrics=dict(parent_entry.metrics),
             iteration=iteration,
             parent_score=parent_entry.score,
@@ -608,10 +602,9 @@ class HypoEvolveController:
         )
         decision = steer_mutation(
             parent_hypothesis=parent_entry.hypothesis,
-            parent_hypothesis_nl=self._get_entry_hypothesis_nl(parent_entry),
             current_metrics=parent_entry.metrics,
             llm=self.llm_client,
-            recent_history=recent_history[-3:],
+            recent_history=recent_history[-2:],
             top_hypotheses=archive.entries[:3],
             use_random_steering=use_random_steering,
             retries=self.config.search.steering_retries,
@@ -648,10 +641,6 @@ class HypoEvolveController:
             tuple[dict[str, object], bool]: The descriptor and whether the best score changed.
         """
         previous_best_score = archive.best.score if archive.best else None
-        metadata = {
-            **metadata,
-            "hypothesis_nl": self._render_hypothesis_nl(child_hypothesis),
-        }
         descriptor = archive.describe(child_hypothesis, child_metrics)
         archive.add(
             child_hypothesis,
@@ -704,19 +693,3 @@ class HypoEvolveController:
             )
         except ParseError:
             return render_pretty(hypothesis)
-
-    def _get_entry_hypothesis_nl(self, entry) -> str:
-        """Return cached natural-language text for one archive entry.
-
-        Args:
-            entry: The archive entry to inspect.
-
-        Returns:
-            str: Cached or newly rendered natural-language text.
-        """
-        cached = str(entry.metadata.get("hypothesis_nl", "")).strip()
-        if cached:
-            return cached
-        rendered = self._render_hypothesis_nl(entry.hypothesis)
-        entry.metadata["hypothesis_nl"] = rendered
-        return rendered

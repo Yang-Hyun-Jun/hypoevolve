@@ -10,6 +10,30 @@ Do not include comments.
 Make the hypothesis more measurable while preserving the original logical and relation structure as much as possible.
 Any tunable numeric element (thresholds, windows, horizons, and similar) must be represented as named parameter slots in the atomic `name` strings. Do not embed literal numeric constants for those roles.
 
+## Minimal ELG schema
+
+Use this minimal ELG schema:
+- every node must include `kind`
+- every node must include `name`
+- only non-leaf nodes include `inputs`
+
+Node forms:
+- atomic -> `kind`, `name`
+- logical -> `kind`, `name`, `inputs`
+- relation -> `kind`, `name`, `inputs`
+
+Allowed logical names:
+- AND
+- NOT
+
+Allowed relation names:
+- IMPLIES
+- SUPPORT
+- CONTRADICT
+- CORRELATE
+
+Use only `kind`, `name`, and `inputs`.
+
 ## Definition of measurable
 
 A measurable proposition should be evaluable from data using:
@@ -72,37 +96,6 @@ Represent every tunable measurable parameter with a stable uppercase slot name i
 
 The goal is to keep parameter locations explicit and evaluator-tunable; literal numeric constants in those roles are forbidden.
 
-## Allowed node kinds
-
-- atomic
-- logical
-- relation
-
-## Allowed logical operators
-
-- AND
-- NOT
-
-## Allowed relation types
-
-- IMPLIES
-- SUPPORT
-- CONTRADICT
-- CORRELATE
-
-## Required field names
-
-- atomic -> `kind`, `name`, `type`, `source`, `params`
-- logical -> `kind`, `op`, `inputs`, `params`
-- relation -> `kind`, `type`, `inputs`, `params`
-
-Do not use alternative field names such as:
-- `operator`
-- `proposition`
-- `label`
-- `relation`
-- `node_type`
-
 ## Additional rule
 
 Do not invent completely new semantics.
@@ -113,60 +106,42 @@ Do not hardcode numeric values for thresholds, windows, or horizons; always use 
 
 {
   "kind": "relation",
-  "type": "IMPLIES",
+  "name": "IMPLIES",
   "inputs": [
     {
       "kind": "atomic",
-      "name": "sharp downward accelerations in BTCUSDT price indicated by NewLow signal from close momentum",
-      "type": "abstract",
-      "source": "semantic",
-      "params": {}
+      "name": "sharp downward accelerations in BTCUSDT price indicated by NewLow signal from close momentum"
     },
     {
       "kind": "atomic",
-      "name": "significant jumps in the ETHUSDT high-price series",
-      "type": "abstract",
-      "source": "semantic",
-      "params": {}
+      "name": "significant jumps in the ETHUSDT high-price series"
     }
-  ],
-  "params": {}
+  ]
 }
 
 ## Example measurable ELG root node
 
 {
   "kind": "relation",
-  "type": "IMPLIES",
+  "name": "IMPLIES",
   "inputs": [
     {
       "kind": "logical",
-      "op": "AND",
+      "name": "AND",
       "inputs": [
         {
           "kind": "atomic",
-          "name": "BTCUSDT_NEW_LOW_SIGNAL_W{MOM_WINDOW}@t == True",
-          "type": "boolean",
-          "source": "primitive",
-          "params": {}
+          "name": "BTCUSDT_NEW_LOW_SIGNAL_W{MOM_WINDOW}@t == True"
         },
         {
           "kind": "atomic",
-          "name": "BTCUSDT_ZSCORE_CLOSE_MOMENTUM_W{RET_WINDOW}@t < {NEG_Z_THRESHOLD}",
-          "type": "boolean",
-          "source": "primitive",
-          "params": {}
+          "name": "BTCUSDT_ZSCORE_CLOSE_MOMENTUM_W{RET_WINDOW}@t < {NEG_Z_THRESHOLD}"
         }
-      ],
-      "params": {}
+      ]
     },
     {
       "kind": "atomic",
-      "name": "ETHUSDT_ZSCORE_HIGH_JUMP_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}",
-      "type": "boolean",
-      "source": "primitive",
-      "params": {}
+      "name": "ETHUSDT_ZSCORE_HIGH_JUMP_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}"
     }
-  ],
-  "params": {}
+  ]
 }

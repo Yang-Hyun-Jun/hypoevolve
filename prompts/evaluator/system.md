@@ -18,8 +18,18 @@ The generated code must define this exact function name and signature:
 
 ```python
 def evaluate_hypothesis(accessor, parameters: dict | None = None) -> dict:
+    import pandas as pd
+    import numpy as np
     ...
 ```
+
+Within this function contract:
+
+- Any required package imports must be done lazily inside `evaluate_hypothesis(...)` or inside a helper function called from it.
+- Do not use top-level third-party imports.
+- Prefer pandas and numpy only.
+- Do not use third-party packages other than pandas or numpy.
+- If you use pandas or numpy, import them inside the function body before first use.
 
 ## Input arguments
 
@@ -37,13 +47,30 @@ Use the `parameters` dictionary for values that are naturally parameter-like, su
 - thresholds
 - transform hyperparameters
 
-Strong rule:
+# Parameter Handling Rules
+
+This section is critical.
+
 - Define every needed evaluator parameter in the `parameters` dictionary.
 - When the function needs a parameter value, read it from `parameters` rather than hardcoding it in the computation logic.
 - Access parameter values with `parameters.get(...)`, not direct indexing like `parameters["key"]`.
-- Provide safe defaults through `parameters.get(...)` so the code does not fail with `KeyError`.
+- Every parameter access must include an explicit fallback default, i.e. use `parameters.get("KEY", default_value)`.
+- Do not use bare `parameters.get("KEY")` without a default.
+- Provide safe defaults through `parameters.get("KEY", default_value)` so the code does not fail with `KeyError`.
 - If the measurable ELG includes named parameter slots, define corresponding parameter keys with the same names.
 - After filling defaults, keep a normalized `parameters` dictionary that represents the actual values used for evaluation.
+
+Preferred pattern:
+
+```python
+low_price_window = parameters.get("LOW_PRICE_WINDOW", 20)
+```
+
+Do not do this:
+
+```python
+low_price_window = parameters["LOW_PRICE_WINDOW"]
+```
 
 # Core Rule
 
@@ -86,7 +113,19 @@ Important:
 - Do not overengineer.
 - Compute only what is necessary for the scoring logic.
 - Avoid unnecessary helper functions, wrappers, or exception handling.
+- Follow Python syntax strictly and do not reference variables, imports, or helper names that have not been defined.
+- Check types carefully before combining, comparing, or indexing values, and ensure each operation is applied to compatible Python/pandas types.
 - Do not perform network access.
+
+# Import Rules
+
+This section is critical.
+
+- Prefer solving the evaluation with pandas only when possible.
+- The default expectation is: pandas first, numpy second, nothing else.
+- Do not rely on top-level third-party imports.
+- If you use numpy, write `import numpy as np` inside the function body before the first numpy usage.
+- Keep any allowed third-party import close to where it is used so the dependency is explicit and local.
 
 # Numerical Stability Rules
 
@@ -97,6 +136,33 @@ Important:
 - Keep the final metric outputs finite and well-defined.
 - Never return `NaN`, `inf`, or `-inf` in any output field.
 - If a metric is undefined due to empty support or zero denominators, return a finite fallback such as `0.0` instead.
+
+# JSON Serialization Rules
+
+This section is critical.
+
+- The returned dictionary must be JSON-serializable by Python's standard `json.dumps(...)`.
+- Do not return numpy scalar types such as `np.int64`, `np.float64`, or pandas scalar objects.
+- Before returning, cast numeric outputs to plain Python primitives using `int(...)` or `float(...)`.
+- Ensure `support_count` and `total_count` are plain Python `int`.
+- Ensure score-like fields are plain Python `float`.
+- Ensure `used_parameters` contains only JSON-serializable Python primitives such as `int`, `float`, `str`, `bool`, `list`, `dict`, or `None`.
+
+Preferred pattern:
+
+```python
+return {
+    "combined_score": float(combined_score),
+    "precision": float(precision),
+    "baseline": float(baseline),
+    "coverage": float(coverage),
+    "uplift": float(uplift),
+    "support_count": int(support_count),
+    "total_count": int(total_count),
+    "rationale": str(rationale),
+    "used_parameters": parameters,
+}
+```
 
 # Time Alignment Rules
 
@@ -178,8 +244,6 @@ Example shape:
 - `support_count` means the count of rows / events where the condition is true
 - `total_count` means the total count of evaluated rows / events
 - `rationale` should be concise
-- all score-like fields should be numeric
-- all numeric output fields must be finite
 - `used_parameters` must contain the actual parameter values used after defaults are applied
 
 # Execution Model

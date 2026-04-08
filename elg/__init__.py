@@ -3,8 +3,6 @@
 from .codec import hypothesis_from_dict, hypothesis_from_json, hypothesis_to_json, node_from_dict
 from .ir import (
     AtomicNode,
-    AtomicSource,
-    AtomicType,
     Hypothesis,
     LogicalNode,
     LogicalOp,
@@ -38,8 +36,6 @@ from .normalize import normalize_hypothesis, normalize_node
 from .render import render_pretty, render_tree
 __all__ = [
     "AtomicNode",
-    "AtomicSource",
-    "AtomicType",
     "Hypothesis",
     "LogicalNode",
     "LogicalOp",

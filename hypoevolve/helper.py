@@ -79,7 +79,6 @@ def build_evaluator_runtime_wrapper(
 
 def build_steering_prompt_variables(
     parent_hypothesis: Hypothesis,
-    parent_hypothesis_nl: str,
     current_metrics: Mapping[str, object],
     recent_history: Sequence[Mapping[str, object]] | None = None,
     top_hypotheses: Sequence[ArchiveEntry] | None = None,
@@ -106,7 +105,6 @@ def build_steering_prompt_variables(
     ]
     return {
         "PARENT_HYPOTHESIS_MEASURABLE": render_pretty(parent_hypothesis),
-        "PARENT_HYPOTHESIS_NL": parent_hypothesis_nl.strip(),
         "CURRENT_METRICS": json.dumps(
             dict(current_metrics), ensure_ascii=False, indent=2
         ),

@@ -36,9 +36,7 @@ class TestHypoEvolveArchive(unittest.TestCase):
         archive = MAPElitesArchive(per_cell_top_k=3)
         scores = [0.2, 0.8, 0.5, 0.6]
         for score in scores:
-            hypothesis = Hypothesis(
-                root=AtomicNode(f"A_{score}", params={"score": score})
-            )
+            hypothesis = Hypothesis(root=AtomicNode(f"A_{score}"))
             archive.add(hypothesis, {"combined_score": score, "coverage": 0.04})
         self.assertEqual(len(archive), 1)
         self.assertEqual([entry.score for entry in archive.entries], [0.8, 0.6, 0.5])

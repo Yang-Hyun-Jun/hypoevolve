@@ -1,0 +1,96 @@
+description: Daily oil-market feature parquet dataset built from WTI price action, U.S. crude fundamentals, and macro/risk proxy series. Non-WTI inputs are shifted by one day before merge, reindexed to a daily calendar, and forward-filled so each row is usable as a next-day information set for WTI-related modeling.
+index:
+  name: date
+  dtype: datetime64[us]
+files:
+  -
+    entity: oil_market_feature_panel
+    path: data/CRUDE.parquet
+columns:
+  -
+    name: wti_volume_zscore
+    description: Rolling z-score of WTI daily volume.
+  -
+    name: wti_high_zscore
+    description: Rolling z-score of WTI daily high price.
+  -
+    name: wti_low_zscore
+    description: Rolling z-score of WTI daily low price.
+  -
+    name: wti_open_zscore
+    description: Rolling z-score of WTI daily open price.
+  -
+    name: wti_close_zscore
+    description: Rolling z-score of WTI daily close price.
+  -
+    name: us_crude_stocks_kbbl
+    description: U.S. commercial crude oil inventory level in thousand barrels.
+  -
+    name: us_crude_stocks_wow
+    description: Week-over-week absolute change in U.S. commercial crude oil inventories, in thousand barrels.
+  -
+    name: us_stocks_zscore
+    description: Rolling z-score of U.S. crude oil inventories.
+  -
+    name: cushing_stocks_kbbl
+    description: Cushing crude oil inventory level in thousand barrels.
+  -
+    name: cushing_stocks_wow
+    description: Week-over-week absolute change in Cushing crude oil inventories, in thousand barrels.
+  -
+    name: cushing_stocks_zscore
+    description: Rolling z-score of Cushing crude oil inventories.
+  -
+    name: us_crude_prod_kbpd
+    description: U.S. crude oil production level in thousand barrels per day.
+  -
+    name: refinery_inputs_kbpd
+    description: U.S. refinery crude oil input level in thousand barrels per day.
+  -
+    name: refinery_inputs_vol
+    description: Rolling volatility of 1-period percentage changes in refinery crude oil inputs.
+  -
+    name: us_crude_import_zscore
+    description: Rolling z-score of U.S. crude oil imports.
+  -
+    name: us_crude_import_vol
+    description: Rolling volatility of 1-period percentage changes in U.S. crude oil imports.
+  -
+    name: us_crude_export_zscore
+    description: Rolling z-score of U.S. crude oil exports.
+  -
+    name: us_crude_export_vol
+    description: Rolling volatility of 1-period percentage changes in U.S. crude oil exports.
+  -
+    name: dollar_index_zscore
+    description: Rolling z-score of the broad trade-weighted U.S. dollar index.
+  -
+    name: dollar_index_vol
+    description: Rolling volatility of 1-day percentage changes in the broad trade-weighted U.S. dollar index.
+  -
+    name: us_treasury_yield_zscore
+    description: Rolling z-score of the U.S. 10-year Treasury yield.
+  -
+    name: us_treasury_yield_vol
+    description: Rolling volatility of 1-day percentage changes in the U.S. 10-year Treasury yield.
+  -
+    name: vix_zscore
+    description: Rolling z-score of VIX close.
+  -
+    name: vix_vol
+    description: Rolling volatility of 1-day percentage changes in VIX close.
+  -
+    name: uso_close_zscore
+    description: Rolling z-score of USO ETF daily close.
+  -
+    name: ovx_close_zscore
+    description: Rolling z-score of OVX daily close.
+  -
+    name: sp500_close_zscore
+    description: Rolling z-score of S&P 500 daily close.
+  -
+    name: nasdaq100_close_zscore
+    description: Rolling z-score of NASDAQ-100 daily close.
+  -
+    name: indpro_zscore
+    description: Rolling z-score of the industrial production index.

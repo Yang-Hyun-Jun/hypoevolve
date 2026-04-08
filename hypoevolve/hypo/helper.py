@@ -1,22 +1,30 @@
+from functools import lru_cache
+from pathlib import Path
+
+from hypoevolve.dataset import load_dataset_schema
 from hypoevolve.hypo.nodes import nodes
 from hypoevolve.hypo.tree.base import HypoTree
 from hypoevolve.hypo.tree.generator import HypoTreeGenerator
 
-LABELS = [
-    "OPEN",
-    "HIGH",
-    "LOW",
-    "CLOSE",
-    "VOLUME",
-    "PREMIUM_INDEX_CLOSE",
-    "PREMIUM_INDEX_OPEN",
-    "PREMIUM_INDEX_HIGH",
-    "PREMIUM_INDEX_LOW",
-    "TAKER_BUY_VOLUME",
-    "TAKER_SELL_VOLUME",
-    "FUNDING_SCORE",
-    "ORDER_FLOW_IMBALANCE",
-]
+DEFAULT_DATASET_SCHEMA_PATH = "dataset.yaml"
+
+
+@lru_cache(maxsize=None)
+def _load_dataset_labels(dataset_schema_path: str) -> tuple[str, ...]:
+    schema = load_dataset_schema(dataset_schema_path)
+    labels = tuple(column.name for column in schema.columns)
+    if not labels:
+        raise ValueError(
+            "Dataset schema must declare at least one column for DATA nodes"
+        )
+    return labels
+
+
+def get_labels(
+    dataset_schema_path: str | Path = DEFAULT_DATASET_SCHEMA_PATH,
+) -> list[str]:
+    resolved_path = str(Path(dataset_schema_path).resolve())
+    return list(_load_dataset_labels(resolved_path))
 
 
 def generate_trees(
@@ -45,14 +53,18 @@ def generate_trees(
     return trees
 
 
-def get_tree_generator():
+def get_tree_generator(
+    dataset_schema_path: str | Path = DEFAULT_DATASET_SCHEMA_PATH,
+):
 
-    nodes = get_nodes()
+    nodes = get_nodes(dataset_schema_path=dataset_schema_path)
     generator = HypoTreeGenerator(nodes)
     return generator
 
 
-def get_nodes() -> list:
+def get_nodes(
+    dataset_schema_path: str | Path = DEFAULT_DATASET_SCHEMA_PATH,
+) -> list:
 
     P = "PERIOD"
     DATA_KWARGS = {}
@@ -96,7 +108,7 @@ def get_nodes() -> list:
             label=label,
             **DATA_KWARGS,
         )
-        for label in LABELS
+        for label in get_labels(dataset_schema_path)
     )
 
     return NODES

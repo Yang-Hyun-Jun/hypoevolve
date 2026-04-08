@@ -31,7 +31,6 @@ STEERING_RANDOM_SYSTEM_PROMPT = load_prompt("steering-random", "system.md")
 
 def steer_mutation(
     parent_hypothesis: Hypothesis,
-    parent_hypothesis_nl: str,
     current_metrics: Mapping[str, object],
     llm: LLMClient,
     recent_history: Sequence[Mapping[str, object]] | None = None,
@@ -49,7 +48,6 @@ def steer_mutation(
         "user.md",
         variables=build_steering_prompt_variables(
             parent_hypothesis=parent_hypothesis,
-            parent_hypothesis_nl=parent_hypothesis_nl,
             current_metrics=current_metrics,
             recent_history=recent_history,
             top_hypotheses=top_hypotheses,
@@ -132,10 +130,7 @@ def steer_mutation(
 
             child_hypothesis = normalize_hypothesis(
                 hypothesis_from_dict(
-                    {
-                        "root": child_root,
-                        "params": dict(parent_hypothesis.params),
-                    }
+                    {"root": child_root}
                 )
             )
 

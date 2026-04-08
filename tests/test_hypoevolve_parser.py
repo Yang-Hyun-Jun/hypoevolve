@@ -17,12 +17,11 @@ class TestHypoEvolveParser(unittest.TestCase):
             def generate_json(self, system, user, **kwargs):
                 return {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
 
         hypothesis = parse_hypothesis_text("custom input", llm=FakeLLM(), retries=1)
@@ -49,13 +48,12 @@ class TestHypoEvolveParser(unittest.TestCase):
             def generate_json(self, system, user, **kwargs):
                 return {
                     "kind": "logical",
-                    "op": "AND",
+                    "name": "AND",
                     "inputs": [
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "B"},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "A"},
                     ],
-                    "params": {},
                 }
 
         hypothesis = llm_parse_hypothesis("A and B", llm=FakeLLM())
@@ -91,38 +89,27 @@ class TestHypoEvolveParser(unittest.TestCase):
             def generate_json(self, system, user, **kwargs):
                 return {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
                         {
                             "kind": "logical",
-                            "op": "AND",
+                            "name": "AND",
                             "inputs": [
                                 {
                                     "kind": "atomic",
                                     "name": "BTCUSDT_NEW_LOW_SIGNAL_10D == True",
-                                    "type": "boolean",
-                                    "source": "primitive",
-                                    "params": {},
                                 },
                                 {
                                     "kind": "atomic",
                                     "name": "BTCUSDT_NORMALIZED_CLOSE_MOMENTUM_10D < -2.0",
-                                    "type": "boolean",
-                                    "source": "primitive",
-                                    "params": {},
                                 },
                             ],
-                            "params": {},
                         },
                         {
                             "kind": "atomic",
                             "name": "ETHUSDT_TRANSFORMED_HIGH_JUMP_10D > 1.5",
-                            "type": "boolean",
-                            "source": "primitive",
-                            "params": {},
                         },
                     ],
-                    "params": {},
                 }
 
         original = Hypothesis(
@@ -138,7 +125,7 @@ class TestHypoEvolveParser(unittest.TestCase):
         )
         measurable = llm_make_hypothesis_measurable(original, llm=FakeLLM())
         self.assertIsInstance(measurable, Hypothesis)
-        self.assertEqual(measurable.root.type, RelationType.IMPLIES)
+        self.assertEqual(measurable.root.name, RelationType.IMPLIES)
         self.assertIsInstance(measurable.root.inputs[0], LogicalNode)
 
     def test_llm_make_hypothesis_measurable_retries_and_fails(self):
@@ -148,7 +135,7 @@ class TestHypoEvolveParser(unittest.TestCase):
 
             def generate_json(self, system, user, **kwargs):
                 self.calls += 1
-                return {"kind": "logical", "op": "XOR", "inputs": []}
+                return {"kind": "logical", "name": "XOR", "inputs": []}
 
         original = Hypothesis(root=AtomicNode("semantic proposition"))
         llm = BadLLM()
@@ -163,6 +150,7 @@ class TestHypoEvolveParser(unittest.TestCase):
         measurable_prompt = load_prompt("measurable", "system.md")
         self.assertIn("Return JSON only.", system_prompt)
         self.assertIn("invalid", retry_prompt.lower())
+        self.assertIn("minimal ELG schema", system_prompt)
         self.assertIn("measurable", measurable_prompt.lower())
 
 
@@ -199,6 +187,36 @@ class TestHypoEvolveParser(unittest.TestCase):
             llm_hypothesis_to_natural_language(hypothesis, llm=llm, retries=2)
         self.assertEqual(llm.calls, 3)
         self.assertEqual(len(ctx.exception.errors), 3)
+
+    def test_hypothesis_to_dict_uses_minimal_elg_schema(self):
+        hypothesis = Hypothesis(
+            root=RelationNode(
+                "IMPLIES",
+                [
+                    LogicalNode("AND", [AtomicNode("A"), AtomicNode("B")]),
+                    AtomicNode("C"),
+                ],
+            )
+        )
+
+        self.assertEqual(
+            hypothesis.to_dict()["root"],
+            {
+                "kind": "relation",
+                "name": "IMPLIES",
+                "inputs": [
+                    {
+                        "kind": "logical",
+                        "name": "AND",
+                        "inputs": [
+                            {"kind": "atomic", "name": "A"},
+                            {"kind": "atomic", "name": "B"},
+                        ],
+                    },
+                    {"kind": "atomic", "name": "C"},
+                ],
+            },
+        )
 
 
 if __name__ == "__main__":

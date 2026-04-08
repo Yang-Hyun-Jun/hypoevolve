@@ -10,37 +10,28 @@ from .ir import AtomicNode, Hypothesis, LogicalNode, LogicalOp, Node, RelationNo
 
 def normalize_hypothesis(hypothesis: Hypothesis) -> Hypothesis:
     """Normalize a hypothesis into a canonical structural form."""
-    return Hypothesis(root=normalize_node(hypothesis.root), params=dict(hypothesis.params))
+    return Hypothesis(root=normalize_node(hypothesis.root))
 
 
 def normalize_node(node: Node) -> Node:
     """Normalize one ELG node recursively."""
     if isinstance(node, AtomicNode):
-        return AtomicNode(
-            name=node.name,
-            type=node.type,
-            source=node.source,
-            params=dict(node.params),
-        )
+        return AtomicNode(name=node.name)
 
     if isinstance(node, RelationNode):
-        return RelationNode(
-            type=node.type,
-            inputs=[normalize_node(child) for child in node.inputs],
-            params=dict(node.params),
-        )
+        return RelationNode(name=node.name, inputs=[normalize_node(child) for child in node.inputs])
 
     normalized_children = [normalize_node(child) for child in node.inputs]
 
-    if node.op is LogicalOp.NOT:
+    if node.name is LogicalOp.NOT:
         child = normalized_children[0]
-        if isinstance(child, LogicalNode) and child.op is LogicalOp.NOT:
+        if isinstance(child, LogicalNode) and child.name is LogicalOp.NOT:
             return child.inputs[0]
-        return LogicalNode(node.op, [child], params=dict(node.params))
+        return LogicalNode(node.name, [child])
 
     flattened: List[Node] = []
     for child in normalized_children:
-        if isinstance(child, LogicalNode) and child.op is node.op:
+        if isinstance(child, LogicalNode) and child.name is node.name:
             flattened.extend(child.inputs)
         else:
             flattened.append(child)
@@ -49,7 +40,7 @@ def normalize_node(node: Node) -> Node:
     if len(deduped) == 1:
         return deduped[0]
 
-    return LogicalNode(node.op, deduped, params=dict(node.params))
+    return LogicalNode(node.name, deduped)
 
 
 def _dedupe_and_sort(nodes: List[Node]) -> List[Node]:

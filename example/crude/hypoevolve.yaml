@@ -1,0 +1,38 @@
+llm:
+  api_key: EMPTY
+  api_base: http://127.0.0.1:8000/v1
+  model: Qwen2.5-14B-Instruct
+  temperature: 0.8
+  max_tokens: 10000
+  retries: 1
+  retry_delay: 1.0
+parser:
+  retries: 2
+evaluator:
+  dataset_schema_path: dataset.yaml
+  parameters:
+    window: 12
+    horizon: 1
+  seed: 42
+search:
+  iterations: 30
+  steering_retries: 3
+  random_steering_prob: 0.3
+  random_seed: 42
+archive:
+  coverage_bins:
+    - 0.05
+    - 0.15
+    - 0.30
+  complexity_bins:
+    - 3
+    - 5
+    - 8
+output:
+  base_dir: .hypoevolve/runs
+  top_k_evaluator_code_artifacts: 3
+logging:
+  level: INFO
+workers:
+  enabled: true
+  count: 5

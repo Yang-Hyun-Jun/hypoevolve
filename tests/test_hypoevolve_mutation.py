@@ -39,15 +39,14 @@ class TestHypoEvolveMutation(unittest.TestCase):
             {
                 "child_hypothesis": {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "logical", "op": "AND", "inputs": [
+                        {"kind": "logical", "name": "AND", "inputs": [
                             {"kind": "atomic", "name": "A"},
                             {"kind": "atomic", "name": "D"},
-                        ], "params": {}},
+                        ]},
                         {"kind": "atomic", "name": "C"},
                     ],
-                    "params": {},
                 },
                 "domain_reason": "The added condition-side atomic makes the stress regime more coherent from a market-structure perspective.",
                 "score_reason": "Adding a related condition-side atomic may improve precision without fully changing the structure.",
@@ -57,7 +56,6 @@ class TestHypoEvolveMutation(unittest.TestCase):
         ])
         decision = steer_mutation(
             parent_hypothesis=self.hypothesis,
-            parent_hypothesis_nl="If A and B then C.",
             current_metrics={"combined_score": 0.1, "precision": 0.2, "baseline": 0.3, "coverage": 0.05},
             llm=llm,
             recent_history=[{"operation": "wrap_not", "score_delta": -0.1}],
@@ -70,7 +68,7 @@ class TestHypoEvolveMutation(unittest.TestCase):
             ],
         )
         self.assertIsInstance(decision, MutationDecision)
-        self.assertEqual(decision.child_hypothesis.root.type.value, "IMPLIES")
+        self.assertEqual(decision.child_hypothesis.root.name.value, "IMPLIES")
         self.assertTrue(decision.domain_reason)
         self.assertTrue(decision.score_reason)
         self.assertEqual(decision.operation_score_rankings["append_atomic"], 1)
@@ -82,15 +80,14 @@ class TestHypoEvolveMutation(unittest.TestCase):
             {
                 "child_hypothesis": {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "logical", "op": "AND", "inputs": [
+                        {"kind": "logical", "name": "AND", "inputs": [
                             {"kind": "atomic", "name": "A"},
                             {"kind": "atomic", "name": "D"},
-                        ], "params": {}},
+                        ]},
                         {"kind": "atomic", "name": "C"},
                     ],
-                    "params": {},
                 },
                 "domain_reason": "The revised child remains plausible as a coherent market hypothesis.",
                 "score_reason": "A valid local mutation is better than an invalid payload and is most likely to improve the score.",
@@ -100,7 +97,6 @@ class TestHypoEvolveMutation(unittest.TestCase):
         ], retries=1)
         decision = steer_mutation(
             parent_hypothesis=self.hypothesis,
-            parent_hypothesis_nl="If A and B then C.",
             current_metrics={"combined_score": 0.1},
             llm=llm,
         )
@@ -113,22 +109,20 @@ class TestHypoEvolveMutation(unittest.TestCase):
             {
                 "child_hypothesis": {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "logical", "op": "AND", "inputs": [
+                        {"kind": "logical", "name": "AND", "inputs": [
                             {"kind": "atomic", "name": "A"},
                             {"kind": "atomic", "name": "D"},
-                        ], "params": {}},
+                        ]},
                         {"kind": "atomic", "name": "C"},
                     ],
-                    "params": {},
                 },
                 "mutation_summary": "Applied three exploratory local mutations in the condition subtree.",
             }
         ])
         decision = steer_mutation(
             parent_hypothesis=self.hypothesis,
-            parent_hypothesis_nl="If A and B then C.",
             current_metrics={"combined_score": 0.1},
             llm=llm,
             use_random_steering=True,

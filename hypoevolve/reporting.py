@@ -594,7 +594,7 @@ def _build_archive_distribution_svg(
 def _hypothesis_structure(hypothesis: Hypothesis) -> dict[str, str]:
     root = hypothesis.root
     relation = (
-        root.type.value if isinstance(root, RelationNode) else type(root).__name__
+        root.name.value if isinstance(root, RelationNode) else type(root).__name__
     )
     condition = render_pretty(root.condition) if isinstance(root, RelationNode) else "-"
     target = render_pretty(root.target) if isinstance(root, RelationNode) else "-"

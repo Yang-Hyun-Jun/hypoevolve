@@ -107,13 +107,11 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         ]
         variables = build_steering_prompt_variables(
             parent_hypothesis=self.hypothesis,
-            parent_hypothesis_nl="If A and B then C.",
             current_metrics={"combined_score": 0.1, "precision": 0.2},
             recent_history=[{"mutation_summary": "Applied a wrap_not-style local mutation.", "score_delta": -0.1}],
             top_hypotheses=top_hypotheses,
         )
         self.assertIn("IMPLIES", variables["PARENT_HYPOTHESIS_MEASURABLE"])
-        self.assertEqual(variables["PARENT_HYPOTHESIS_NL"], "If A and B then C.")
         self.assertIn("combined_score", variables["CURRENT_METRICS"])
         self.assertIn("precision = P(target | condition)", variables["METRIC_DEFINITIONS"])
         self.assertIn("wrap_not-style", variables["RECENT_HISTORY"])

@@ -13,6 +13,7 @@ import click
 from elg import hypothesis_from_dict, render_pretty, render_tree
 from hypoevolve.config import ConfigError, HypoEvolveConfig, load_config
 from hypoevolve.controller import HypoEvolveController
+from hypoevolve.dataset import DatasetSchemaError
 from hypoevolve.hypo import (
     HypothesisGenerationError,
     generate_random_tree_pair_hypothesis,
@@ -149,7 +150,12 @@ def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
         )
         logger.info("cli run command completed")
         return 0
-    except (ConfigError, ParseError, HypothesisGenerationError) as exc:
+    except (
+        ConfigError,
+        DatasetSchemaError,
+        ParseError,
+        HypothesisGenerationError,
+    ) as exc:
         logger.error("cli run command failed: {}", exc)
         _echo_error(exc)
         return 1
@@ -176,13 +182,14 @@ def seed(config: str | None, max_depth: int) -> int:
         result = generate_random_tree_pair_hypothesis(
             llm=LLMClient(loaded.llm),
             max_depth=max_depth,
+            dataset_schema_path=loaded.evaluator.dataset_schema_path,
         )
         _echo_banner()
         _echo_block("Feature tree A", result.tree_a.render(return_str=True))
         _echo_block("Feature tree B", result.tree_b.render(return_str=True))
         _echo_block("Generated hypothesis", result.hypothesis)
         return 0
-    except (ConfigError, HypothesisGenerationError) as exc:
+    except (ConfigError, DatasetSchemaError, HypothesisGenerationError) as exc:
         logger.error("cli seed command failed: {}", exc)
         _echo_error(exc)
         return 1

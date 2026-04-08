@@ -1,7 +1,9 @@
 import tempfile
 import unittest
 import json
+from concurrent.futures import Future
 from pathlib import Path
+from threading import Timer
 from unittest.mock import patch
 
 from hypoevolve.config import HypoEvolveConfig
@@ -9,16 +11,10 @@ from hypoevolve.controller import HypoEvolveController
 from hypoevolve.workers import WorkerResult
 
 
-class ImmediateFuture:
+class ImmediateFuture(Future):
     def __init__(self, result):
-        self._result = result
-        self._done = True
-
-    def done(self):
-        return self._done
-
-    def result(self):
-        return self._result
+        super().__init__()
+        self.set_result(result)
 
 
 class FakeExecutor:
@@ -35,18 +31,12 @@ class FakeExecutor:
         return ImmediateFuture(fn(task))
 
 
-class DelayedFuture:
+class DelayedFuture(Future):
     def __init__(self, result, polls_before_done: int):
-        self._result = result
-        self._polls_before_done = polls_before_done
-        self._polls = 0
-
-    def done(self):
-        self._polls += 1
-        return self._polls > self._polls_before_done
-
-    def result(self):
-        return self._result
+        super().__init__()
+        delay_sec = max(0.0, 0.01 * polls_before_done)
+        self._timer = Timer(delay_sec, lambda: self.set_result(result))
+        self._timer.start()
 
 
 class DelayedExecutor(FakeExecutor):
@@ -66,12 +56,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 return {
                     "child_hypothesis": {
                         "kind": "relation",
-                        "type": "IMPLIES",
+                        "name": "IMPLIES",
                         "inputs": [
-                            {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
-                            {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                            {"kind": "atomic", "name": "A2"},
+                            {"kind": "atomic", "name": "B"},
                         ],
-                        "params": {},
                     },
                     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                     "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
@@ -79,12 +68,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
 
             def generate_text(self, system, user, **kwargs):
@@ -129,12 +117,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 return {
                     "child_hypothesis": {
                         "kind": "relation",
-                        "type": "IMPLIES",
+                        "name": "IMPLIES",
                         "inputs": [
-                            {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
-                            {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                            {"kind": "atomic", "name": "A2"},
+                            {"kind": "atomic", "name": "B"},
                         ],
-                        "params": {},
                     },
                     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                     "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
@@ -142,12 +129,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
             def generate_text(self, system, user, **kwargs):
                 return "If A then B."
@@ -171,12 +157,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 return {
                     "child_hypothesis": {
                         "kind": "relation",
-                        "type": "IMPLIES",
+                        "name": "IMPLIES",
                         "inputs": [
-                            {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
-                            {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                            {"kind": "atomic", "name": "A2"},
+                            {"kind": "atomic", "name": "B"},
                         ],
-                        "params": {},
                     },
                     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                     "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
@@ -184,12 +169,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
             def generate_text(self, system, user, **kwargs):
                 return "If A then B."
@@ -214,12 +198,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 return {
                     "child_hypothesis": {
                         "kind": "relation",
-                        "type": "IMPLIES",
+                        "name": "IMPLIES",
                         "inputs": [
-                            {"kind": "atomic", "name": "A2", "type": "abstract", "source": "semantic", "params": {}},
-                            {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                            {"kind": "atomic", "name": "A2"},
+                            {"kind": "atomic", "name": "B"},
                         ],
-                        "params": {},
                     },
                     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
                     "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
@@ -227,12 +210,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
                 } if "mutation_summary" in system else {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
             def generate_text(self, system, user, **kwargs):
                 return "If A then B."
@@ -276,12 +258,11 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
             def generate_json(self, system, user, **kwargs):
                 return {
                     "kind": "relation",
-                    "type": "IMPLIES",
+                    "name": "IMPLIES",
                     "inputs": [
-                        {"kind": "atomic", "name": "A", "type": "abstract", "source": "semantic", "params": {}},
-                        {"kind": "atomic", "name": "B", "type": "abstract", "source": "semantic", "params": {}},
+                        {"kind": "atomic", "name": "A"},
+                        {"kind": "atomic", "name": "B"},
                     ],
-                    "params": {},
                 }
 
             def generate_text(self, system, user, **kwargs):

@@ -6,7 +6,6 @@ You are a random exploration mutation steering agent for Executable Logic Graph 
 
 Given:
 - the current parent measurable ELG hypothesis
-- its natural-language interpretation
 - recent mutation history
 - top hypotheses in the archive
 
@@ -25,65 +24,53 @@ generate a new and different child ELG hypothesis as a mutation of the parent hy
 
 You must generate a valid ELG JSON root node inside `child_hypothesis`.
 
+Use this minimal ELG schema:
+- every node must include `kind`
+- every node must include `name`
+- only non-leaf nodes include `inputs`
+
 Allowed node kinds:
 - atomic
 - logical
 - relation
 
-Allowed logical operators:
+Allowed logical names:
 - AND
 - NOT
 
-Allowed relation types:
+Allowed relation names:
 - IMPLIES
 - SUPPORT
 - CONTRADICT
 - CORRELATE
-
-Required field names:
-- for `atomic`, use `kind`, `name`, `type`, `source`, `params`
-- for `logical`, use `kind`, `op`, `inputs`, `params`
-- for `relation`, use `kind`, `type`, `inputs`, `params`
-
-Do not use alternative field names such as:
-- `operator`
-- `proposition`
-- `label`
-- `relation`
-- `node_type`
 
 Required field schema:
 
 Atomic node:
 {
   "kind": "atomic",
-  "name": "<opaque proposition text>",
-  "type": "boolean | numeric | abstract",
-  "source": "primitive | semantic",
-  "params": {}
+  "name": "<opaque proposition text>"
 }
 
 Logical node:
 {
   "kind": "logical",
-  "op": "AND | NOT",
-  "inputs": [<node>, ...],
-  "params": {}
+  "name": "AND | NOT",
+  "inputs": [<node>, ...]
 }
 
 Relation node:
 {
   "kind": "relation",
-  "type": "IMPLIES | SUPPORT | CONTRADICT | CORRELATE",
-  "inputs": [<condition-node>, <target-node>],
-  "params": {}
+  "name": "IMPLIES | SUPPORT | CONTRADICT | CORRELATE",
+  "inputs": [<condition-node>, <target-node>]
 }
 
 Structural validity rules:
 - `NOT` must have exactly one input
 - `AND` must have at least two inputs
 - `relation.inputs` must contain exactly two nodes
-- use `params: {}` if no params are needed
+- use only `kind`, `name`, and `inputs`
 
 # Full-Rewrite Mutation Policy
 
@@ -137,38 +124,27 @@ The `mutation_summary` must describe the mutation in diff-style terms.
   "mutation_summary": "...",
   "child_hypothesis": {
     "kind": "relation",
-    "type": "IMPLIES",
+    "name": "IMPLIES",
     "inputs": [
       {
         "kind": "logical",
-        "op": "AND",
+        "name": "AND",
         "inputs": [
           {
             "kind": "atomic",
-            "name": "...",
-            "type": "boolean",
-            "source": "primitive",
-            "params": {}
+            "name": "..."
           },
           {
             "kind": "atomic",
-            "name": "...",
-            "type": "boolean",
-            "source": "primitive",
-            "params": {}
+            "name": "..."
           }
-        ],
-        "params": {}
+        ]
       },
       {
         "kind": "atomic",
-        "name": "...",
-        "type": "boolean",
-        "source": "primitive",
-        "params": {}
+        "name": "..."
       }
-    ],
-    "params": {}
-  },
+    ]
+  }
 }
 ```

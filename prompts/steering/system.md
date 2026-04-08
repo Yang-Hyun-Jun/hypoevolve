@@ -6,7 +6,6 @@ You are a mutation steering agent for Executable Logic Graph (ELG) hypothesis ev
 
 Given:
 - the current parent measurable ELG hypothesis
-- its natural-language interpretation
 - its evaluation metrics
 - recent mutation history
 - top hypotheses in the archive
@@ -33,58 +32,53 @@ Propose a child hypothesis that is most likely to improve the current scoring ou
 
 You must generate a valid ELG JSON root node inside `child_hypothesis`.
 
+Use this minimal ELG schema:
+- every node must include `kind`
+- every node must include `name`
+- only non-leaf nodes include `inputs`
+
 Allowed node kinds:
 - atomic
 - logical
 - relation
 
-Allowed logical operators:
+Allowed logical names:
 - AND
 - NOT
 
-Allowed relation types:
+Allowed relation names:
 - IMPLIES
 - SUPPORT
 - CONTRADICT
 - CORRELATE
-
-Required field names:
-- for `atomic`, use `kind`, `name`, `type`, `source`, `params`
-- for `logical`, use `kind`, `op`, `inputs`, `params`
-- for `relation`, use `kind`, `type`, `inputs`, `params`
 
 Required field schema:
 
 Atomic node:
 {
   "kind": "atomic",
-  "name": "<opaque proposition text>",
-  "type": "boolean | numeric | abstract",
-  "source": "primitive | semantic",
-  "params": {}
+  "name": "<opaque proposition text>"
 }
 
 Logical node:
 {
   "kind": "logical",
-  "op": "AND | NOT",
-  "inputs": [<node>, ...],
-  "params": {}
+  "name": "AND | NOT",
+  "inputs": [<node>, ...]
 }
 
 Relation node:
 {
   "kind": "relation",
-  "type": "IMPLIES | SUPPORT | CONTRADICT | CORRELATE",
-  "inputs": [<condition-node>, <target-node>],
-  "params": {}
+  "name": "IMPLIES | SUPPORT | CONTRADICT | CORRELATE",
+  "inputs": [<condition-node>, <target-node>]
 }
 
 Structural validity rules:
 - `NOT` must have exactly one input
 - `AND` must have at least two inputs
 - `relation.inputs` must contain exactly two nodes
-- use `params: {}` if no params are needed
+- use only `kind`, `name`, and `inputs`
 
 # Full-Rewrite but Local-Mutation Policy
 
@@ -199,43 +193,31 @@ The `mutation_summary` must describe the mutation in diff-style terms.
   "operation_score_rankings": {
     "replace_atomic_feature": 1,
     "append_atomic": 2,
-    "change_relation_type": 3,
-    ...,
+    "change_relation_type": 3
   },
   "child_hypothesis": {
     "kind": "relation",
-    "type": "IMPLIES",
+    "name": "IMPLIES",
     "inputs": [
       {
         "kind": "logical",
-        "op": "AND",
+        "name": "AND",
         "inputs": [
           {
             "kind": "atomic",
-            "name": "BTCUSDT_NEW_LOW_SIGNAL_W12@t == True",
-            "type": "boolean",
-            "source": "primitive",
-            "params": {}
+            "name": "BTCUSDT_NEW_LOW_SIGNAL_W{MOM_WINDOW}@t == True"
           },
           {
             "kind": "atomic",
-            "name": "BTCUSDT_ZSCORE_CLOSE_MOMENTUM_W12@t < -2.0",
-            "type": "boolean",
-            "source": "primitive",
-            "params": {}
+            "name": "BTCUSDT_ZSCORE_CLOSE_MOMENTUM_W{RET_WINDOW}@t < {NEG_Z_THRESHOLD}"
           }
-        ],
-        "params": {}
+        ]
       },
       {
         "kind": "atomic",
-        "name": "DOGEUSDT_ZSCORE_HIGH_JUMP_W12@t+1 > 1.5",
-        "type": "boolean",
-        "source": "primitive",
-        "params": {}
+        "name": "DOGEUSDT_ZSCORE_HIGH_JUMP_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}"
       }
-    ],
-    "params": {}
+    ]
   },
   "mutation_summary": "..."
 }

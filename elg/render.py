@@ -16,9 +16,9 @@ def label_of(node: Renderable) -> str:
     if isinstance(node, AtomicNode):
         return node.name
     if isinstance(node, LogicalNode):
-        return node.op.value
+        return node.name.value
     if isinstance(node, RelationNode):
-        return node.type.value
+        return node.name.value
     raise TypeError(f"Unsupported node type: {type(node)!r}")
 
 

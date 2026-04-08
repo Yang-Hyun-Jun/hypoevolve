@@ -5,16 +5,21 @@ Do not include markdown.
 Do not include explanations.
 Do not include comments.
 
+Use this minimal ELG schema:
+- every node must include `kind`
+- every node must include `name`
+- only non-leaf nodes include `inputs`
+
 Allowed node kinds:
 - atomic
 - logical
 - relation
 
-Allowed logical operators:
+Allowed logical names:
 - AND
 - NOT
 
-Allowed relation types:
+Allowed relation names:
 - IMPLIES
 - SUPPORT
 - CONTRADICT
@@ -22,15 +27,14 @@ Allowed relation types:
 
 Rules:
 - Atomic nodes are opaque leaf propositions.
+- For `atomic`, `name` is the proposition text.
+- For `logical`, `name` is the logical operator.
+- For `relation`, `name` is the relation operator.
+- Use only `kind`, `name`, and `inputs`.
 - Do not invent unsupported node kinds.
-- For `atomic` nodes, the proposition text field must be named **`name`**.
-- For `logical` nodes, the logical operator field must be named **`op`**.
-- For `relation` nodes, the relation type field must be named **`type`**.
-- Do **not** use alternative field names such as `operator`, `proposition`, `label`, `relation`, or `node_type`.
 - NOT must have exactly one input.
 - AND must have at least two inputs.
 - relation.inputs must contain exactly two nodes.
-- Use params: {} if no params are needed.
 - Prefer the simplest valid ELG structure that preserves the hypothesis.
 
 Required field schema:
@@ -38,61 +42,45 @@ Required field schema:
 Atomic node:
 {
   "kind": "atomic",
-  "name": "<opaque proposition text>",
-  "type": "boolean | numeric | abstract",
-  "source": "primitive | semantic",
-  "params": {}
+  "name": "<opaque proposition text>"
 }
 
 Logical node:
 {
   "kind": "logical",
-  "op": "AND | NOT",
-  "inputs": [<node>, ...],
-  "params": {}
+  "name": "AND | NOT",
+  "inputs": [<node>, ...]
 }
 
 Relation node:
 {
   "kind": "relation",
-  "type": "IMPLIES | SUPPORT | CONTRADICT | CORRELATE",
-  "inputs": [<condition-node>, <target-node>],
-  "params": {}
+  "name": "IMPLIES | SUPPORT | CONTRADICT | CORRELATE",
+  "inputs": [<condition-node>, <target-node>]
 }
 
 Example:
 {
   "kind": "relation",
-  "type": "IMPLIES",
+  "name": "IMPLIES",
   "inputs": [
     {
       "kind": "logical",
-      "op": "AND",
+      "name": "AND",
       "inputs": [
         {
           "kind": "atomic",
-          "name": "funding fee is positive",
-          "type": "abstract",
-          "source": "semantic",
-          "params": {}
+          "name": "funding fee is positive"
         },
         {
           "kind": "atomic",
-          "name": "price is above SMA20",
-          "type": "abstract",
-          "source": "semantic",
-          "params": {}
+          "name": "price is above SMA20"
         }
-      ],
-      "params": {}
+      ]
     },
     {
       "kind": "atomic",
-      "name": "short-term returns are positive",
-      "type": "abstract",
-      "source": "semantic",
-      "params": {}
+      "name": "short-term returns are positive"
     }
-  ],
-  "params": {}
+  ]
 }

@@ -81,13 +81,13 @@ HypoEvolve의 핵심 표현은 ELG이며, 이는 트리 형태의 불변 구조�
 
 1. **Atomic node**
    - 단일 명제 또는 측정 가능한 사건을 표현한다.
-   - 필드: `name`, `type`, `source`, `params`
+   - 필드: `name`
 2. **Logical node**
    - 자식 명제를 논리적으로 결합한다.
-   - 연산자: `AND`, `OR`, `NOT`
+   - 연산자는 공통 필드 `name` 에 저장된다. (`AND`, `OR`, `NOT`)
 3. **Relation node**
    - 조건 측과 목표 측 사이의 관계를 나타낸다.
-   - 관계 타입: `IMPLIES`, `SUPPORT`, `CONTRADICT`, `CORRELATE`
+   - 관계 타입도 공통 필드 `name` 에 저장된다. (`IMPLIES`, `SUPPORT`, `CONTRADICT`, `CORRELATE`)
 
 루트 가설은 일반적으로 하나의 relation node이며, condition side와 target side를 각각 하나씩 가진다.
 
@@ -100,24 +100,19 @@ Hypothesis := RelationNode | LogicalNode | AtomicNode
 
 AtomicNode := {
   kind: "atomic",
-  name: str,
-  type: "boolean" | "numeric" | "abstract",
-  source: "primitive" | "semantic",
-  params: dict
+  name: str
 }
 
 LogicalNode := {
   kind: "logical",
-  op: "AND" | "OR" | "NOT",
-  inputs: [Node, ...],
-  params: dict
+  name: "AND" | "OR" | "NOT",
+  inputs: [Node, ...]
 }
 
 RelationNode := {
   kind: "relation",
-  type: "IMPLIES" | "SUPPORT" | "CONTRADICT" | "CORRELATE",
-  inputs: [condition_node, target_node],
-  params: dict
+  name: "IMPLIES" | "SUPPORT" | "CONTRADICT" | "CORRELATE",
+  inputs: [condition_node, target_node]
 }
 ```
 
@@ -245,7 +240,7 @@ Input:
 Parser 출력은 단순 JSON 성공 여부만이 아니라 다음 구조 검증을 통과해야 한다.
 
 - 유효한 `kind`
-- 유효한 logical operator 및 relation type
+- 유효한 logical / relation `name`
 - `inputs` 의 길이 제약
 - atomic node의 non-empty `name`
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
 from hypoevolve.hypo.tree.base import HypoTree
@@ -103,13 +104,14 @@ def generate_random_tree_pair_hypothesis(
     llm: LLMClient,
     max_depth: int = 3,
     generator=None,
+    dataset_schema_path: str | Path = "dataset.yaml",
     retries: int = 2,
     **kwargs,
 ) -> TreePairHypothesis:
     """Generate two random feature trees and synthesize one hypothesis from them."""
     if generator is None:
         get_tree_generator, generate_trees = _load_tree_generation_helpers()
-        generator = get_tree_generator()
+        generator = get_tree_generator(dataset_schema_path=dataset_schema_path)
     else:
         _, generate_trees = _load_tree_generation_helpers()
 

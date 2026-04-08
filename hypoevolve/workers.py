@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
-from elg import fingerprint, hypothesis_from_dict, render_pretty
+from elg import fingerprint, hypothesis_from_dict
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import load_dataset_schema
@@ -17,7 +17,7 @@ from hypoevolve.evaluator import (
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import logger
 from hypoevolve.mutation import steer_mutation
-from hypoevolve.parser import ParseError, llm_hypothesis_to_natural_language
+from hypoevolve.parser import ParseError
 
 
 @dataclass(slots=True)
@@ -28,7 +28,6 @@ class WorkerTask:
     parent_metrics: Dict[str, object]
     iteration: int
     parent_score: float
-    parent_hypothesis_nl: str = ""
     use_random_steering: bool = False
     llm_config: Dict[str, Any] = field(default_factory=dict)
     dataset_schema_path: str = "dataset.yaml"
@@ -72,20 +71,6 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         dataset_schema_path=task.dataset_schema_path,
         parameters=task.evaluator_parameters or None,
     )
-    parent_nl = task.parent_hypothesis_nl.strip()
-    if not parent_nl:
-        try:
-            parent_nl = llm_hypothesis_to_natural_language(
-                parent,
-                llm=llm,
-                retries=task.parser_retries,
-            )
-        except ParseError:
-            parent_nl = render_pretty(parent)
-            logger.error(
-                "worker iteration {} fell back to pretty hypothesis text",
-                task.iteration,
-            )
     top_hypotheses = [
         ArchiveEntry(
             hypothesis=hypothesis_from_dict(item["hypothesis"]),
@@ -99,7 +84,6 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
     try:
         decision = steer_mutation(
             parent_hypothesis=parent,
-            parent_hypothesis_nl=parent_nl,
             current_metrics=task.parent_metrics,
             llm=llm,
             recent_history=task.recent_history,

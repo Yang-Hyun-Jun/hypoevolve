@@ -18,23 +18,16 @@ def node_from_dict(data: Dict[str, Any]) -> Node:
     """Build one ELG node object from a JSON-style mapping."""
     kind = data.get("kind")
     if kind == "atomic":
-        return AtomicNode(
-            name=data["name"],
-            type=data.get("type", "abstract"),
-            source=data.get("source", "semantic"),
-            params=dict(data.get("params", {})),
-        )
+        return AtomicNode(name=data["name"])
     if kind == "logical":
         return LogicalNode(
-            op=data["op"],
+            name=data["name"],
             inputs=[node_from_dict(child) for child in data.get("inputs", [])],
-            params=dict(data.get("params", {})),
         )
     if kind == "relation":
         return RelationNode(
-            type=data["type"],
+            name=data["name"],
             inputs=[node_from_dict(child) for child in data.get("inputs", [])],
-            params=dict(data.get("params", {})),
         )
     raise ValueError(f"Unsupported node kind: {kind!r}")
 
@@ -43,10 +36,7 @@ def hypothesis_from_dict(data: Dict[str, Any]) -> Hypothesis:
     """Build a hypothesis object from a JSON-style mapping."""
     if "root" not in data:
         raise ValueError("Hypothesis payload must include 'root'")
-    return Hypothesis(
-        root=node_from_dict(data["root"]),
-        params=dict(data.get("params", {})),
-    )
+    return Hypothesis(root=node_from_dict(data["root"]))
 
 
 def hypothesis_to_json(hypothesis: Hypothesis, *, indent: Optional[int] = 2) -> str:

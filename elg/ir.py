@@ -2,24 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Union
-
-
-class AtomicType(str, Enum):
-    """Supported semantic types for atomic propositions."""
-
-    BOOLEAN = "boolean"
-    NUMERIC = "numeric"
-    ABSTRACT = "abstract"
-
-
-class AtomicSource(str, Enum):
-    """Origin categories for atomic propositions."""
-
-    PRIMITIVE = "primitive"
-    SEMANTIC = "semantic"
+from typing import Dict, List, Union
 
 
 class LogicalOp(str, Enum):
@@ -44,15 +29,10 @@ class AtomicNode:
     """Represent one measurable or semantic atomic proposition."""
 
     name: str
-    type: AtomicType | str = AtomicType.ABSTRACT
-    source: AtomicSource | str = AtomicSource.SEMANTIC
-    params: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.strip():
             raise ValueError("AtomicNode.name must be a non-empty string")
-        self.type = AtomicType(self.type)
-        self.source = AtomicSource(self.source)
 
     @property
     def kind(self) -> str:
@@ -62,9 +42,6 @@ class AtomicNode:
         return {
             "kind": self.kind,
             "name": self.name,
-            "type": self.type.value,
-            "source": self.source.value,
-            "params": dict(self.params),
         }
 
 
@@ -75,18 +52,19 @@ Node = Union["AtomicNode", "LogicalNode", "RelationNode"]
 class LogicalNode:
     """Represent a logical composition of one or more child nodes."""
 
-    op: LogicalOp | str
+    name: LogicalOp | str
     inputs: List[Node]
-    params: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        self.op = LogicalOp(self.op)
+        self.name = LogicalOp(self.name)
         if not self.inputs:
             raise ValueError("LogicalNode.inputs must not be empty")
-        if self.op is LogicalOp.NOT and len(self.inputs) != 1:
+        if self.name is LogicalOp.NOT and len(self.inputs) != 1:
             raise ValueError("LogicalOp.NOT requires exactly one input")
-        if self.op in (LogicalOp.AND, LogicalOp.OR) and len(self.inputs) < 2:
-            raise ValueError(f"LogicalOp.{self.op.value} requires at least two inputs")
+        if self.name in (LogicalOp.AND, LogicalOp.OR) and len(self.inputs) < 2:
+            raise ValueError(
+                f"LogicalOp.{self.name.value} requires at least two inputs"
+            )
 
     @property
     def kind(self) -> str:
@@ -95,9 +73,8 @@ class LogicalNode:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "kind": self.kind,
-            "op": self.op.value,
+            "name": self.name.value,
             "inputs": [node_to_dict(node) for node in self.inputs],
-            "params": dict(self.params),
         }
 
 
@@ -105,12 +82,11 @@ class LogicalNode:
 class RelationNode:
     """Represent a two-sided relation between a condition and a target."""
 
-    type: RelationType | str
+    name: RelationType | str
     inputs: List[Node]
-    params: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        self.type = RelationType(self.type)
+        self.name = RelationType(self.name)
         if len(self.inputs) != 2:
             raise ValueError("RelationNode.inputs must contain exactly two nodes")
 
@@ -129,9 +105,8 @@ class RelationNode:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "kind": self.kind,
-            "type": self.type.value,
+            "name": self.name.value,
             "inputs": [node_to_dict(node) for node in self.inputs],
-            "params": dict(self.params),
         }
 
 
@@ -140,10 +115,9 @@ class Hypothesis:
     """Wrap one ELG root node as a hypothesis object."""
 
     root: Node
-    params: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"root": node_to_dict(self.root), "params": dict(self.params)}
+        return {"root": node_to_dict(self.root)}
 
 
 def node_to_dict(node: Node) -> Dict[str, Any]:
