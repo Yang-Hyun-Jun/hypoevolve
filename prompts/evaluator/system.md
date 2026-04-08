@@ -185,7 +185,7 @@ This is critical.
 
 # Measurable Fidelity Rules
 
-- Respect asset/entity names exactly as written in the measurable ELG.
+- Respect entity names exactly as written in the measurable ELG.
 - Respect windows, horizons, transforms, and thresholds exactly as written when possible.
 - If the measurable ELG expresses thresholds, windows, or horizons as parameter slots rather than fixed numbers, instantiate them with reasonable generic values and keep those values explicit in `used_parameters`.
 - If a measurable atomic still requires operationalization, choose the smallest reasonable interpretation and keep it explicit in code.

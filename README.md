@@ -138,32 +138,32 @@ hypoevolve <subcommand>
 Run a HypoEvolve iteration loop from a natural-language hypothesis.
 
 ```bash
-hypoevolve run "if funding fee positive then returns positive"
+hypoevolve run "if signal A stays elevated then outcome B becomes more likely"
 ```
 
 Use a custom config:
 
 ```bash
-hypoevolve run "if funding fee positive then returns positive" --config hypoevolve.yaml
+hypoevolve run "if signal A stays elevated then outcome B becomes more likely" --config hypoevolve.yaml
 ```
 
 Override worker count:
 
 ```bash
-hypoevolve run "if funding fee positive then returns positive" --workers 1
+hypoevolve run "if signal A stays elevated then outcome B becomes more likely" --workers 1
 ```
 
 ### `render`
 Render a natural-language hypothesis using the fallback parser.
 
 ```bash
-hypoevolve render "if funding fee positive then returns positive"
+hypoevolve render "if signal A stays elevated then outcome B becomes more likely"
 ```
 
 Tree mode:
 
 ```bash
-hypoevolve render "if funding fee positive then returns positive" --tree
+hypoevolve render "if signal A stays elevated then outcome B becomes more likely" --tree
 ```
 
 ### `inspect`
@@ -232,10 +232,10 @@ hypothesis = Hypothesis(
         "IMPLIES",
         [
             LogicalNode("AND", [
-                AtomicNode("FUNDING_FEE > 0"),
-                AtomicNode("CLOSE > SMA_20"),
+                AtomicNode("FEATURE_A_LEVEL > THRESHOLD_X"),
+                AtomicNode("FEATURE_B_LEVEL > MOVING_AVERAGE_20"),
             ]),
-            AtomicNode("RETURN_5M > 0"),
+            AtomicNode("OUTCOME_C_AT_NEXT_STEP == True"),
         ],
     )
 )

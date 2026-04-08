@@ -97,17 +97,17 @@ class TestHypoEvolveParser(unittest.TestCase):
                             "inputs": [
                                 {
                                     "kind": "atomic",
-                                    "name": "BTCUSDT_NEW_LOW_SIGNAL_10D == True",
+                                    "name": "ENTITY_A_LOW_STATE_SIGNAL_W{LOOKBACK_WINDOW}@t == True",
                                 },
                                 {
                                     "kind": "atomic",
-                                    "name": "BTCUSDT_NORMALIZED_CLOSE_MOMENTUM_10D < -2.0",
+                                    "name": "ENTITY_A_ZSCORE_FEATURE_X_W{LOOKBACK_WINDOW}@t < {NEG_Z_THRESHOLD}",
                                 },
                             ],
                         },
                         {
                             "kind": "atomic",
-                            "name": "ETHUSDT_TRANSFORMED_HIGH_JUMP_10D > 1.5",
+                            "name": "ENTITY_B_ZSCORE_TARGET_Y_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}",
                         },
                     ],
                 }
@@ -117,9 +117,9 @@ class TestHypoEvolveParser(unittest.TestCase):
                 "IMPLIES",
                 [
                     AtomicNode(
-                        "sharp downward accelerations in BTCUSDT price indicated by NewLow signal from normalized 10-day close momentum"
+                        "entity A enters an unusually weak regime according to feature X"
                     ),
-                    AtomicNode("significant jumps in transformed high ETHUSDT price series"),
+                    AtomicNode("entity B shows a strong positive move in target Y"),
                 ],
             )
         )
@@ -157,19 +157,25 @@ class TestHypoEvolveParser(unittest.TestCase):
     def test_llm_hypothesis_to_natural_language_returns_text(self):
         class FakeLLM:
             def generate_text(self, system, user, **kwargs):
-                return "If funding fee is positive and price is above SMA20, then short-term returns are positive."
+                return "If signal A is above its baseline and signal B is trending upward, then outcome C becomes more likely."
 
         hypothesis = Hypothesis(
             root=RelationNode(
                 "IMPLIES",
                 [
-                    LogicalNode("AND", [AtomicNode("funding fee is positive"), AtomicNode("price is above SMA20")]),
-                    AtomicNode("short-term returns are positive"),
+                    LogicalNode(
+                        "AND",
+                        [
+                            AtomicNode("signal A is above its baseline"),
+                            AtomicNode("signal B is trending upward"),
+                        ],
+                    ),
+                    AtomicNode("outcome C becomes more likely"),
                 ],
             )
         )
         text = llm_hypothesis_to_natural_language(hypothesis, llm=FakeLLM())
-        self.assertIn("funding fee", text)
+        self.assertIn("signal A", text)
         self.assertIn("then", text.lower())
 
     def test_llm_hypothesis_to_natural_language_retries_and_fails(self):

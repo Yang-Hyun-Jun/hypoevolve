@@ -89,25 +89,26 @@ Your generated hypothesis here.
 
 <tree_a>
 Comparison()
-├── KURT(p=10)
-│   └── DATA[VOLUME]
+├── ZSCORE(p=10)
+│   └── DATA[SIGNAL_A]
 └── SMA(p=10)
-    └── DATA[VOLUME]
+    └── DATA[SIGNAL_A]
 </tree_a>
 
 <tree_b>
 CrossOver()
 ├── SMA(p=10)
-│   └── DATA[CLOSE]
-└── SMA(p=10)
-    └── DATA[CLOSE]
+│   └── DATA[SIGNAL_B]
+└── SMA(p=20)
+    └── DATA[SIGNAL_B]
 </tree_b>
 
 <node_descriptions>
 - Comparison(): compares whether the first input is greater than the second and returns a boolean value
 - CrossOver(): detects when the first time series crosses above the second
-- KURT(p=10): 10-period rolling kurtosis
+- ZSCORE(p=10): 10-period rolling z-score
 - SMA(p=10): 10-period simple moving average
-- DATA[VOLUME]: raw volume data
-- DATA[CLOSE]: raw close-price data
+- SMA(p=20): 20-period simple moving average
+- DATA[SIGNAL_A]: raw signal A data
+- DATA[SIGNAL_B]: raw signal B data
 </node_descriptions>

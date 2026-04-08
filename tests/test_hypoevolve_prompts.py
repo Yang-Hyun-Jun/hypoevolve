@@ -56,6 +56,22 @@ class TestHypoEvolvePrompts(unittest.TestCase):
         self.assertIn("Return only raw Python source for `candidate.py`.", user_prompt)
         self.assertIn("Do not add explanations, notes, or example usage.", user_prompt)
 
+    def test_core_prompt_examples_are_domain_neutral(self):
+        parser_prompt = load_prompt("parser", "system.md")
+        measurable_prompt = load_prompt("measurable", "system.md")
+        steering_prompt = load_prompt("steering", "system.md")
+        nl_prompt = load_prompt("nl", "system.md")
+
+        for prompt in [parser_prompt, measurable_prompt, steering_prompt, nl_prompt]:
+            self.assertNotIn("BTCUSDT", prompt)
+            self.assertNotIn("DOGEUSDT", prompt)
+            self.assertNotIn("ETHUSDT", prompt)
+
+        self.assertNotIn("funding fee", parser_prompt.lower())
+        self.assertIn("ENTITY_A", measurable_prompt)
+        self.assertIn("ENTITY_B", steering_prompt)
+        self.assertIn("entity names", nl_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

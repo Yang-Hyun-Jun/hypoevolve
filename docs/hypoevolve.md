@@ -164,7 +164,7 @@ HypoEvolve는 evaluator를 데이터셋에 직접 결합하지 않고, `DatasetS
 - 엔티티별 parquet 파일 경로
 - 사용 가능한 컬럼과 각 컬럼 설명
 
-현재 기본 실험 설정에서는 Binance perpetual futures 데이터가 사용되며, 엔티티는 `BTCUSDT`, `DOGEUSDT`, `XRPUSDT` 이다.
+기본 실험 설정은 특정 도메인에 고정되지 않으며, 실제 엔티티와 컬럼은 사용자가 제공한 `dataset.yaml` 스키마에 의해 결정된다.
 
 ### 4.2 Dataset accessor abstraction
 

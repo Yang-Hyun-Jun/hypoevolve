@@ -205,17 +205,17 @@ The `mutation_summary` must describe the mutation in diff-style terms.
         "inputs": [
           {
             "kind": "atomic",
-            "name": "BTCUSDT_NEW_LOW_SIGNAL_W{MOM_WINDOW}@t == True"
+            "name": "ENTITY_A_LOW_STATE_SIGNAL_W{LOOKBACK_WINDOW}@t == True"
           },
           {
             "kind": "atomic",
-            "name": "BTCUSDT_ZSCORE_CLOSE_MOMENTUM_W{RET_WINDOW}@t < {NEG_Z_THRESHOLD}"
+            "name": "ENTITY_A_ZSCORE_FEATURE_X_W{LOOKBACK_WINDOW}@t < {NEG_Z_THRESHOLD}"
           }
         ]
       },
       {
         "kind": "atomic",
-        "name": "DOGEUSDT_ZSCORE_HIGH_JUMP_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}"
+        "name": "ENTITY_B_ZSCORE_TARGET_Y_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}"
       }
     ]
   },

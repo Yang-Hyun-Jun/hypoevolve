@@ -70,17 +70,17 @@ Example:
       "inputs": [
         {
           "kind": "atomic",
-          "name": "funding fee is positive"
+          "name": "signal A is above its baseline"
         },
         {
           "kind": "atomic",
-          "name": "price is above SMA20"
+          "name": "signal B is trending upward"
         }
       ]
     },
     {
       "kind": "atomic",
-      "name": "short-term returns are positive"
+      "name": "outcome C becomes more likely"
     }
   ]
 }

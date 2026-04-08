@@ -69,9 +69,9 @@ When the hypothesis is predictive, causal, or directional in time:
 - Horizons must use a named parameter slot such as `{HORIZON}`; do not write a literal horizon offset.
 
 Examples:
-- `BTCUSDT_NEW_LOW_SIGNAL_W{MOM_WINDOW}@t == True`
-- `BTCUSDT_ZSCORE_CLOSE_MOMENTUM_W{RET_WINDOW}@t < {NEG_Z_THRESHOLD}`
-- `ETHUSDT_ZSCORE_HIGH_JUMP_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}`
+- `ENTITY_A_LOW_STATE_SIGNAL_W{LOOKBACK_WINDOW}@t == True`
+- `ENTITY_A_ZSCORE_FEATURE_X_W{LOOKBACK_WINDOW}@t < {NEG_Z_THRESHOLD}`
+- `ENTITY_B_ZSCORE_TARGET_Y_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}`
 
 ## Transformation rules
 
@@ -110,11 +110,11 @@ Do not hardcode numeric values for thresholds, windows, or horizons; always use 
   "inputs": [
     {
       "kind": "atomic",
-      "name": "sharp downward accelerations in BTCUSDT price indicated by NewLow signal from close momentum"
+      "name": "entity A enters an unusually weak regime according to feature X"
     },
     {
       "kind": "atomic",
-      "name": "significant jumps in the ETHUSDT high-price series"
+      "name": "entity B shows a strong positive move in target Y"
     }
   ]
 }
@@ -131,17 +131,17 @@ Do not hardcode numeric values for thresholds, windows, or horizons; always use 
       "inputs": [
         {
           "kind": "atomic",
-          "name": "BTCUSDT_NEW_LOW_SIGNAL_W{MOM_WINDOW}@t == True"
+          "name": "ENTITY_A_LOW_STATE_SIGNAL_W{LOOKBACK_WINDOW}@t == True"
         },
         {
           "kind": "atomic",
-          "name": "BTCUSDT_ZSCORE_CLOSE_MOMENTUM_W{RET_WINDOW}@t < {NEG_Z_THRESHOLD}"
+          "name": "ENTITY_A_ZSCORE_FEATURE_X_W{LOOKBACK_WINDOW}@t < {NEG_Z_THRESHOLD}"
         }
       ]
     },
     {
       "kind": "atomic",
-      "name": "ETHUSDT_ZSCORE_HIGH_JUMP_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}"
+      "name": "ENTITY_B_ZSCORE_TARGET_Y_W{TARGET_WINDOW}@t+{HORIZON} > {POS_Z_THRESHOLD}"
     }
   ]
 }

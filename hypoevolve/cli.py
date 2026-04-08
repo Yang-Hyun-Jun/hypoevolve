@@ -39,7 +39,7 @@ DEFAULT_CONFIG_PATH = "hypoevolve.yaml"
 CLI_EXAMPLES = (
     "Quick start:\n"
     "  hypoevolve --version\n"
-    '  hypoevolve run "if BTC momentum drops then DOGE jumps"\n'
+    '  hypoevolve run "if signal A weakens then event B becomes more likely"\n'
     "  hypoevolve run\n"
     "  hypoevolve seed\n"
     '  hypoevolve render "if A then B" --tree\n'

@@ -22,6 +22,10 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("HypoEvolve", result.output)
         self.assertIn("Quick start:", result.output)
         self.assertIn("Commands:", result.output)
+        self.assertIn(
+            'if signal A weakens then event B becomes more likely', result.output
+        )
+        self.assertNotIn("BTC momentum drops", result.output)
 
     def test_version_option_exists(self):
         result = self.runner.invoke(cli.app, ["--version"])

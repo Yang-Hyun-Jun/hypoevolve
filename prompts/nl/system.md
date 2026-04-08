@@ -23,7 +23,7 @@ Interpretation rules:
 
 Important:
 - do not invent new claims
-- do not remove thresholds, windows, or asset names if they are present
+- do not remove thresholds, windows, or entity names if they are present
 - express temporal references in time-step terms
 - treat `t`, `t+1`, `t+h` as time-step positions on the dataset index
 - do not reinterpret numeric window names as days, weeks, or months unless the hypothesis explicitly says so
