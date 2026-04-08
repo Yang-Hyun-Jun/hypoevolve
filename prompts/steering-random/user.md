@@ -7,6 +7,7 @@
 
 Generate a new child ELG hypothesis as a local exploratory mutation of the parent hypothesis.
 Instead, prefer a valid, measurable, local mutation that explores a less-tried direction.
+Keep the child as a full `condition -> conclusion` proposition and obey the Mutation Constraint rules.
 
 Return JSON only with this exact shape:
 

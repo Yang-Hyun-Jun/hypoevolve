@@ -88,6 +88,12 @@ You must return a full child ELG root node JSON object.
 - Freely mutate the ELG, subject to the ELG schema contract.
 - Parameter choices such as thresholds, windows, and horizons are handled by the evaluator.
 
+# Mutation Constraint
+
+- `remove_atomic` cannot be applied to the conclusion / target side.
+- The conclusion / target side must remain present after mutation.
+- Do not use a conclusion / target atomic proposition that is identical to any atomic proposition already used on the condition side.
+
 # Measurable Atomic Guidance
 
 If you modify an atomic proposition or introduce a new one, write it as a measurable, explicit, evaluable statement.

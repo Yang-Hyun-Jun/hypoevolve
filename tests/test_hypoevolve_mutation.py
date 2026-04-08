@@ -3,7 +3,12 @@ import unittest
 from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
-from hypoevolve.mutation import MutationDecision, steer_mutation
+from hypoevolve.mutation import (
+    MutationDecision,
+    STEERING_RANDOM_SYSTEM_PROMPT,
+    STEERING_SYSTEM_PROMPT,
+    steer_mutation,
+)
 
 
 class FakeLLM:
@@ -130,6 +135,28 @@ class TestHypoEvolveMutation(unittest.TestCase):
         self.assertEqual(decision.domain_reason, "")
         self.assertEqual(decision.score_reason, "")
         self.assertIn("exploratory", decision.mutation_summary)
+
+    def test_guided_steering_prompt_includes_conclusion_mutation_constraints(self):
+        self.assertIn("# Mutation Constraint", STEERING_SYSTEM_PROMPT)
+        self.assertIn(
+            "`remove_atomic` cannot be applied to the conclusion / target side.",
+            STEERING_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "Do not use a conclusion / target atomic proposition that is identical to any atomic proposition already used on the condition side.",
+            STEERING_SYSTEM_PROMPT,
+        )
+
+    def test_random_steering_prompt_includes_conclusion_mutation_constraints(self):
+        self.assertIn("# Mutation Constraint", STEERING_RANDOM_SYSTEM_PROMPT)
+        self.assertIn(
+            "`remove_atomic` cannot be applied to the conclusion / target side.",
+            STEERING_RANDOM_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "Do not use a conclusion / target atomic proposition that is identical to any atomic proposition already used on the condition side.",
+            STEERING_RANDOM_SYSTEM_PROMPT,
+        )
 
 
 if __name__ == '__main__':

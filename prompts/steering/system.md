@@ -108,6 +108,12 @@ Important mutation rules:
 - Do not treat parameters (thresholds, windows) as the primary mutation target.
 - Review the Recent Mutation History to avoid repeating mistakes made in previous mutations.
 
+# Mutation Constraint
+
+- `remove_atomic` cannot be applied to the conclusion / target side.
+- The conclusion / target side must remain present after mutation.
+- Do not use a conclusion / target atomic proposition that is identical to any atomic proposition already used on the condition side.
+
 # Measurable Atomic Guidance
 
 If you modify an atomic proposition or introduce a new one, write it as a measurable, explicit, evaluable statement.
