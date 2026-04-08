@@ -207,6 +207,63 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         self.assertEqual(metrics["used_parameters"]["HORIZON"], 1)
         self.assertEqual(len(llm.calls), 2)
         self.assertIn("Previous Attempt Failed", llm.calls[1]["user"])
+        self.assertIn("Failure Message", llm.calls[1]["user"])
+        self.assertIn("Previous Candidate Code", llm.calls[1]["user"])
+        self.assertIn("def broken(", llm.calls[1]["user"])
+
+    def test_llm_evaluator_retries_after_runtime_keyerror_with_previous_code(self):
+        llm = FakeLLMClient(
+            outputs=[
+                "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n"
+                "    df = accessor.load_dataframe('BTCUSDT')\n"
+                "    _ = df['UNKNOWN_COL']\n"
+                "    return {'combined_score': 0.0, 'precision': 0.0, 'baseline': 0.0, 'coverage': 0.0, 'uplift': 0.0, 'support_count': 0, 'total_count': 0, 'rationale': 'first', 'used_parameters': {}}\n",
+                "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n"
+                "    return {'combined_score': 0.1, 'precision': 0.2, 'baseline': 0.1, 'coverage': 0.5, 'uplift': 0.1, 'support_count': 1, 'total_count': 2, 'rationale': 'fixed', 'used_parameters': {'HORIZON': 1}}\n",
+            ],
+            retries=1,
+        )
+        executor = FakeExecutor(
+            results=[
+                ExecutionResult(
+                    stdout="",
+                    stderr="Traceback (most recent call last):\n  File '/tmp/candidate.py', line 3, in evaluate_hypothesis\nKeyError: 'UNKNOWN_COL'",
+                    exit_code=1,
+                    timed_out=False,
+                    duration_sec=0.01,
+                    work_dir="/tmp/fake",
+                ),
+                ExecutionResult(
+                    stdout=json.dumps(
+                        {
+                            "combined_score": 0.1,
+                            "precision": 0.2,
+                            "baseline": 0.1,
+                            "coverage": 0.5,
+                            "uplift": 0.1,
+                            "support_count": 1,
+                            "total_count": 2,
+                            "rationale": "fixed",
+                            "used_parameters": {"HORIZON": 1},
+                        }
+                    ),
+                    stderr="",
+                    exit_code=0,
+                    timed_out=False,
+                    duration_sec=0.01,
+                    work_dir="/tmp/fake",
+                )
+            ]
+        )
+
+        evaluator = LLMEvaluator(llm, self.schema, "dataset.yaml", executor=executor)
+        metrics = evaluator.evaluate(self.hypothesis)
+
+        self.assertEqual(metrics["rationale"], "fixed")
+        self.assertEqual(len(llm.calls), 2)
+        self.assertIn("KeyError: 'UNKNOWN_COL'", llm.calls[1]["user"])
+        self.assertIn("UNKNOWN_COL", llm.calls[1]["user"])
+        self.assertIn("Do not reuse any dataframe column name unless it exactly matches", llm.calls[1]["user"])
 
     def test_llm_evaluator_returns_failure_metrics_after_exhausted_retries(self):
         llm = FakeLLMClient(outputs=["def broken(", "def still_broken("], retries=1)

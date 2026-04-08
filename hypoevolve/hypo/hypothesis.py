@@ -7,7 +7,7 @@ from typing import Callable, List, Optional, Tuple
 
 from hypoevolve.hypo.tree.base import HypoTree
 from hypoevolve.llm import LLMClient
-from hypoevolve.logger import logger
+from hypoevolve.logger import compact_text, log_error_event, log_info_event, summarize_exception
 from hypoevolve.prompts import load_and_render_prompt, load_prompt
 
 
@@ -68,11 +68,11 @@ def llm_generate_hypothesis_from_trees(
     user_prompt = load_and_render_prompt("hypo", "user.md", variables=variables)
     errors: List[str] = []
     attempts = retries + 1
-    logger.info("tree-pair hypothesis generation started")
+    log_info_event("tree_hypothesis.start", attempts=attempts)
 
     for attempt in range(1, attempts + 1):
         try:
-            logger.info("tree-pair hypothesis generation attempt {}", attempt)
+            log_info_event("tree_hypothesis.attempt", attempt=attempt)
             system_prompt = (
                 HYPO_SYSTEM_PROMPT
                 if attempt == 1
@@ -84,14 +84,19 @@ def llm_generate_hypothesis_from_trees(
                 raise HypothesisGenerationError(
                     "LLM returned an empty hypothesis payload"
                 )
-            logger.info(
-                "tree-pair hypothesis generation succeeded on attempt {}", attempt
+            log_info_event(
+                "tree_hypothesis.ok",
+                attempt=attempt,
+                chars=len(hypothesis),
+                preview=compact_text(hypothesis, max_len=96),
             )
             return hypothesis
         except Exception as exc:  # noqa: BLE001
             errors.append(f"attempt {attempt}: {exc}")
-            logger.error(
-                "tree-pair hypothesis generation attempt {} failed: {}", attempt, exc
+            log_error_event(
+                "tree_hypothesis.fail",
+                attempt=attempt,
+                **summarize_exception(exc),
             )
 
     raise HypothesisGenerationError(

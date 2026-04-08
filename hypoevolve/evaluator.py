@@ -15,7 +15,12 @@ from hypoevolve.helper import (
     build_evaluator_runtime_wrapper,
 )
 from hypoevolve.llm import LLMClient
-from hypoevolve.logger import logger
+from hypoevolve.logger import (
+    log_error_event,
+    log_info_event,
+    log_warning_event,
+    summarize_exception,
+)
 from hypoevolve.prompts import load_and_render_prompt, load_prompt
 
 
@@ -93,33 +98,40 @@ class LLMEvaluator:
             self.parameters,
         )
         last_error = ""
+        last_candidate_code = ""
         self.last_evaluation_artifacts = {}
 
         for attempt in range(self.codegen_retries + 1):
             user_prompt = base_user_prompt
 
-            # Error 로 인한 Retry 에서 Error 메시지를 프롬프트에 반영
             if last_error:
                 user_prompt = (
                     f"{base_user_prompt}\n\n"
                     "# Previous Attempt Failed\n\n"
+                    "## Failure Message\n\n"
                     f"{last_error}\n\n"
-                    "Write a complete corrected version. Keep the same function signature and output contract."
+                    "# Previous Candidate Code\n\n"
+                    f"{last_candidate_code or '<no previous candidate code>'}\n\n"
+                    "# Repair Requirements\n\n"
+                    "- Diagnose the failure using both the traceback/error message and the previous code.\n"
+                    "- Keep the same function signature and output contract.\n"
+                    "- Do not reuse any dataframe column name unless it exactly matches a provided schema column or is created earlier in the function.\n"
+                    "- If the failure mentions a missing column or KeyError, fix the exact mismatch instead of guessing a similar name.\n"
+                    "- Write a complete corrected version.\n"
                 )
 
             try:
-                # Code Generation
                 code = self._strip_code_fences(
                     self.llm_client.generate_text(system_prompt, user_prompt)
                 )
-                logger.info("evaluator code generation attempt {}", attempt + 1)
+                log_info_event("eval.codegen", attempt=attempt + 1)
+                last_candidate_code = code
                 self.last_evaluation_artifacts = {
                     "candidate_code": code,
                     "wrapper_code": wrapper,
                     "attempt": attempt + 1,
                 }
 
-                # Code Syntax Check
                 try:
                     ast.parse(code)
 
@@ -128,7 +140,6 @@ class LLMEvaluator:
                         f"Generated code has invalid syntax: {exc}"
                     ) from exc
 
-                # Code Execution
                 execution = self.executor.execute(
                     wrapper,
                     files={"candidate.py": f"{code.rstrip()}\n"},
@@ -153,18 +164,28 @@ class LLMEvaluator:
                     raise ValueError("Generated evaluator output must be a JSON object")
 
                 payload = self._sanitize_payload(payload)
-                logger.info("evaluator execution succeeded")
+                log_info_event(
+                    "eval.exec",
+                    attempt=attempt + 1,
+                    dur_ms=int(execution.duration_sec * 1000),
+                )
                 return payload
 
             except Exception as exc:  # noqa: BLE001
                 message = str(exc).strip() or exc.__class__.__name__
                 last_error = f"{exc.__class__.__name__}: {message}"
+                if attempt < self.codegen_retries:
+                    log_warning_event(
+                        "eval.retry",
+                        attempt=attempt + 1,
+                        **summarize_exception(exc),
+                    )
 
                 if attempt >= self.codegen_retries:
                     break
 
         # Fail Result
-        logger.error("evaluator failed after retries: {}", last_error)
+        log_error_event("eval.fail", **summarize_exception(last_error))
         payload = {k: 0.0 for k in self.REQUIRED_KEYS}
         payload["rationale"] = f"evaluation_failed: {last_error}"
         payload["used_parameters"] = {}
@@ -197,9 +218,9 @@ class LLMEvaluator:
                     non_finite_keys.append(key)
 
         if non_finite_keys:
-            logger.warning(
-                "non-finite evaluator metrics detected; coercing keys={} to finite defaults",
-                sorted(non_finite_keys),
+            log_warning_event(
+                "eval.sanitize_non_finite",
+                keys=sorted(non_finite_keys),
             )
             rationale = str(sanitized.get("rationale", "")).strip()
             prefix = "non_finite_metrics_sanitized"

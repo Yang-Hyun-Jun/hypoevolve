@@ -32,4 +32,9 @@ Do not use markdown fences.
 Do not add explanations, notes, or example usage.
 Do not call the function at module scope.
 
+Treat the column names shown in Column Specifications as exact, case-sensitive names.
+Use only those exact dataset column names unless you explicitly create a derived column earlier in the function.
+Do not assume transformed columns already exist in the input dataframe.
+If you need a transformed signal, compute it from the provided base columns first and then reference the derived column you created.
+
 If the measurable ELG contains parameter-slot notation such as `{RET_WINDOW}`, `{HORIZON}`, `{NEG_Z_THRESHOLD}`, or `{POS_Z_THRESHOLD}`, treat those as evaluator parameters, assign reasonable general-purpose values, use them consistently in the computation, and return the actual values used in `used_parameters`.

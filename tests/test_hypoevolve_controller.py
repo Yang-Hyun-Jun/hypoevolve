@@ -358,7 +358,7 @@ class TestHypoEvolveController(unittest.TestCase):
 
         self.assertEqual(call_count, 1)
         self.assertEqual(len(trace_lines), 1)
-        self.assertIn("[run.duplicate_summary] total_skips=1", log_text)
+        self.assertIn("event=run.duplicate_summary total_skips=1", log_text)
 
     def test_run_without_seed_generates_initial_hypothesis(self):
         config = HypoEvolveConfig()

@@ -9,7 +9,7 @@ from elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.helper import build_steering_prompt_variables
 from hypoevolve.llm import LLMClient
-from hypoevolve.logger import logger
+from hypoevolve.logger import compact_text, log_info_event
 from hypoevolve.parser import JSON_RETRY_PROMPT, ParseError
 from hypoevolve.prompts import load_and_render_prompt, load_prompt
 
@@ -134,7 +134,11 @@ def steer_mutation(
                 )
             )
 
-            logger.info("steering proposed child hypothesis successfully")
+            log_info_event(
+                "steer.ok",
+                mode="random" if use_random_steering else "guided",
+                summary=compact_text(mutation_summary, max_len=96),
+            )
             return MutationDecision(
                 child_hypothesis=child_hypothesis,
                 domain_reason=domain_reason,

@@ -21,7 +21,15 @@ from hypoevolve.evaluator import (
 )
 from hypoevolve.hypo import generate_random_tree_pair_hypothesis
 from hypoevolve.llm import LLMClient
-from hypoevolve.logger import configure_logger, logger
+from hypoevolve.logger import (
+    compact_text,
+    configure_logger,
+    log_error_event,
+    log_info_event,
+    summarize_exception,
+    summarize_hypothesis,
+    summarize_metrics,
+)
 from hypoevolve.mutation import steer_mutation
 from hypoevolve.parser import (
     ParseError,
@@ -90,31 +98,25 @@ class HypoEvolveController:
             self.config.logging.level,
             run_dir / "hypoevolve.log",
         )
-        logger.info(
-            "[run.start] run_dir={} iterations={} workers={} dataset_schema_path={}",
-            run_dir,
-            self.config.search.iterations,
-            self.config.workers.count,
-            self.config.evaluator.dataset_schema_path,
+        log_info_event(
+            "run.start",
+            run=run_dir.name,
+            iterations=self.config.search.iterations,
+            workers=self.config.workers.count,
+            ds=self.config.evaluator.dataset_schema_path,
         )
         hypothesis = parse_hypothesis_text(
             seed_input_text,
             llm=self.llm_client,
             retries=self.config.parser.retries,
         )
-        logger.info(
-            "[seed.parse] hypothesis={}",
-            render_pretty(hypothesis).replace("\n", " "),
-        )
+        log_info_event("seed.parse", **summarize_hypothesis(hypothesis))
         hypothesis = llm_make_hypothesis_measurable(
             hypothesis,
             llm=self.llm_client,
             retries=self.config.parser.retries,
         )
-        logger.info(
-            "[seed.measurable] hypothesis={}",
-            render_pretty(hypothesis).replace("\n", " "),
-        )
+        log_info_event("seed.measurable", **summarize_hypothesis(hypothesis))
         seed_metadata = {"source": "seed"}
 
         archive = MAPElitesArchive(
@@ -124,24 +126,21 @@ class HypoEvolveController:
         )
         seed_metrics = evaluate_hypothesis(hypothesis, self.evaluator)
         seed_evaluation_artifacts = get_evaluation_artifacts(self.evaluator)
-        logger.info(
-            "[seed.eval] score={:.6f} precision={} baseline={} coverage={} uplift={}",
-            float(seed_metrics.get("combined_score", 0.0)),
-            seed_metrics.get("precision"),
-            seed_metrics.get("baseline"),
-            seed_metrics.get("coverage"),
-            seed_metrics.get("uplift"),
+        log_info_event(
+            "seed.eval",
+            **summarize_hypothesis(hypothesis),
+            **summarize_metrics(seed_metrics),
         )
         seed_descriptor = archive.describe(hypothesis, seed_metrics)
         archive.add(hypothesis, seed_metrics, iteration=0, metadata=seed_metadata)
         known_fingerprints = {fingerprint(hypothesis)}
         known_fingerprint_count = len(known_fingerprints)
-        logger.info(
-            "[seed.archive] archive_size={} best_score={:.6f} best_cell={} occupancy={}",
-            len(archive),
-            archive.best.score if archive.best else 0.0,
-            archive.best.cell if archive.best else None,
-            archive.occupancy_summary(),
+        log_info_event(
+            "seed.archive",
+            archive_size=len(archive),
+            best_score=archive.best.score if archive.best else 0.0,
+            best_cell=archive.best.cell if archive.best else None,
+            occupancy=archive.occupancy_summary(),
         )
         recorder.record_seed(
             archive=archive,
@@ -156,13 +155,15 @@ class HypoEvolveController:
             recent_history: list[Dict[str, object]] = []
             for iteration in range(1, self.config.search.iterations + 1):
                 parent_entry = archive.sample_parent(self.rng)
-                logger.info(
-                    "[iter.parent] i={} parent_score={:.6f} parent_fp={} parent_cell={} hypothesis={}",
-                    iteration,
-                    parent_entry.score,
-                    parent_entry.fingerprint,
-                    parent_entry.cell,
-                    render_pretty(parent_entry.hypothesis).replace("\n", " "),
+                parent_summary = summarize_hypothesis(parent_entry.hypothesis)
+                parent_summary.pop("fp", None)
+                log_info_event(
+                    "iter.parent",
+                    i=iteration,
+                    parent_score=parent_entry.score,
+                    parent_fp=parent_entry.fingerprint[:12],
+                    parent_cell=parent_entry.cell,
+                    **parent_summary,
                 )
                 try:
                     mutation_sample, steering_metadata = self._choose_mutation(
@@ -171,11 +172,11 @@ class HypoEvolveController:
                         archive,
                     )
                 except ParseError as exc:
-                    logger.error(
-                        "[iter.skip_steering_error] i={} parent_fp={} error={}",
-                        iteration,
-                        parent_entry.fingerprint,
-                        str(exc).replace("\n", " "),
+                    log_error_event(
+                        "iter.skip_steering_error",
+                        i=iteration,
+                        parent_fp=parent_entry.fingerprint[:12],
+                        **summarize_exception(exc),
                     )
                     archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
                     recorder.record_steering_skip(
@@ -187,21 +188,20 @@ class HypoEvolveController:
                         error=str(exc),
                     )
                     continue
-                logger.info(
-                    "[iter.steer] i={} mutation_summary={} score_reason={} domain_reason={}",
-                    iteration,
-                    str(steering_metadata.get("mutation_summary", "")).replace(
-                        "\n", " "
+                log_info_event(
+                    "iter.steer",
+                    i=iteration,
+                    summary=compact_text(
+                        steering_metadata.get("mutation_summary", ""), max_len=96
                     ),
-                    str(steering_metadata.get("score_reason", "")).replace("\n", " "),
-                    str(steering_metadata.get("domain_reason", "")).replace("\n", " "),
+                    random=steering_metadata.get("random_steering"),
                 )
                 child_fingerprint = fingerprint(mutation_sample)
                 if child_fingerprint in known_fingerprints:
-                    logger.info(
-                        "[iter.skip_duplicate] i={} child_fp={}",
-                        iteration,
-                        child_fingerprint,
+                    log_info_event(
+                        "iter.skip_duplicate",
+                        i=iteration,
+                        child_fp=child_fingerprint[:12],
                     )
                     archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
                     recorder.record_duplicate_skip(
@@ -215,14 +215,11 @@ class HypoEvolveController:
                     continue
                 child_metrics = evaluate_hypothesis(mutation_sample, self.evaluator)
                 child_evaluation_artifacts = get_evaluation_artifacts(self.evaluator)
-                logger.info(
-                    "[iter.eval] i={} score={:.6f} precision={} baseline={} coverage={} uplift={}",
-                    iteration,
-                    float(child_metrics.get("combined_score", 0.0)),
-                    child_metrics.get("precision"),
-                    child_metrics.get("baseline"),
-                    child_metrics.get("coverage"),
-                    child_metrics.get("uplift"),
+                log_info_event(
+                    "iter.eval",
+                    i=iteration,
+                    child_fp=child_fingerprint[:12],
+                    **summarize_metrics(child_metrics),
                 )
                 score_delta = (
                     float(child_metrics.get("combined_score", 0.0)) - parent_entry.score
@@ -264,10 +261,7 @@ class HypoEvolveController:
                     }
                 )
         else:
-            logger.info(
-                "[run.workers] workers={} mode=parallel",
-                self.config.workers.count,
-            )
+            log_info_event("run.workers", workers=self.config.workers.count, mode="parallel")
             _, known_fingerprint_count = self._run_with_workers(
                 archive,
                 self.config.search.iterations,
@@ -281,20 +275,20 @@ class HypoEvolveController:
             known_fingerprint_count=known_fingerprint_count,
             best_hypothesis_nl=self._render_hypothesis_nl(best.hypothesis) if best else "",
         )
-        logger.info(
-            "[run.duplicate_summary] total_skips={} solo_skips={} worker_skips={} known_fingerprints={}",
-            recorder.duplicate_skips_solo + recorder.duplicate_skips_worker,
-            recorder.duplicate_skips_solo,
-            recorder.duplicate_skips_worker,
-            known_fingerprint_count,
+        log_info_event(
+            "run.duplicate_summary",
+            total_skips=recorder.duplicate_skips_solo + recorder.duplicate_skips_worker,
+            solo_skips=recorder.duplicate_skips_solo,
+            worker_skips=recorder.duplicate_skips_worker,
+            known_fps=known_fingerprint_count,
         )
-        logger.info(
-            "[run.done] run_dir={} best_score={:.6f} archive_size={} occupancy={} best_hypothesis={}",
-            run_dir,
-            best.score if best else 0.0,
-            len(archive),
-            archive.occupancy_summary(),
-            render_pretty(best.hypothesis).replace("\n", " ") if best else None,
+        log_info_event(
+            "run.done",
+            run=run_dir.name,
+            best_score=best.score if best else 0.0,
+            archive_size=len(archive),
+            occupancy=archive.occupancy_summary(),
+            best_fp=best.fingerprint[:12] if best else None,
         )
         return RunResult(
             run_dir=run_dir,
@@ -315,9 +309,10 @@ class HypoEvolveController:
             llm=self.llm_client,
             dataset_schema_path=self.config.evaluator.dataset_schema_path,
         )
-        logger.info(
-            "[seed.generate] hypothesis={}",
-            generated.hypothesis.replace("\n", " "),
+        log_info_event(
+            "seed.generate",
+            chars=len(generated.hypothesis),
+            preview=compact_text(generated.hypothesis, max_len=96),
         )
         return generated.hypothesis, True
 
@@ -349,12 +344,12 @@ class HypoEvolveController:
                 task, parent_entry = self._make_worker_task(
                     archive, submitted, recent_history[-2:]
                 )
-                logger.info(
-                    "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
-                    submitted,
-                    archive.best.score if archive.best else 0.0,
-                    parent_entry.cell,
-                    render_pretty(parent_entry.hypothesis).replace("\n", " "),
+                log_info_event(
+                    "worker.submit",
+                    i=submitted,
+                    parent_score=archive.best.score if archive.best else 0.0,
+                    parent_cell=parent_entry.cell,
+                    parent_fp=parent_entry.fingerprint[:12],
                 )
                 future = executor.submit(run_worker_task, task)
                 pending[future] = parent_entry
@@ -366,10 +361,10 @@ class HypoEvolveController:
                     parent_entry = pending.pop(future)
                     result = future.result()
                     if result.skipped_steering_error:
-                        logger.error(
-                            "[worker.skip_steering_error] i={} error={}",
-                            result.iteration,
-                            result.steering_error.replace("\n", " "),
+                        log_error_event(
+                            "worker.skip_steering_error",
+                            i=result.iteration,
+                            **summarize_exception(result.steering_error),
                         )
                         archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
                         recorder.record_steering_skip(
@@ -388,23 +383,21 @@ class HypoEvolveController:
                                 recent_history[-2:],
                                 known_fingerprints=known_fingerprints,
                             )
-                            logger.info(
-                                "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
-                                submitted,
-                                archive.best.score if archive.best else 0.0,
-                                next_parent_entry.cell,
-                                render_pretty(next_parent_entry.hypothesis).replace(
-                                    "\n", " "
-                                ),
+                            log_info_event(
+                                "worker.submit",
+                                i=submitted,
+                                parent_score=archive.best.score if archive.best else 0.0,
+                                parent_cell=next_parent_entry.cell,
+                                parent_fp=next_parent_entry.fingerprint[:12],
                             )
                             next_future = executor.submit(run_worker_task, task)
                             pending[next_future] = next_parent_entry
                         continue
                     if result.skipped_duplicate:
-                        logger.info(
-                            "[worker.skip_duplicate] i={} child_fp={}",
-                            result.iteration,
-                            result.child_fingerprint,
+                        log_info_event(
+                            "worker.skip_duplicate",
+                            i=result.iteration,
+                            child_fp=result.child_fingerprint[:12],
                         )
                         archive.record_parent_outcome(parent_entry.fingerprint, 0.0)
                         recorder.record_duplicate_skip(
@@ -423,24 +416,23 @@ class HypoEvolveController:
                                 recent_history[-2:],
                                 known_fingerprints=known_fingerprints,
                             )
-                            logger.info(
-                                "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
-                                submitted,
-                                archive.best.score if archive.best else 0.0,
-                                next_parent_entry.cell,
-                                render_pretty(next_parent_entry.hypothesis).replace(
-                                    "\n", " "
-                                ),
+                            log_info_event(
+                                "worker.submit",
+                                i=submitted,
+                                parent_score=archive.best.score if archive.best else 0.0,
+                                parent_cell=next_parent_entry.cell,
+                                parent_fp=next_parent_entry.fingerprint[:12],
                             )
                             next_future = executor.submit(run_worker_task, task)
                             pending[next_future] = next_parent_entry
                         continue
                     child = hypothesis_from_dict(result.child_hypothesis)
-                    logger.info(
-                        "[worker.result] i={} mutation_summary={} score={:.6f}",
-                        result.iteration,
-                        result.mutation_summary.replace("\n", " "),
-                        float(result.metrics.get("combined_score", 0.0)),
+                    log_info_event(
+                        "worker.result",
+                        i=result.iteration,
+                        child_fp=(result.child_fingerprint[:12] if result.child_fingerprint else None),
+                        summary=compact_text(result.mutation_summary, max_len=96),
+                        **summarize_metrics(result.metrics),
                     )
                     descriptor, best_updated = self._record_archive_result(
                         archive,
@@ -511,12 +503,12 @@ class HypoEvolveController:
                             recent_history[-2:],
                             known_fingerprints=known_fingerprints,
                         )
-                        logger.info(
-                            "[worker.submit] i={} parent_score={:.6f} parent_cell={} parent_hypothesis={}",
-                            submitted,
-                            archive.best.score if archive.best else 0.0,
-                            next_parent_entry.cell,
-                            render_pretty(next_parent_entry.hypothesis).replace("\n", " "),
+                        log_info_event(
+                            "worker.submit",
+                            i=submitted,
+                            parent_score=archive.best.score if archive.best else 0.0,
+                            parent_cell=next_parent_entry.cell,
+                            parent_fp=next_parent_entry.fingerprint[:12],
                         )
                         next_future = executor.submit(run_worker_task, task)
                         pending[next_future] = next_parent_entry
@@ -648,31 +640,34 @@ class HypoEvolveController:
             iteration=iteration,
             metadata=metadata,
         )
-        logger.info(
-            "[archive.add] i={} score={:.6f} archive_size={} child_cell={} occupancy={}",
-            iteration,
-            float(child_metrics.get("combined_score", 0.0)),
-            len(archive),
-            descriptor["cell"],
-            archive.occupancy_summary(),
+        log_info_event(
+            "archive.add",
+            i=iteration,
+            archive_size=len(archive),
+            child_cell=descriptor["cell"],
+            occupancy=archive.occupancy_summary(),
+            **summarize_metrics(child_metrics),
         )
         best = archive.best
         best_updated = previous_best_score is None or (
             best is not None and best.score != previous_best_score
         )
-        logger.info(
-            "[iter.archive] i={} score_delta={:.6f} best_updated={} best_score={:.6f}",
-            iteration,
-            float(metadata.get("score_delta", 0.0)),
-            best_updated,
-            best.score if best else 0.0,
+        log_info_event(
+            "iter.archive",
+            i=iteration,
+            delta=float(metadata.get("score_delta", 0.0)),
+            best_updated=best_updated,
+            best_score=best.score if best else 0.0,
         )
         if best is not None and best_updated:
-            logger.info(
-                "[best.update] i={} best_score={:.6f} hypothesis={}",
-                iteration,
-                best.score,
-                render_pretty(best.hypothesis).replace("\n", " "),
+            best_summary = summarize_hypothesis(best.hypothesis)
+            best_summary.pop("fp", None)
+            log_info_event(
+                "best.update",
+                i=iteration,
+                best_score=best.score,
+                best_fp=best.fingerprint[:12],
+                **best_summary,
             )
         return descriptor, best_updated
 

@@ -19,17 +19,14 @@ The generated code must define this exact function name and signature:
 ```python
 def evaluate_hypothesis(accessor, parameters: dict | None = None) -> dict:
     import pandas as pd
-    import numpy as np
     ...
 ```
 
 Within this function contract:
 
 - Any required package imports must be done lazily inside `evaluate_hypothesis(...)` or inside a helper function called from it.
-- Do not use top-level third-party imports.
-- Prefer pandas and numpy only.
-- Do not use third-party packages other than pandas or numpy.
-- If you use pandas or numpy, import them inside the function body before first use.
+- Do not use third-party packages other than pandas.
+- If you use pandas, import it inside the function body before first use.
 
 ## Input arguments
 
@@ -109,6 +106,10 @@ Important:
 - Do not append notes, example usage, or prose after the code.
 - Use the provided `DatasetAccessor` interface for data access.
 - Do not assume columns, entities, or fields that are not provided.
+- Treat schema column names as exact, case-sensitive ground truth.
+- Never reference a dataframe column unless it either appears exactly in the provided schema/user-prompt column list or is created earlier in the function.
+- Do not assume transformed, normalized, z-score, rolling, or renamed columns already exist in the input dataframe.
+- If you need such a feature, derive it explicitly from available base columns before first use.
 - Keep the code compact.
 - Do not overengineer.
 - Compute only what is necessary for the scoring logic.
@@ -121,11 +122,9 @@ Important:
 
 This section is critical.
 
-- Prefer solving the evaluation with pandas only when possible.
-- The default expectation is: pandas first, numpy second, nothing else.
+- Use pandas only.
 - Do not rely on top-level third-party imports.
-- If you use numpy, write `import numpy as np` inside the function body before the first numpy usage.
-- Keep any allowed third-party import close to where it is used so the dependency is explicit and local.
+- Keep the pandas import close to where it is used so the dependency is explicit and local.
 
 # Numerical Stability Rules
 
@@ -142,7 +141,7 @@ This section is critical.
 This section is critical.
 
 - The returned dictionary must be JSON-serializable by Python's standard `json.dumps(...)`.
-- Do not return numpy scalar types such as `np.int64`, `np.float64`, or pandas scalar objects.
+- Do not return pandas scalar objects.
 - Before returning, cast numeric outputs to plain Python primitives using `int(...)` or `float(...)`.
 - Ensure `support_count` and `total_count` are plain Python `int`.
 - Ensure score-like fields are plain Python `float`.
@@ -187,7 +186,6 @@ This is critical.
 
 - Respect entity names exactly as written in the measurable ELG.
 - Respect windows, horizons, transforms, and thresholds exactly as written when possible.
-- If the measurable ELG expresses thresholds, windows, or horizons as parameter slots rather than fixed numbers, instantiate them with reasonable generic values and keep those values explicit in `used_parameters`.
 - If a measurable atomic still requires operationalization, choose the smallest reasonable interpretation and keep it explicit in code.
 - Do not invent extra theory or mechanism that is not needed for scoring.
 
@@ -250,6 +248,5 @@ Example shape:
 
 - Your code will be executed by a Python executor.
 - The script should be self-contained.
-- The final executable artifact must define `evaluate_hypothesis(accessor, parameters=None)`.
-- The evaluator runtime will call the function and read the returned dictionary.
+- The evaluator runtime will import `evaluate_hypothesis(accessor, parameters=None)` from your script and read the returned dictionary.
 - Do not call `evaluate_hypothesis(...)` at module scope.

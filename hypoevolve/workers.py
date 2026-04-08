@@ -15,7 +15,13 @@ from hypoevolve.evaluator import (
     get_evaluation_artifacts,
 )
 from hypoevolve.llm import LLMClient
-from hypoevolve.logger import logger
+from hypoevolve.logger import (
+    compact_text,
+    log_error_event,
+    log_info_event,
+    summarize_exception,
+    summarize_metrics,
+)
 from hypoevolve.mutation import steer_mutation
 from hypoevolve.parser import ParseError
 
@@ -61,7 +67,11 @@ class WorkerResult:
 
 def run_worker_task(task: WorkerTask) -> WorkerResult:
     """Execute one worker task from parent selection through child scoring."""
-    logger.info("worker iteration {} started", task.iteration)
+    log_info_event(
+        "worker.start",
+        i=task.iteration,
+        random=task.use_random_steering,
+    )
     parent = hypothesis_from_dict(task.parent_hypothesis)
     llm = LLMClient(LLMConfig(**task.llm_config))
     schema = load_dataset_schema(task.dataset_schema_path)
@@ -92,10 +102,10 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
             retries=task.steering_retries,
         )
     except ParseError as exc:
-        logger.error(
-            "worker iteration {} skipped after steering failure: {}",
-            task.iteration,
-            exc,
+        log_error_event(
+            "worker.skip_steering_error",
+            i=task.iteration,
+            **summarize_exception(exc),
         )
         return WorkerResult(
             child_hypothesis={},
@@ -107,17 +117,17 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
             skipped_steering_error=True,
             steering_error=str(exc),
         )
-    logger.info(
-        "worker iteration {} produced mutation_summary={}",
-        task.iteration,
-        decision.mutation_summary,
+    log_info_event(
+        "worker.mutation",
+        i=task.iteration,
+        summary=compact_text(decision.mutation_summary, max_len=96),
     )
     child_fingerprint = fingerprint(decision.child_hypothesis)
     if child_fingerprint in set(task.seen_fingerprints):
-        logger.info(
-            "worker iteration {} skipped duplicate child_fp={}",
-            task.iteration,
-            child_fingerprint,
+        log_info_event(
+            "worker.skip_duplicate",
+            i=task.iteration,
+            child_fp=child_fingerprint[:12],
         )
         return WorkerResult(
             child_hypothesis=decision.child_hypothesis.to_dict(),
@@ -135,7 +145,12 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
             skipped_duplicate=True,
         )
     metrics = evaluate_hypothesis(decision.child_hypothesis, evaluator)
-    logger.info("worker iteration {} evaluation completed", task.iteration)
+    log_info_event(
+        "worker.eval",
+        i=task.iteration,
+        child_fp=child_fingerprint[:12],
+        **summarize_metrics(metrics),
+    )
     return WorkerResult(
         child_hypothesis=decision.child_hypothesis.to_dict(),
         metrics=metrics,

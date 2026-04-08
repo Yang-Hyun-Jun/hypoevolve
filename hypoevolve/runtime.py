@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from elg import Hypothesis, hypothesis_to_json
-from hypoevolve.logger import logger
+from hypoevolve.logger import log_info_event
 
 
 def create_run_dir(
@@ -18,7 +18,7 @@ def create_run_dir(
     actual_id = run_id or uuid.uuid4().hex[:8]
     run_dir = Path(base_dir) / actual_id
     (run_dir / "artifacts").mkdir(parents=True, exist_ok=True)
-    logger.info("created run directory {}", run_dir)
+    log_info_event("run_dir.create", run=str(actual_id), path=run_dir)
     return run_dir
 
 

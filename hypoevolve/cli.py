@@ -19,7 +19,13 @@ from hypoevolve.hypo import (
     generate_random_tree_pair_hypothesis,
 )
 from hypoevolve.llm import LLMClient
-from hypoevolve.logger import configure_logger, logger
+from hypoevolve.logger import (
+    configure_logger,
+    log_error_event,
+    log_info_event,
+    logger,
+    summarize_exception,
+)
 from hypoevolve.parser import ParseError, parse_hypothesis_text
 from hypoevolve.reporting import generate_run_report
 
@@ -120,7 +126,7 @@ def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
         if workers is not None:
             loaded.workers.count = workers
             loaded.workers.enabled = workers > 1
-        logger.info("cli run command started")
+        log_info_event("cli.run.start", workers=loaded.workers.count)
         result = HypoEvolveController(loaded).run(hypothesis)
         seed_generated = bool(getattr(result, "seed_generated", False))
         seed_input_text = str(getattr(result, "seed_input_text", "") or "")
@@ -148,7 +154,7 @@ def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
                 result.best_metrics, ensure_ascii=False, indent=2, sort_keys=True
             ),
         )
-        logger.info("cli run command completed")
+        log_info_event("cli.run.ok", run_dir=result.run_dir)
         return 0
     except (
         ConfigError,
@@ -156,7 +162,7 @@ def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
         ParseError,
         HypothesisGenerationError,
     ) as exc:
-        logger.error("cli run command failed: {}", exc)
+        log_error_event("cli.run.fail", **summarize_exception(exc))
         _echo_error(exc)
         return 1
 
@@ -179,6 +185,7 @@ def seed(config: str | None, max_depth: int) -> int:
     try:
         loaded = _load_runtime_config(config)
         configure_logger(loaded.logging.level)
+        log_info_event("cli.seed.start", max_depth=max_depth)
         result = generate_random_tree_pair_hypothesis(
             llm=LLMClient(loaded.llm),
             max_depth=max_depth,
@@ -188,9 +195,10 @@ def seed(config: str | None, max_depth: int) -> int:
         _echo_block("Feature tree A", result.tree_a.render(return_str=True))
         _echo_block("Feature tree B", result.tree_b.render(return_str=True))
         _echo_block("Generated hypothesis", result.hypothesis)
+        log_info_event("cli.seed.ok", chars=len(result.hypothesis))
         return 0
     except (ConfigError, DatasetSchemaError, HypothesisGenerationError) as exc:
-        logger.error("cli seed command failed: {}", exc)
+        log_error_event("cli.seed.fail", **summarize_exception(exc))
         _echo_error(exc)
         return 1
 
@@ -210,7 +218,7 @@ def render(hypothesis: str, config: str | None, tree: bool) -> int:
     try:
         loaded = _load_runtime_config(config)
         configure_logger(loaded.logging.level)
-        logger.info("cli render command started")
+        log_info_event("cli.render.start", tree=tree)
         parsed = parse_hypothesis_text(
             hypothesis,
             llm=LLMClient(loaded.llm),
@@ -221,10 +229,10 @@ def render(hypothesis: str, config: str | None, tree: bool) -> int:
             "Rendered hypothesis",
             render_tree(parsed) if tree else render_pretty(parsed),
         )
-        logger.info("cli render command completed")
+        log_info_event("cli.render.ok")
         return 0
     except (ConfigError, ParseError) as exc:
-        logger.error("cli render command failed: {}", exc)
+        log_error_event("cli.render.fail", **summarize_exception(exc))
         _echo_error(exc)
         return 1
 
