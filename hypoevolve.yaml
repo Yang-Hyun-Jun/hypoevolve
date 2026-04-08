@@ -1,9 +1,9 @@
 llm:
   api_key: ""
-  api_base: https://openrouter.ai/api/v1
-  model: deepseek/deepseek-v3.2
+  api_base: ""
+  model: ""
   temperature: 0.8
-  max_tokens: 4000
+  max_tokens: 10000
   retries: 1
   retry_delay: 1.0
 parser:
@@ -15,9 +15,9 @@ evaluator:
     horizon: 1
   seed: 42
 search:
-  iterations: 3
-  steering_retries: 2
-  random_steering_prob: 0.2
+  iterations: 30
+  steering_retries: 3
+  random_steering_prob: 0.3
   random_seed: 42
 archive:
   coverage_bins:
@@ -35,4 +35,4 @@ logging:
   level: INFO
 workers:
   enabled: true
-  count: 6
+  count: 5
