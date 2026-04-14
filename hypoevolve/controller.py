@@ -123,6 +123,7 @@ class HypoEvolveController:
             coverage_bins=self.config.archive.coverage_bins,
             complexity_bins=self.config.archive.complexity_bins,
             per_cell_top_k=self.config.archive.per_cell_top_k,
+            parent_sampling_mode=self.config.archive.parent_sampling_mode,
         )
         seed_metrics = evaluate_hypothesis(hypothesis, self.evaluator)
         seed_evaluation_artifacts = get_evaluation_artifacts(self.evaluator)

@@ -86,6 +86,7 @@ class MAPElitesArchive:
         coverage_bins: Optional[List[float]] = None,
         complexity_bins: Optional[List[int]] = None,
         per_cell_top_k: int = 10,
+        parent_sampling_mode: str = "map_elites_ucb",
     ):
         """Initialize one compact MAP-Elites-like archive.
 
@@ -93,6 +94,9 @@ class MAPElitesArchive:
             coverage_bins: Sorted coverage split points used for descriptor binning.
             complexity_bins: Sorted node-count split points used for descriptor binning.
             per_cell_top_k: Maximum number of elites retained per occupied cell.
+            parent_sampling_mode: Parent selection strategy. "map_elites_ucb"
+                samples uniformly over occupied cells and applies UCB within a
+                cell; "random" samples uniformly over all retained archive entries.
 
         Returns:
             None.
@@ -106,10 +110,15 @@ class MAPElitesArchive:
             raise ValueError("complexity_bins must not be empty")
         if per_cell_top_k < 1:
             raise ValueError("per_cell_top_k must be >= 1")
+        if parent_sampling_mode not in {"map_elites_ucb", "random"}:
+            raise ValueError(
+                "parent_sampling_mode must be 'map_elites_ucb' or 'random'"
+            )
 
         self.coverage_bins = [float(value) for value in coverage_bins]
         self.complexity_bins = [int(value) for value in complexity_bins]
         self.per_cell_top_k = int(per_cell_top_k)
+        self.parent_sampling_mode = parent_sampling_mode
         self._cells: Dict[Cell, List[ArchiveEntry]] = {}
         self._sampling_stats: Dict[str, SamplingStats] = {}
 
@@ -234,20 +243,23 @@ class MAPElitesArchive:
         self,
         rng: Optional[random.Random] = None,
     ) -> ArchiveEntry:
-        """Sample one parent by uniform cell choice and within-cell UCB."""
+        """Sample one parent using the configured archive sampling strategy."""
         if not self._cells:
             raise ValueError("Cannot sample from an empty archive")
         chooser = rng or random.Random()
-        occupied_cells = sorted(self._cells)
-        selected_cell = chooser.choice(occupied_cells)
-        candidates = self._cells[selected_cell]
-        selected = max(
-            candidates,
-            key=lambda entry: (
-                self._ucb_score(entry, candidates),
-                entry.score,
-            ),
-        )
+        if self.parent_sampling_mode == "random":
+            selected = chooser.choice(self.entries)
+        else:
+            occupied_cells = sorted(self._cells)
+            selected_cell = chooser.choice(occupied_cells)
+            candidates = self._cells[selected_cell]
+            selected = max(
+                candidates,
+                key=lambda entry: (
+                    self._ucb_score(entry, candidates),
+                    entry.score,
+                ),
+            )
         self._stats_for(selected.fingerprint).pulls += 1
         return selected
 

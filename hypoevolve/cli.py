@@ -304,6 +304,7 @@ def doctor(config: str | None) -> int:
                     ("LLM api key", "configured" if loaded.llm.api_key else "auto"),
                     ("Coverage bins", str(loaded.archive.coverage_bins)),
                     ("Complexity bins", str(loaded.archive.complexity_bins)),
+                    ("Parent sampling", loaded.archive.parent_sampling_mode),
                     ("Iterations", str(loaded.search.iterations)),
                     ("Steering retries", str(loaded.search.steering_retries)),
                     ("Dataset schema", loaded.evaluator.dataset_schema_path),

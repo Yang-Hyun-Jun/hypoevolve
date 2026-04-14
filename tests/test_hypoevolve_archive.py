@@ -147,6 +147,23 @@ class TestHypoEvolveArchive(unittest.TestCase):
         picked = archive.sample_parent(random.Random(0))
         self.assertEqual(picked.hypothesis.root.name, "A_0.6")
 
+    def test_random_parent_sampling_mode_samples_uniformly_over_entries(self):
+        archive = MAPElitesArchive(per_cell_top_k=3, parent_sampling_mode="random")
+        for score in (0.9, 0.6, 0.3):
+            archive.add(
+                Hypothesis(root=AtomicNode(f"A_{score}")),
+                {"combined_score": score, "coverage": 0.04},
+            )
+
+        rng = random.Random(0)
+        picked_names = [
+            archive.sample_parent(rng).hypothesis.root.name,
+            archive.sample_parent(rng).hypothesis.root.name,
+            archive.sample_parent(rng).hypothesis.root.name,
+        ]
+
+        self.assertEqual(picked_names, ["A_0.6", "A_0.6", "A_0.9"])
+
     def test_sampling_stats_report_pulls_and_rewards(self):
         entry = self.archive.add(
             Hypothesis(root=AtomicNode("A")),
