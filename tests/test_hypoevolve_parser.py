@@ -8,6 +8,7 @@ from hypoevolve.parser import (
     llm_make_hypothesis_measurable,
     llm_parse_hypothesis,
     parse_hypothesis_text,
+    _validate_parser_payload,
 )
 
 
@@ -223,6 +224,23 @@ class TestHypoEvolveParser(unittest.TestCase):
                 ],
             },
         )
+
+
+    def test_validate_parser_payload_rejects_non_mapping_and_bad_inputs(self):
+        with self.assertRaises(ParseError):
+            _validate_parser_payload([])
+        with self.assertRaises(ParseError):
+            _validate_parser_payload({"kind": "logical", "name": "AND", "inputs": [1]})
+        with self.assertRaises(ParseError):
+            _validate_parser_payload({"kind": "relation", "name": "IMPLIES", "inputs": [{"kind": "atomic", "name": "A"}]})
+
+    def test_parse_hypothesis_text_rejects_empty_input_before_llm(self):
+        class NeverCalled:
+            def generate_json(self, system, user, **kwargs):
+                raise AssertionError("should not be called")
+
+        with self.assertRaises(ParseError):
+            parse_hypothesis_text("   ", llm=NeverCalled(), retries=1)
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ class Node(NodeMixin):
         self.max_childs = max_childs
         self.input_types = input_types
         self.output_type = output_type
+        self.parent = None
         self.childs = []
 
     def __repr__(self):

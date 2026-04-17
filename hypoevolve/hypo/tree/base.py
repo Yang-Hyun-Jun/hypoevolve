@@ -173,7 +173,7 @@ class HypoTree:
         # parent-child 관계 설정
         for idx, node_data in enumerate(data["nodes"]):
             if node_data["parent_idx"] is not None:
-                nodes[idx].parent = nodes[node_data["parent_idx"]]
+                nodes[node_data["parent_idx"]].add_child(nodes[idx])
 
         tree.nodes = nodes
         tree._root = nodes[data["root_idx"]] if data["root_idx"] is not None else None

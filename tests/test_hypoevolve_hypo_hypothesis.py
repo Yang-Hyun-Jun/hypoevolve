@@ -107,6 +107,69 @@ class TestHypoTreeHypothesisGeneration(unittest.TestCase):
             result.hypothesis, "Combined trees imply a regime-dependent interaction."
         )
 
+    def test_generate_random_tree_pair_hypothesis_uses_provided_generator_directly(self):
+        tree_a = FakeTree("TREE A", "- A desc")
+        tree_b = FakeTree("TREE B", "- B desc")
+        provided_generator = object()
+
+        class FakeLLM:
+            def generate_text(self, system, user, **kwargs):
+                return "<hypothesis>Provided generator hypothesis.</hypothesis>"
+
+        with patch(
+            "hypoevolve.hypo.hypothesis._load_tree_generation_helpers",
+            return_value=(
+                Mock(name="get_tree_generator"),
+                Mock(return_value=[tree_a, tree_b]),
+            ),
+        ) as load_helpers:
+            result = generate_random_tree_pair_hypothesis(
+                llm=FakeLLM(),
+                generator=provided_generator,
+                max_depth=3,
+            )
+
+        load_helpers.assert_called_once()
+        load_helpers.return_value[0].assert_not_called()
+        load_helpers.return_value[1].assert_called_once_with(
+            provided_generator, max_depth=3, num_trees=2
+        )
+        self.assertEqual(result.hypothesis, "Provided generator hypothesis.")
+
+
+    def test_extract_hypothesis_text_prefers_tagged_block_and_falls_back_to_raw_text(self):
+        from hypoevolve.hypo.hypothesis import _extract_hypothesis_text
+
+        self.assertEqual(
+            _extract_hypothesis_text('<hypothesis>  Alpha implies Beta  </hypothesis>'),
+            'Alpha implies Beta',
+        )
+        self.assertEqual(_extract_hypothesis_text('Plain response'), 'Plain response')
+
+    def test_load_tree_generation_helpers_returns_callable_pair(self):
+        from hypoevolve.hypo.hypothesis import _load_tree_generation_helpers
+
+        get_tree_generator, generate_trees = _load_tree_generation_helpers()
+        self.assertTrue(callable(get_tree_generator))
+        self.assertTrue(callable(generate_trees))
+
+    def test_llm_generate_hypothesis_from_trees_retries_on_empty_tagged_payload(self):
+        class EmptyThenGoodLLM:
+            def __init__(self):
+                self.calls = 0
+            def generate_text(self, system, user, **kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    return '<hypothesis>   </hypothesis>'
+                return '<hypothesis>Recovered hypothesis.</hypothesis>'
+
+        llm = EmptyThenGoodLLM()
+        tree_a = FakeTree('TREE A', '- A desc')
+        tree_b = FakeTree('TREE B', '- B desc')
+        hypothesis = llm_generate_hypothesis_from_trees(tree_a, tree_b, llm=llm, retries=1)
+        self.assertEqual(hypothesis, 'Recovered hypothesis.')
+        self.assertEqual(llm.calls, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

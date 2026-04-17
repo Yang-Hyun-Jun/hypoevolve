@@ -75,5 +75,25 @@ class TestHypoEvolvePrompts(unittest.TestCase):
         self.assertIn("entity names", nl_prompt)
 
 
+    def test_render_prompt_replaces_repeated_placeholders(self):
+        template = "{{NAME}} vs {{NAME}}"
+        rendered = render_prompt(template, {"NAME": "Alice"})
+        self.assertEqual(rendered, "Alice vs Alice")
+
+    def test_load_prompt_strips_trailing_whitespace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prompt_root = Path(tmp)
+            (prompt_root / 'demo').mkdir()
+            path = prompt_root / 'demo' / 'sample.md'
+            path.write_text('hello world\n\n', encoding='utf-8')
+            import hypoevolve.prompts as prompts_module
+            original = prompts_module.PROMPTS_DIR
+            prompts_module.PROMPTS_DIR = prompt_root
+            try:
+                self.assertEqual(load_prompt('demo', 'sample.md'), 'hello world')
+            finally:
+                prompts_module.PROMPTS_DIR = original
+
+
 if __name__ == "__main__":
     unittest.main()

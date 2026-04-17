@@ -4,10 +4,15 @@ from pathlib import Path
 
 from elg import AtomicNode, Hypothesis, RelationNode
 from hypoevolve.logger import (
+    compact_text,
     configure_logger,
     event_message,
     logger,
+    _format_log_value,
+    _quote_if_needed,
+    summarize_exception,
     summarize_hypothesis,
+    summarize_metrics,
 )
 
 
@@ -47,6 +52,55 @@ class TestHypoEvolveLogger(unittest.TestCase):
         self.assertEqual(summary["relations"], 1)
         self.assertEqual(summary["atomics"], 2)
         self.assertEqual(len(summary["fp"]), 12)
+
+
+    def test_compact_text_collapses_whitespace_and_truncates(self):
+        self.assertEqual(compact_text("A   B\nC"), "A B C")
+        self.assertTrue(compact_text("x" * 200, max_len=20).endswith("…"))
+
+    def test_summarize_exception_extracts_keyerror_and_exit_code(self):
+        summary = summarize_exception(RuntimeError("Generated evaluator code failed with exit_code=3: KeyError: 'MISSING_COL'"))
+        self.assertEqual(summary["err_type"], "RuntimeError")
+        self.assertEqual(summary["missing_col"], "MISSING_COL")
+        self.assertEqual(summary["exit_code"], 3)
+
+    def test_summarize_metrics_returns_compact_scalar_fields(self):
+        summary = summarize_metrics({
+            "combined_score": 0.7,
+            "precision": 0.6,
+            "baseline": 0.1,
+            "coverage": 0.3,
+            "uplift": 0.5,
+        })
+        self.assertEqual(summary, {"score": 0.7, "prec": 0.6, "base": 0.1, "cov": 0.3, "up": 0.5})
+
+
+    def test_event_message_skips_none_and_quotes_structured_values(self):
+        rendered = event_message(
+            "iter.meta",
+            i=1,
+            note=None,
+            flags=["a", "b"],
+            path=Path("/tmp/demo path"),
+        )
+        self.assertIn('event=iter.meta', rendered)
+        self.assertIn('i=1', rendered)
+        self.assertNotIn('note=', rendered)
+        self.assertIn('flags=', rendered)
+        self.assertIn('a', rendered)
+        self.assertIn('b', rendered)
+        self.assertIn('path=/tmp/demo path', rendered)
+
+    def test_format_log_value_and_quote_helpers_cover_scalar_edge_cases(self):
+        self.assertEqual(_format_log_value(True), 'true')
+        self.assertEqual(_format_log_value(False), 'false')
+        self.assertEqual(_format_log_value(3), '3')
+        self.assertEqual(_format_log_value(0.125), '0.125')
+        self.assertEqual(_format_log_value(float('nan')), 'nan')
+        self.assertEqual(_format_log_value(Path('/tmp/file')), '/tmp/file')
+        self.assertEqual(_quote_if_needed('hello world'), '"hello world"')
+        self.assertEqual(_quote_if_needed(''), '""')
+        self.assertEqual(_quote_if_needed('alpha'), 'alpha')
 
 
 if __name__ == '__main__':

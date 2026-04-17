@@ -46,5 +46,14 @@ class TestHypoEvolveExecutor(unittest.TestCase):
         self.assertFalse(Path(result.work_dir).exists())
 
 
+    def test_write_files_materializes_nested_support_files(self):
+        executor = LocalSubprocessExecutor(timeout=5, cleanup=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            executor._write_files(work_dir, "print('hello')", {"pkg/helper.py": "value = 1\n"})
+            self.assertTrue((work_dir / "main.py").exists())
+            self.assertTrue((work_dir / "pkg" / "helper.py").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
