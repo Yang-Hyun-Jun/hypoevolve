@@ -268,7 +268,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
             newer.mkdir()
             os.utime(older, (1, 1))
             os.utime(newer, (2, 2))
-            config_path.write_text(f"output:\n  base_dir: {runs_dir}\n", encoding="utf-8")
+            config_path.write_text(f"output:\n  base_dir: {tmp}/runs\n", encoding="utf-8")
             result = self.runner.invoke(
                 cli.app,
                 ["runs", "latest", "--config", str(config_path), "--json"],
@@ -303,6 +303,18 @@ class TestHypoEvolveCLI(unittest.TestCase):
             result = self.runner.invoke(cli.app, ["status", str(run_dir), "--json"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn('"status": "failed"', result.output)
+
+    def test_status_json_marks_running_when_only_checkpoint_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run1"
+            run_dir.mkdir()
+            (run_dir / "checkpoint.json").write_text(
+                '{"iteration": 3, "archive_size": 2, "best_metrics": {"combined_score": 0.4}}',
+                encoding="utf-8",
+            )
+            result = self.runner.invoke(cli.app, ["status", str(run_dir), "--json"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('"status": "running"', result.output)
 
     def test_report_json_regenerates_missing_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -340,7 +352,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 '{"iteration": 3, "archive_size": 2, "best_metrics": {"combined_score": 0.4}}',
                 encoding="utf-8",
             )
-            config_path.write_text(f"output:\n  base_dir: {runs_dir}\n", encoding="utf-8")
+            config_path.write_text(f"output:\n  base_dir: {tmp}/runs\n", encoding="utf-8")
             result = self.runner.invoke(
                 cli.app,
                 ["runs", "status", run_id, "--config", str(config_path), "--json"],
@@ -373,7 +385,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 '[{"iteration": 0, "score": 0.5, "best_updated": true, "hypothesis_nl": "A"}]',
                 encoding="utf-8",
             )
-            config_path.write_text(f"output:\n  base_dir: {runs_dir}\n", encoding="utf-8")
+            config_path.write_text(f"output:\n  base_dir: {tmp}/runs\n", encoding="utf-8")
             result = self.runner.invoke(
                 cli.app,
                 ["runs", "report", run_id, "--config", str(config_path), "--json"],
@@ -381,20 +393,112 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn('"run_id": "abcd1234"', result.output)
         self.assertIn('"report_path"', result.output)
-        self.assertIn("report.md", result.output)
+        self.assertIn('report.md', result.output)
 
     def test_runs_status_errors_for_missing_run_id(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "hypoevolve.yaml"
             runs_dir = Path(tmp) / "runs"
             runs_dir.mkdir()
-            config_path.write_text(f"output:\n  base_dir: {runs_dir}\n", encoding="utf-8")
+            config_path.write_text(f"output:\n  base_dir: {tmp}/runs\n", encoding="utf-8")
             result = self.runner.invoke(
                 cli.app,
                 ["runs", "status", "missing", "--config", str(config_path)],
             )
         self.assertEqual(result.exit_code, 1)
         self.assertIn("Run id not found", result.output)
+
+    def test_render_helpers_cover_banner_kv_and_metric_output(self):
+        banner = cli._render_banner()
+        self.assertIn('HypoEvolve', banner)
+        self.assertIn('LLM-guided ELG hypothesis evolution', banner)
+        section = cli._render_kv_section('Section', [('Alpha', '1'), ('Beta', '2')])
+        self.assertIn('Section:', section)
+        self.assertIn('Alpha', section)
+        out = StringIO()
+        with redirect_stdout(out):
+            cli._echo_metric_highlights({'combined_score': 0.7, 'precision': 0.6, 'coverage': 0.3, 'uplift': 0.2})
+        rendered = out.getvalue()
+        self.assertIn('Metric highlights', rendered)
+        self.assertIn('0.7000', rendered)
+
+    def test_latest_run_dir_and_run_dir_from_id_behave_as_expected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            older = base / 'older'
+            newer = base / 'newer'
+            older.mkdir()
+            newer.mkdir()
+            os.utime(older, (1, 1))
+            os.utime(newer, (2, 2))
+            self.assertEqual(cli._latest_run_dir(base), newer)
+            self.assertEqual(cli._run_dir_from_id(base, 'older'), older)
+            with self.assertRaises(cli.ConfigError):
+                cli._run_dir_from_id(base, 'missing')
+
+    def test_status_payload_prefers_summary_and_backfills_from_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / 'run1'
+            run_dir.mkdir()
+            (run_dir / 'checkpoint.json').write_text('{"iteration": 2, "archive_size": 3, "best_metrics": {"combined_score": 0.4}}', encoding='utf-8')
+            (run_dir / 'score_history.json').write_text('[{"iteration": 1, "best_updated": true, "hypothesis_nl": "If A then B."}]', encoding='utf-8')
+            payload = cli._status_payload(run_dir)
+        self.assertEqual(payload['status'], 'running')
+        self.assertEqual(payload['current_iteration'], 2)
+        self.assertEqual(payload['best_score'], 0.4)
+        self.assertEqual(payload['best_hypothesis_nl'], 'If A then B.')
+
+    def test_read_json_if_exists_and_resolve_runs_base_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'payload.json'
+            path.write_text('{"hello": "world"}', encoding='utf-8')
+            self.assertEqual(cli._read_json_if_exists(path), {'hello': 'world'})
+            self.assertIsNone(cli._read_json_if_exists(Path(tmp) / 'missing.json'))
+            config_path = Path(tmp) / 'hypoevolve.yaml'
+            config_path.write_text(f"output:\n  base_dir: {tmp}/runs\n", encoding='utf-8')
+            self.assertEqual(cli._resolve_runs_base_dir(str(config_path)), Path(tmp) / 'runs')
+
+
+    def test_detect_version_returns_dev_when_package_metadata_missing(self):
+        with patch('hypoevolve.cli.metadata.version', side_effect=cli.metadata.PackageNotFoundError):
+            self.assertEqual(cli._detect_version(), 'dev')
+
+    def test_echo_helpers_emit_expected_text(self):
+        echo_calls = []
+        secho_calls = []
+
+        with patch("hypoevolve.cli.click.echo", side_effect=lambda message="": echo_calls.append(message)), patch(
+            "hypoevolve.cli.click.secho",
+            side_effect=lambda message="", **kwargs: secho_calls.append((message, kwargs)),
+        ):
+            cli._echo_banner()
+            cli._echo_json({"hello": "world"})
+            cli._echo_block("Title", "Body")
+            cli._echo_error(Exception("boom"))
+
+        self.assertTrue(any("HypoEvolve" in call for call in echo_calls))
+        self.assertTrue(any('"hello": "world"' in call for call in echo_calls))
+        self.assertIn(("◆ Title", {"fg": "cyan", "bold": True}), secho_calls)
+        self.assertIn("Body", echo_calls)
+        self.assertIn(("Error: boom", {"fg": "red", "err": True}), secho_calls)
+
+    def test_echo_error_prints_nested_error_list_items(self):
+        class FakeError(Exception):
+            def __init__(self):
+                super().__init__("failed")
+                self.errors = ["first", "second"]
+
+        echo_calls = []
+        secho_calls = []
+        with patch("hypoevolve.cli.click.echo", side_effect=lambda message="": echo_calls.append(message)), patch(
+            "hypoevolve.cli.click.secho",
+            side_effect=lambda message="", **kwargs: secho_calls.append((message, kwargs)),
+        ):
+            cli._echo_error(FakeError())
+
+        self.assertIn(("Error: failed", {"fg": "red", "err": True}), secho_calls)
+        self.assertIn("  - first", echo_calls)
+        self.assertIn("  - second", echo_calls)
 
 
 if __name__ == "__main__":

@@ -112,7 +112,9 @@ workers:
   count: 1
 ```
 
-See `hypoevolve.yaml` for the current default example.
+If no config file is provided, HypoEvolve falls back to built-in runtime defaults.
+The checked-in `hypoevolve.yaml` is the current **example starting point**, not the
+implicit default loaded when the file is absent.
 
 Recommended usage is to switch providers entirely in `hypoevolve.yaml`:
 
@@ -121,8 +123,8 @@ Recommended usage is to switch providers entirely in `hypoevolve.yaml`:
 - OpenRouter or other hosted providers: replace `api_base`, `model`, and
   `api_key` in the same file
 
-`api_key` from `hypoevolve.yaml` is used first, so you do not need environment
-variables for normal provider switching.
+When you do pass `hypoevolve.yaml`, `api_key` from that file is used first, so you
+do not need environment variables for normal provider switching.
 
 ---
 
