@@ -35,6 +35,11 @@ class RunArtifactRecorder:
     top_k_code_artifacts: int = 5
     evaluation_artifact_cache: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        """Ensure the run directory has the expected artifact layout."""
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        (self.run_dir / "artifacts").mkdir(parents=True, exist_ok=True)
+
     def record_seed(
         self,
         *,

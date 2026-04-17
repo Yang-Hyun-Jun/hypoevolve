@@ -1,19 +1,14 @@
-"""Worker task payloads and execution helpers for parallel evaluation."""
+"""Worker task payloads and parallel execution flow."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
 
 from elg import fingerprint, hypothesis_from_dict
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import load_dataset_schema
-from hypoevolve.evaluator import (
-    LLMEvaluator,
-    evaluate_hypothesis,
-    get_evaluation_artifacts,
-)
+from hypoevolve.evaluator import LLMEvaluator
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
     compact_text,
@@ -28,41 +23,40 @@ from hypoevolve.parser import ParseError
 
 @dataclass(slots=True)
 class WorkerTask:
-    """Serialize the inputs needed for one worker-side mutation step."""
+    """Serialize inputs for one worker-side mutation step."""
 
-    parent_hypothesis: Dict[str, Any]
-    parent_metrics: Dict[str, object]
+    parent_hypothesis: dict[str, object]
+    parent_metrics: dict[str, object]
     iteration: int
     parent_score: float
     use_random_steering: bool = False
-    llm_config: Dict[str, Any] = field(default_factory=dict)
+    llm_config: dict[str, object] = field(default_factory=dict)
     dataset_schema_path: str = "dataset.yaml"
-    evaluator_parameters: Dict[str, object] = field(default_factory=dict)
-    parser_retries: int = 1
+    evaluator_parameters: dict[str, object] = field(default_factory=dict)
     steering_retries: int = 2
-    recent_history: List[Dict[str, object]] = field(default_factory=list)
-    top_hypotheses: List[Dict[str, object]] = field(default_factory=list)
-    seen_fingerprints: List[str] = field(default_factory=list)
+    recent_history: list[dict[str, object]] = field(default_factory=list)
+    top_hypotheses: list[dict[str, object]] = field(default_factory=list)
+    seen_fingerprints: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class WorkerResult:
-    """Return the outcome of one worker-side mutation and evaluation step."""
+    """Capture the outcome of one worker-side mutation and evaluation step."""
 
-    child_hypothesis: Dict[str, Any]
-    metrics: Dict[str, object]
+    child_hypothesis: dict[str, object]
+    metrics: dict[str, object]
     iteration: int
     mutation_summary: str
     parent_score: float = 0.0
     domain_reason: str = ""
     score_reason: str = ""
-    operation_score_rankings: Dict[str, int] = field(default_factory=dict)
+    operation_score_rankings: dict[str, int] = field(default_factory=dict)
     random_steering: bool = False
     child_fingerprint: str = ""
     skipped_duplicate: bool = False
     skipped_steering_error: bool = False
     steering_error: str = ""
-    evaluation_artifacts: Dict[str, object] = field(default_factory=dict)
+    evaluation_artifacts: dict[str, object] = field(default_factory=dict)
 
 
 def run_worker_task(task: WorkerTask) -> WorkerResult:
@@ -144,7 +138,7 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
             child_fingerprint=child_fingerprint,
             skipped_duplicate=True,
         )
-    metrics = evaluate_hypothesis(decision.child_hypothesis, evaluator)
+    metrics = evaluator.evaluate(decision.child_hypothesis)
     log_info_event(
         "worker.eval",
         i=task.iteration,
@@ -164,5 +158,7 @@ def run_worker_task(task: WorkerTask) -> WorkerResult:
         ),
         random_steering=task.use_random_steering,
         child_fingerprint=child_fingerprint,
-        evaluation_artifacts=get_evaluation_artifacts(evaluator),
+        evaluation_artifacts=dict(
+            getattr(evaluator, "last_evaluation_artifacts", {}) or {}
+        ),
     )

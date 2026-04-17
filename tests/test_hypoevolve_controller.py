@@ -423,7 +423,7 @@ class TestHypoEvolveController(unittest.TestCase):
         )
         self.assertEqual(call_order, ["configure_logger", "run.start"])
 
-    def test_execute_search_branch_preserves_known_fingerprint_count_in_single_process_mode(self):
+    def test_execute_search_branch_returns_post_loop_known_fingerprint_count_in_single_process_mode(self):
         config = HypoEvolveConfig()
         config.workers.enabled = False
         controller = HypoEvolveController(
@@ -444,7 +444,14 @@ class TestHypoEvolveController(unittest.TestCase):
         )()
         recorder = Mock()
 
-        with patch.object(controller, "_run_single_process_iterations") as single_process_mock:
+        def single_process_side_effect(*, archive, recorder, known_fingerprints):
+            known_fingerprints.add(fingerprint(Hypothesis(root=AtomicNode("B"))))
+
+        with patch.object(
+            controller,
+            "_run_single_process_iterations",
+            side_effect=single_process_side_effect,
+        ) as single_process_mock:
             known_fingerprint_count = controller._execute_search_branch(
                 seed_state=seed_state,
                 recorder=recorder,
@@ -455,7 +462,68 @@ class TestHypoEvolveController(unittest.TestCase):
             recorder=recorder,
             known_fingerprints=seed_state.known_fingerprints,
         )
-        self.assertEqual(known_fingerprint_count, 1)
+        self.assertEqual(known_fingerprint_count, 2)
+
+    def test_run_in_single_process_passes_post_loop_known_fingerprint_count_through_finalize(self):
+        config = HypoEvolveConfig()
+        config.workers.enabled = False
+        controller = HypoEvolveController(
+            config,
+            llm_client=Mock(),
+            evaluator=Mock(),
+        )
+        controller.evaluator.evaluate.return_value = {"combined_score": 0.5}
+        controller.evaluator.last_evaluation_artifacts = {}
+        call_order: list[tuple[str, int | None]] = []
+
+        def single_process_side_effect(*, archive, recorder, known_fingerprints):
+            known_fingerprints.add(fingerprint(Hypothesis(root=AtomicNode("B"))))
+
+        def finalize_side_effect(*, archive, known_fingerprint_count, **kwargs):
+            call_order.append(("finalize", known_fingerprint_count))
+            return run_dir / "report.md"
+
+        def log_side_effect(event_name, **kwargs):
+            if event_name == "run.done":
+                call_order.append(("log_complete", 1))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+            run_dir.mkdir()
+            recorder = Mock(duplicate_skips_solo=0, duplicate_skips_worker=0)
+            with (
+                patch("hypoevolve.controller.create_run_dir", return_value=run_dir),
+                patch("hypoevolve.controller.RunArtifactRecorder", return_value=recorder),
+                patch("hypoevolve.controller.configure_logger"),
+                patch("hypoevolve.controller.log_info_event", side_effect=log_side_effect),
+                patch(
+                    "hypoevolve.controller.parse_hypothesis_text",
+                    return_value=Hypothesis(root=AtomicNode("A")),
+                ),
+                patch(
+                    "hypoevolve.controller.llm_make_hypothesis_measurable",
+                    return_value=Hypothesis(root=AtomicNode("A")),
+                ),
+                patch(
+                    "hypoevolve.controller.llm_hypothesis_to_natural_language",
+                    return_value="A",
+                ),
+                patch.object(
+                    controller,
+                    "_run_single_process_iterations",
+                    side_effect=single_process_side_effect,
+                ) as single_process_mock,
+                patch.object(recorder, "finalize", side_effect=finalize_side_effect) as finalize_run,
+            ):
+                result = controller.run("if A then B")
+
+        self.assertEqual(result.run_dir, run_dir)
+        self.assertEqual(result.seed_hypothesis.root.name, "A")
+        self.assertEqual(result.best_hypothesis.root.name, "A")
+        self.assertEqual(result.best_metrics["combined_score"], 0.5)
+        single_process_mock.assert_called_once()
+        finalize_run.assert_called_once()
+        self.assertEqual(call_order, [("finalize", 2), ("log_complete", 1)])
 
     def test_execute_search_branch_uses_worker_returned_known_fingerprint_count(self):
         config = HypoEvolveConfig()

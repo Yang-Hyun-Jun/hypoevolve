@@ -1,5 +1,6 @@
 import json
 import tempfile
+from pathlib import Path
 import unittest
 
 from elg import AtomicNode, Hypothesis
@@ -9,6 +10,21 @@ from hypoevolve.runtime import create_run_dir
 
 
 class TestRunArtifactRecorder(unittest.TestCase):
+    def test_recorder_creates_artifact_directory_on_init(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run-no-layout"
+            recorder = RunArtifactRecorder(
+                run_dir=run_dir,
+                seed_input_text="if A then B",
+                worker_count=1,
+                workers_enabled=False,
+                dataset_schema_path="dataset.yaml",
+            )
+
+            self.assertEqual(recorder.run_dir, run_dir)
+            self.assertTrue(run_dir.exists())
+            self.assertTrue((run_dir / "artifacts").exists())
+
     def test_recorder_persists_run_artifacts_and_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = create_run_dir(tmp, run_id="run1")
@@ -96,6 +112,15 @@ class TestRunArtifactRecorder(unittest.TestCase):
             score_history = json.loads(
                 (run_dir / "score_history.json").read_text(encoding="utf-8")
             )
+            best_payload = json.loads(
+                (run_dir / "best.json").read_text(encoding="utf-8")
+            )
+            checkpoint_payload = json.loads(
+                (run_dir / "checkpoint.json").read_text(encoding="utf-8")
+            )
+            run_summary = json.loads(
+                (run_dir / "run_summary.json").read_text(encoding="utf-8")
+            )
             iteration_payload = json.loads(
                 (run_dir / "artifacts" / "iteration_0001.json").read_text(
                     encoding="utf-8"
@@ -107,10 +132,136 @@ class TestRunArtifactRecorder(unittest.TestCase):
             top_manifest = json.loads(
                 (run_dir / "artifacts" / "top_evaluators.json").read_text(encoding="utf-8")
             )
+            self.assertEqual(sorted(best_payload), ["hypothesis", "metrics"])
+            self.assertIn("iteration", checkpoint_payload)
+            self.assertIn("archive", checkpoint_payload)
+            self.assertIn("best_hypothesis", checkpoint_payload)
+            self.assertIn("best_metrics", checkpoint_payload)
+            self.assertIn("iterations_requested", run_summary)
+            self.assertIn("best_score", run_summary)
+            self.assertIn("archive_size", run_summary)
+            self.assertIn("duplicate_skips_total", run_summary)
             self.assertEqual(len(top_manifest), 1)
+            self.assertEqual(
+                sorted(top_manifest[0].keys()),
+                [
+                    "candidate_code",
+                    "fingerprint",
+                    "hypothesis",
+                    "iteration",
+                    "metadata",
+                    "metrics",
+                    "rank",
+                    "score",
+                    "wrapper_code",
+                ],
+            )
             self.assertIn("candidate_code", top_manifest[0])
             self.assertTrue((run_dir / top_manifest[0]["candidate_code"]).exists())
+            self.assertEqual(score_history[0]["status"], "seed")
+            self.assertEqual(score_history[1]["status"], "evaluated")
+            self.assertEqual(score_history[2]["status"], "skipped_duplicate")
+            self.assertNotIn("score", score_history[2])
             self.assertIn(
                 "Child B.",
                 (run_dir / "report" / "report.md").read_text(encoding="utf-8"),
             )
+            report_text = (run_dir / "report" / "report.md").read_text(encoding="utf-8")
+            for required_section in (
+                "# HypoEvolve Final Report",
+                "## Executive Summary",
+                "## Key Metrics",
+                "## Best ELG",
+                "## Search Overview",
+            ):
+                self.assertIn(required_section, report_text)
+
+
+    def test_cache_evaluation_artifacts_skips_empty_payloads_and_keeps_non_empty(self):
+        recorder = RunArtifactRecorder(
+            run_dir=Path('/tmp/non-persistent-run'),
+            seed_input_text='if A then B',
+            worker_count=1,
+            workers_enabled=False,
+            dataset_schema_path='dataset.yaml',
+        )
+        hypothesis = Hypothesis(root=AtomicNode('A'))
+
+        recorder._cache_evaluation_artifacts(hypothesis, {})
+        self.assertEqual(recorder.evaluation_artifact_cache, {})
+
+        recorder._cache_evaluation_artifacts(hypothesis, {'candidate_code': 'print(1)'})
+        self.assertEqual(
+            recorder.evaluation_artifact_cache[next(iter(recorder.evaluation_artifact_cache))],
+            {'candidate_code': 'print(1)'},
+        )
+
+    def test_checkpoint_trace_and_history_helpers_return_expected_payloads(self):
+        recorder = RunArtifactRecorder(
+            run_dir=Path('/tmp/non-persistent-run'),
+            seed_input_text='if A then B',
+            worker_count=1,
+            workers_enabled=False,
+            dataset_schema_path='dataset.yaml',
+        )
+        archive = MAPElitesArchive()
+        parent = Hypothesis(root=AtomicNode('A'))
+        child = Hypothesis(root=AtomicNode('B'))
+        archive.add(child, {'combined_score': 0.4}, iteration=2, metadata={'mutation_summary': 'replace A with B'})
+        descriptor = archive.describe(child, {'combined_score': 0.4})
+
+        checkpoint = recorder._checkpoint_payload(archive, 2)
+        trace_event = recorder._trace_event(2, parent, child, {'combined_score': 0.4}, {'mutation_summary': 'replace A with B'})
+        history_entry = recorder._history_entry(
+            iteration=2,
+            hypothesis=child,
+            metrics={'combined_score': 0.4, 'precision': 0.7},
+            best_score_after=0.4,
+            best_updated=True,
+            status='evaluated',
+            metadata={'mutation_summary': 'replace A with B', 'worker_mode': True},
+            descriptor=descriptor,
+            parent_fingerprint='parent-fp',
+        )
+
+        self.assertEqual(checkpoint['iteration'], 2)
+        self.assertEqual(checkpoint['archive_size'], 1)
+        self.assertEqual(checkpoint['best_hypothesis']['root']['name'], 'B')
+        self.assertEqual(trace_event['parent']['root']['name'], 'A')
+        self.assertEqual(trace_event['child']['root']['name'], 'B')
+        self.assertEqual(trace_event['metadata']['mutation_summary'], 'replace A with B')
+        self.assertEqual(history_entry['status'], 'evaluated')
+        self.assertEqual(history_entry['parent_fingerprint'], 'parent-fp')
+        self.assertEqual(history_entry['hypothesis_nl'], 'B')
+        self.assertTrue(history_entry['worker_mode'])
+        self.assertEqual(history_entry['cell'], list(descriptor['cell']))
+
+    def test_materialize_top_k_evaluator_artifacts_writes_only_ranked_entries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            recorder = RunArtifactRecorder(
+                run_dir=Path(tmp),
+                seed_input_text='if A then B',
+                worker_count=1,
+                workers_enabled=False,
+                dataset_schema_path='dataset.yaml',
+                top_k_code_artifacts=1,
+            )
+            archive = MAPElitesArchive()
+            best = Hypothesis(root=AtomicNode('BEST'))
+            other = Hypothesis(root=AtomicNode('OTHER'))
+            archive.add(best, {'combined_score': 0.9}, iteration=1)
+            archive.add(other, {'combined_score': 0.2}, iteration=2)
+            recorder._cache_evaluation_artifacts(best, {'candidate_code': 'print(1)', 'wrapper_code': 'print(2)', 'attempt': 1})
+            recorder._cache_evaluation_artifacts(other, {'candidate_code': 'print(3)', 'wrapper_code': 'print(4)', 'attempt': 2})
+
+            recorder._materialize_top_k_evaluator_artifacts(archive)
+
+            manifest = json.loads((Path(tmp) / 'artifacts' / 'top_evaluators.json').read_text(encoding='utf-8'))
+            self.assertEqual(len(manifest), 1)
+            self.assertEqual(manifest[0]['iteration'], 1)
+            self.assertIn('candidate_code', manifest[0])
+            self.assertIn('wrapper_code', manifest[0])
+            self.assertIn('metadata', manifest[0])
+            self.assertTrue((Path(tmp) / manifest[0]['candidate_code']).exists())
+            self.assertTrue((Path(tmp) / manifest[0]['wrapper_code']).exists())
+            self.assertTrue((Path(tmp) / manifest[0]['metadata']).exists())

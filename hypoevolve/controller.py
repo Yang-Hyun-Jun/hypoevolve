@@ -510,7 +510,6 @@ class HypoEvolveController:
                     llm_config=asdict(self.config.llm),
                     dataset_schema_path=self.config.evaluator.dataset_schema_path,
                     evaluator_parameters=dict(self.config.evaluator.parameters),
-                    parser_retries=self.config.parser.retries,
                     steering_retries=self.config.search.steering_retries,
                     recent_history=list(recent_history[-2:]),
                     top_hypotheses=archive.snapshot()[:3],
@@ -658,13 +657,12 @@ class HypoEvolveController:
     ) -> int:
         """Dispatch to the appropriate search branch and return the final known-fingerprint count."""
         if not self.config.workers.enabled or self.config.workers.count == 1:
-            initial_known_fingerprint_count = len(seed_state.known_fingerprints)
             self._run_single_process_iterations(
                 archive=seed_state.archive,
                 recorder=recorder,
                 known_fingerprints=seed_state.known_fingerprints,
             )
-            return initial_known_fingerprint_count
+            return len(seed_state.known_fingerprints)
         return self._run_worker_iterations(
             archive=seed_state.archive,
             recorder=recorder,
