@@ -33,13 +33,13 @@
 | 후보 정규화 | 코드 기준 없음/약함 | normalize / fingerprint 있음 | **HypoEvolve 우위** |
 | mutation primitive | 코드 diff/rewrite 중심 | 구조적 immutable mutation 제공 | **HypoEvolve 우위** |
 | 랜덤 mutation sampler | 명시적 primitive sampler 없음 | 없음 (현재는 LLM이 child ELG를 직접 생성) | 비슷 |
-| LLM proposal integration | 강함 | 아직 약함 / 구조만 준비 | **OpenEvolve 우위** |
-| evaluator 성숙도 | 높음 | placeholder 수준 | **OpenEvolve 우위** |
+| LLM proposal integration | 강함 | parser / steering / evaluator에 실제 LLM 경로 존재 | **OpenEvolve 우위, 격차 축소** |
+| evaluator 성숙도 | 높음 | LLM-generated evaluator runtime + retry/repair 있음 | **OpenEvolve 우위, 격차 축소** |
 | archive/best tracking | 강함 | compact top-k archive | **OpenEvolve 우위** |
 | quality-diversity (MAP-Elites/islands) | 있음 | 없음 | **OpenEvolve 우위** |
-| runtime persistence | checkpoint/trace/artifact 풍부 | 최소 구현 있음 | **OpenEvolve 우위** |
+| runtime persistence | checkpoint/trace/artifact 풍부 | checkpoint/trace/report/artifact 구현 있음 | **OpenEvolve 우위** |
 | CLI / UX | 있음 | MVP용 서브커맨드 있음 | **비슷, 목적 다름** |
-| 병렬화/worker | 있음 | 없음 | **OpenEvolve 우위** |
+| 병렬화/worker | 있음 | worker mode 있음 | **OpenEvolve 우위** |
 | 도메인 적합성(가설) | 낮음 | 높음 | **HypoEvolve 우위** |
 
 ---
@@ -126,12 +126,14 @@ OpenEvolve는 여전히 이 부분이 강하다.
 즉 OpenEvolve는 **LLM이 실전 검색 루프 안에 깊게 박혀 있다.** (`openevolve/openevolve/llm/ensemble.py`, `openevolve/openevolve/llm/openai.py`, `openevolve/openevolve/prompt/sampler.py`, `openevolve/openevolve/evaluator.py`)
 
 ### HypoEvolve
-HypoEvolve는 구조적으로는 LLM-guided mutation/evaluation을 받을 수 있게 되어 있지만, 실제 구현은 아직 거의 없다.
-- config에 `LLMConfig`는 있음
-- parser/evaluator 내부 LLM 프롬프트 로직은 아직 placeholder 수준
-- fallback parser는 deterministic stub
+HypoEvolve는 이제 구조만 준비된 상태는 아니다.
+- `LLMConfig` 기반 설정이 실제 parser / evaluator / steering 경로에 연결되어 있다.
+- parser는 자연어 → ELG 변환과 measurable rewrite에 LLM을 사용한다.
+- evaluator는 hypothesis별 Python evaluator code를 LLM이 생성하고 subprocess에서 실행한다.
+- mutation steering도 LLM이 child ELG와 mutation rationale을 직접 생성한다.
+- 다만 orchestration breadth, ensemble sophistication, sampler richness는 여전히 OpenEvolve 쪽이 더 넓다.
 
-(`hypoevolve/config.py`, `hypoevolve/parser.py`, `hypoevolve/evaluator.py`)
+(`hypoevolve/config.py`, `hypoevolve/parser.py`, `hypoevolve/evaluator.py`, `hypoevolve/mutation.py`)
 
 ### 판단
 이 영역은 **OpenEvolve가 훨씬 앞서 있다.**  
@@ -155,13 +157,14 @@ OpenEvolve evaluator는 상당히 성숙하다.
 ### HypoEvolve
 HypoEvolve evaluator는 intentionally thin 하다.
 - `Evaluator` protocol
-- `PlaceholderEvaluator`
-- deterministic random-ish metric generation
+- `LLMEvaluator`
+- LLM-generated evaluator code execution
+- retry / repair / artifact capture
 
-즉 구조는 있지만 실제 데이터 기반 hypothesis 검증은 아직 구현되지 않았다. (`hypoevolve/evaluator.py`)
+즉 OpenEvolve만큼 넓은 evaluator feature set은 아니지만, 실제 데이터 기반 hypothesis 검증 경로는 이미 구현되어 있다. (`hypoevolve/evaluator.py`)
 
 ### 판단
-이 부분은 **OpenEvolve가 압도적으로 더 완성되어 있다.**
+이 부분은 여전히 **OpenEvolve 우위**지만, 예전처럼 placeholder-only 상태는 아니다.
 
 ---
 

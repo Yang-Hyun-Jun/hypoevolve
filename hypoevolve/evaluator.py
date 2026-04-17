@@ -1,19 +1,16 @@
-"""Evaluator interfaces and LLM-driven evaluation orchestration."""
+"""Evaluator interfaces and LLM-driven evaluation flow."""
 
 from __future__ import annotations
 
 import ast
 import json
 import math
-from typing import Any, Dict, Protocol
+from typing import Protocol
 
 from elg import Hypothesis
 from hypoevolve.dataset import DatasetAccessor, DatasetSchema
 from hypoevolve.executor import CodeExecutor, LocalSubprocessExecutor
-from hypoevolve.helper import (
-    build_evaluator_prompt_variables,
-    build_evaluator_runtime_wrapper,
-)
+from hypoevolve.helper import build_evaluator_prompt_variables, build_evaluator_runtime_wrapper
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
     log_error_event,
@@ -27,7 +24,7 @@ from hypoevolve.prompts import load_and_render_prompt, load_prompt
 class Evaluator(Protocol):
     """Protocol for objects that can score a hypothesis."""
 
-    def evaluate(self, hypothesis: Hypothesis) -> Dict[str, object]:
+    def evaluate(self, hypothesis: Hypothesis) -> dict[str, object]:
         """Evaluate one hypothesis.
 
         Args:
@@ -40,7 +37,7 @@ class Evaluator(Protocol):
 
 
 class LLMEvaluator:
-    """Generate and execute evaluator code to score a hypothesis candidate."""
+    """Generate and execute evaluator code for a hypothesis."""
 
     REQUIRED_KEYS = (
         "combined_score",
@@ -80,9 +77,9 @@ class LLMEvaluator:
         self.executor = executor or LocalSubprocessExecutor()
         self.parameters = dict(parameters) if parameters is not None else None
         self.codegen_retries = max(0, llm_client.config.retries)
-        self.last_evaluation_artifacts: Dict[str, Any] = {}
+        self.last_evaluation_artifacts: dict[str, object] = {}
 
-    def evaluate(self, hypothesis: Hypothesis) -> Dict[str, object]:
+    def evaluate(self, hypothesis: Hypothesis) -> dict[str, object]:
         """Score one hypothesis and return a normalized metric payload."""
         accessor = DatasetAccessor(self.dataset_schema)
         system_prompt = load_prompt("evaluator", "system.md")
@@ -90,7 +87,9 @@ class LLMEvaluator:
             "evaluator",
             "user.md",
             variables=build_evaluator_prompt_variables(
-                hypothesis, self.dataset_schema, accessor
+                hypothesis,
+                self.dataset_schema,
+                accessor,
             ),
         )
         wrapper = build_evaluator_runtime_wrapper(
@@ -102,8 +101,8 @@ class LLMEvaluator:
         self.last_evaluation_artifacts = {}
 
         for attempt in range(self.codegen_retries + 1):
+            attempt_number = attempt + 1
             user_prompt = base_user_prompt
-
             if last_error:
                 user_prompt = (
                     f"{base_user_prompt}\n\n"
@@ -121,25 +120,25 @@ class LLMEvaluator:
                 )
 
             try:
-                code = self._strip_code_fences(
-                    self.llm_client.generate_text(system_prompt, user_prompt)
-                )
-                log_info_event("eval.codegen", attempt=attempt + 1)
+                code = self.llm_client.generate_text(system_prompt, user_prompt).strip()
+                if code.startswith("```"):
+                    lines = code.splitlines()
+                    if lines and lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    code = "\n".join(lines).strip()
+                log_info_event("eval.codegen", attempt=attempt_number)
                 last_candidate_code = code
                 self.last_evaluation_artifacts = {
                     "candidate_code": code,
                     "wrapper_code": wrapper,
-                    "attempt": attempt + 1,
+                    "attempt": attempt_number,
                 }
-
                 try:
                     ast.parse(code)
-
                 except SyntaxError as exc:
-                    raise ValueError(
-                        f"Generated code has invalid syntax: {exc}"
-                    ) from exc
-
+                    raise ValueError(f"Generated code has invalid syntax: {exc}") from exc
                 execution = self.executor.execute(
                     wrapper,
                     files={"candidate.py": f"{code.rstrip()}\n"},
@@ -147,157 +146,90 @@ class LLMEvaluator:
 
                 if execution.timed_out:
                     raise RuntimeError("Generated evaluator code timed out")
-
                 if execution.exit_code != 0:
                     stderr = execution.stderr.strip() or "<empty stderr>"
                     raise RuntimeError(
                         f"Generated evaluator code failed with exit_code={execution.exit_code}: {stderr}"
                     )
-                self.last_evaluation_artifacts["work_dir"] = execution.work_dir
 
+                self.last_evaluation_artifacts["work_dir"] = execution.work_dir
                 stdout = execution.stdout.strip()
                 if not stdout:
                     raise ValueError("Generated evaluator code produced empty stdout")
                 payload = json.loads(stdout)
-
                 if not isinstance(payload, dict):
                     raise ValueError("Generated evaluator output must be a JSON object")
+                duration_ms = int(execution.duration_sec * 1000)
+                log_info_event("eval.exec", attempt=attempt_number, dur_ms=duration_ms)
+                sanitized = {
+                    "combined_score": 0.0,
+                    "precision": 0.0,
+                    "baseline": 0.0,
+                    "coverage": 0.0,
+                    "uplift": 0.0,
+                    "support_count": 0,
+                    "total_count": 0,
+                    "rationale": "",
+                    "used_parameters": {},
+                }
+                sanitized.update(payload)
 
-                payload = self._sanitize_payload(payload)
-                log_info_event(
-                    "eval.exec",
-                    attempt=attempt + 1,
-                    dur_ms=int(execution.duration_sec * 1000),
-                )
-                return payload
+                if not isinstance(sanitized.get("used_parameters"), dict):
+                    sanitized["used_parameters"] = {}
 
+                rationale = sanitized.get("rationale")
+                sanitized["rationale"] = rationale if isinstance(rationale, str) else ""
+
+                for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
+                    value = sanitized.get(key)
+                    if not isinstance(value, (int, float)) or isinstance(value, bool):
+                        sanitized[key] = 0.0
+
+                for key in ("support_count", "total_count"):
+                    value = sanitized.get(key)
+                    if isinstance(value, bool) or not isinstance(value, (int, float)):
+                        sanitized[key] = 0
+
+                non_finite_keys: list[str] = []
+
+                for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
+                    value = sanitized.get(key)
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        if not math.isfinite(float(value)):
+                            sanitized[key] = 0.0
+                            non_finite_keys.append(key)
+
+                for key in ("support_count", "total_count"):
+                    value = sanitized.get(key)
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        if not math.isfinite(float(value)):
+                            sanitized[key] = 0
+                            non_finite_keys.append(key)
+
+                if non_finite_keys:
+                    log_warning_event(
+                        "eval.sanitize_non_finite",
+                        keys=sorted(non_finite_keys),
+                    )
+                    rationale = str(sanitized.get("rationale", "")).strip()
+                    prefix = "non_finite_metrics_sanitized"
+                    sanitized["rationale"] = f"{prefix}: {rationale}" if rationale else prefix
+
+                return sanitized
             except Exception as exc:  # noqa: BLE001
                 message = str(exc).strip() or exc.__class__.__name__
                 last_error = f"{exc.__class__.__name__}: {message}"
                 if attempt < self.codegen_retries:
                     log_warning_event(
                         "eval.retry",
-                        attempt=attempt + 1,
+                        attempt=attempt_number,
                         **summarize_exception(exc),
                     )
-
                 if attempt >= self.codegen_retries:
                     break
 
-        # Fail Result
         log_error_event("eval.fail", **summarize_exception(last_error))
         payload = {k: 0.0 for k in self.REQUIRED_KEYS}
         payload["rationale"] = f"evaluation_failed: {last_error}"
         payload["used_parameters"] = {}
         return payload
-
-    def _sanitize_payload(self, payload: Dict[str, object]) -> Dict[str, object]:
-        """Normalize non-finite numeric values after contract validation.
-
-        Args:
-            payload: The raw payload returned by generated evaluator code.
-
-        Returns:
-            dict[str, object]: A sanitized payload safe for archive insertion.
-        """
-        sanitized = self._validate_payload_contract(payload)
-        non_finite_keys: list[str] = []
-
-        for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
-            value = sanitized.get(key)
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                if not math.isfinite(float(value)):
-                    sanitized[key] = 0.0
-                    non_finite_keys.append(key)
-
-        for key in ("support_count", "total_count"):
-            value = sanitized.get(key)
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                if not math.isfinite(float(value)):
-                    sanitized[key] = 0
-                    non_finite_keys.append(key)
-
-        if non_finite_keys:
-            log_warning_event(
-                "eval.sanitize_non_finite",
-                keys=sorted(non_finite_keys),
-            )
-            rationale = str(sanitized.get("rationale", "")).strip()
-            prefix = "non_finite_metrics_sanitized"
-            sanitized["rationale"] = f"{prefix}: {rationale}" if rationale else prefix
-
-        return sanitized
-
-    def _validate_payload_contract(
-        self, payload: Dict[str, object]
-    ) -> Dict[str, object]:
-        """Enforce required output keys and basic value types.
-
-        Args:
-            payload: The raw payload returned by generated evaluator code.
-
-        Returns:
-            dict[str, object]: A payload with required keys and safe fallback types.
-        """
-        sanitized = {
-            "combined_score": 0.0,
-            "precision": 0.0,
-            "baseline": 0.0,
-            "coverage": 0.0,
-            "uplift": 0.0,
-            "support_count": 0,
-            "total_count": 0,
-            "rationale": "",
-            "used_parameters": {},
-        }
-        sanitized.update(payload)
-
-        if not isinstance(sanitized.get("used_parameters"), dict):
-            sanitized["used_parameters"] = {}
-
-        rationale = sanitized.get("rationale")
-        sanitized["rationale"] = rationale if isinstance(rationale, str) else ""
-
-        for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
-            value = sanitized.get(key)
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
-                sanitized[key] = 0.0
-
-        for key in ("support_count", "total_count"):
-            value = sanitized.get(key)
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                sanitized[key] = 0
-
-        return sanitized
-
-    def _strip_code_fences(self, text: str) -> str:
-        """Remove leading and trailing Markdown code fences.
-
-        Args:
-            text: The raw model output text.
-
-        Returns:
-            str: The unfenced code body.
-        """
-        stripped = text.strip()
-        if not stripped.startswith("```"):
-            return stripped
-        lines = stripped.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        return "\n".join(lines).strip()
-
-
-def evaluate_hypothesis(
-    hypothesis: Hypothesis, evaluator: Evaluator
-) -> Dict[str, object]:
-    """Delegate hypothesis evaluation through the configured evaluator."""
-    return evaluator.evaluate(hypothesis)
-
-
-def get_evaluation_artifacts(evaluator: object) -> Dict[str, Any]:
-    """Return evaluator-side debug artifacts such as generated code, when available."""
-    artifacts = getattr(evaluator, "last_evaluation_artifacts", {})
-    return dict(artifacts) if isinstance(artifacts, dict) else {}

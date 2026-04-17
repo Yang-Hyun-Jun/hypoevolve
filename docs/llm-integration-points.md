@@ -51,12 +51,13 @@ def llm_parse_hypothesis(text: str) -> Hypothesis:
 
 ### 핵심 함수 / 인터페이스
 - `Evaluator.evaluate(...)`
-- `evaluate_hypothesis(...)`
-- 현재 구현체: `PlaceholderEvaluator.evaluate(...)`
+- 현재 구현체: `LLMEvaluator.evaluate(...)`
 
 ### 현재 상태
-- 현재는 placeholder evaluator만 있고, deterministic random-ish metric을 반환한다.
-- 실제 데이터 기반 hypothesis 검증 로직은 아직 구현되어 있지 않다.
+- 현재 기본 경로는 `LLMEvaluator.evaluate(...)` 이다.
+- evaluator LLM이 hypothesis별 Python evaluation 코드를 생성하고,
+  runtime wrapper를 통해 subprocess에서 실행한 뒤 normalized metric payload를 반환한다.
+- 과거 package helper `evaluate_hypothesis(hypothesis, evaluator)` 는 제거되었고, 호출자는 `Evaluator.evaluate(...)` / `LLMEvaluator.evaluate(...)` 를 직접 사용한다.
 
 ### LLM이 들어갈 자리
 핵심 진입점은 `Evaluator.evaluate(...)` 구현체다.
@@ -208,11 +209,11 @@ LLM critique 또는 mutation steering이 들어갈 수 있는 지점은:
 - [ ] fallback parser와 LLM parser의 우선순위/전환 규칙 정의
 
 ### Evaluator
-- [ ] `hypoevolve/evaluator.py`에 실제 LLM/data-driven evaluator 구현 추가
+- [ ] `LLMEvaluator.evaluate(...)`를 기준 public evaluator surface로 유지할지, 더 좁은 facade/API로 재정리할지 결정
 - [ ] evaluator 입력 계약 확정 (`Hypothesis` + dataset/context 등)
 - [ ] evaluator 출력 metric schema 확정
 - [ ] evaluator가 critique / evidence를 반환할지 여부 결정
-- [ ] placeholder evaluator를 실제 evaluator로 교체하거나 공존 정책 정의
+- [ ] evaluator package API를 `Evaluator.evaluate(...)` 중심으로 유지할지, 별도 convenience facade를 둘지 정책 정의
 
 ### Controller / Orchestration
 - [ ] `hypoevolve/controller.py`에 LLM critique 호출 지점 명시

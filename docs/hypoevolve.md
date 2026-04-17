@@ -1,290 +1,681 @@
-# HypoEvolve System Methodology
+# HypoEvolve 시스템 이해 문서
 
-## 1. Introduction
+이 문서는 **향후 대규모 리팩토링/재구현의 기준점**으로 작성한 현재 HypoEvolve 시스템 해부 문서다.
 
-본 문서는 현재 `hypoevolve` 저장소 구현을 기준으로, HypoEvolve를 **자연어 가설을 구조화된 논리 표현으로 변환하고, 데이터 기반 점수를 최대화하도록 반복적으로 변이·평가하는 가설 진화 시스템**으로 기술한다. 문서의 목표는 단순 사용 설명을 넘어서, 시스템의 표현 체계, 탐색 알고리즘, 평가 프로토콜, 병렬 실행 방식, 그리고 런타임 산출물을 하나의 일관된 방법론으로 정식화하는 데 있다.
+목표는 단순 코드 요약이 아니다.
 
-현 구현에서 HypoEvolve는 다음 세 요소의 결합으로 이해할 수 있다.
+- **사용자 관점에서는 아무것도 달라지지 않게**
+- **내부 구조는 엔터프라이즈급으로 재설계할 수 있게**
+- 현재 시스템의 **동작 계약(contract)**, **암묵적 제약**, **숨은 결합점**, **테스트가 고정하는 사실들**, **리팩토링 시 절대 깨지면 안 되는 것들**을 정리하는 것이 목적이다.
 
-1. **ELG(Executable Logic Graph)**: 가설을 표현하는 구조적 중간표현
-2. **LLM-guided proposal/evaluation**: 가설 파싱, measurable rewrite, mutation steering, evaluator code generation을 담당하는 생성 계층
-3. **Archive-based search loop**: 구조 복잡도와 경험적 커버리지를 기준으로 후보를 유지·샘플링하는 탐색 계층
+---
 
-이 문서는 구현과 밀착된 기술 문서이므로, 모든 서술은 현재 코드베이스가 실제 수행하는 동작을 기준으로 한다.
+## 1. 한 줄 요약
 
-### 1.1 System synopsis
+HypoEvolve는 **자연어 가설을 ELG(Executable Logic Graph)라는 구조적 중간표현으로 변환하고**,
+LLM이 **구조적으로 근접한 새 가설을 제안**하고,
+또 다른 LLM이 **평가용 Python 코드를 생성/실행**해 점수를 매긴 뒤,
+그 결과를 **MAP-Elites 스타일 아카이브 + 런 아티팩트 + 리포트**로 축적하는 시스템이다.
 
-| 항목 | 내용 |
-| --- | --- |
-| 입력 | 자연어 가설, 구성 파일, 데이터셋 스키마 |
-| 핵심 표현 | ELG tree (`atomic`, `logical`, `relation`) |
-| 탐색 목적 | 데이터셋 위에서 경험적 점수 $s(H;D)$ 를 최대화하는 가설 탐색 |
-| proposal 계층 | LLM 기반 parser, measurable rewrite, mutation steering |
-| evaluation 계층 | LLM이 생성한 evaluator code의 로컬 실행 |
-| memory 계층 | coverage/complexity 기반 top-k archive |
-| 선택 전략 | occupied cell 균등 샘플링 + UCB-style parent reuse |
-| 산출물 | `trace.jsonl`, `checkpoint.json`, `best.json`, iteration artifacts |
+즉 이 프로젝트의 본질은:
 
-### 1.2 Architecture sketch
+> **“코드 진화”가 아니라 “가설 진화”를 하는 LLM-오케스트레이션 실험 시스템**
+
+이다.
+
+---
+
+## 2. 내가 현재 이해한 시스템의 핵심 목적
+
+현재 시스템은 다음 문제를 풀려고 한다.
+
+1. 사용자가 자연어로 가설을 준다.
+2. 그 가설을 LLM이 **ELG 구조**로 바꾼다.
+3. 그 ELG를 더 **측정 가능(measurable)** 하게 다시 쓴다.
+4. 현재 가설의 점수와 최근 이력, 상위 가설들을 참고해 LLM이 **다음 child hypothesis** 를 만든다.
+5. 또 다른 LLM이 그 가설을 평가하는 **Python evaluator code** 를 생성한다.
+6. 실제 데이터셋에 대해 그 코드를 실행해서 `combined_score`, `precision`, `coverage`, `uplift` 등을 얻는다.
+7. 그 결과를 아카이브에 넣고, 최고 가설과 전체 진행 상황을 저장한다.
+
+즉 HypoEvolve는 다음 세 층이 결합된 시스템이다.
+
+- **표현 계층**: ELG
+- **탐색 계층**: mutation steering + archive
+- **평가 계층**: LLM-generated evaluator code + subprocess execution
+
+---
+
+## 2.5 이번에 만든 문서 세트의 역할 분담
+
+재구현 전에 문서가 여러 개로 늘어났기 때문에, 각각의 역할을 명확히 해두는 것이 좋다.
+
+- `docs/hypoevolve.md`
+  - 현재 시스템을 **이해하기 위한 기준 문서**
+  - “지금 무엇이 어떻게 동작하는가”에 집중
+- `.omx/plans/prd-behavior-preserving-reimplementation.md`
+  - 재구현의 **제품/아키텍처 목표 문서**
+  - “무엇을 어떤 원칙으로 바꿀 것인가”에 집중
+- `.omx/plans/test-spec-behavior-preserving-reimplementation.md`
+  - 재구현의 **검증 전략 문서**
+  - “같은 행동임을 어떻게 증명할 것인가”에 집중
+- `.omx/plans/verified-vs-inferred-ledger.md`
+  - 현재 이해 중 **검증된 사실과 해석을 분리하는 문서**
+- `.omx/plans/artifact-consumer-inventory.md`
+  - 어떤 persisted artifact가 실제로 어디서 소비되는지 정리한 문서
+- `.omx/plans/phase-0-behavior-freeze-task-list.md`
+  - 가장 먼저 해야 할 **실행 작업 목록**
+  - “무엇부터 잠글 것인가”에 집중
+- `.omx/plans/first-patch-set-behavior-freeze.md`
+  - 바로 착수 가능한 **첫 패치 제안서**
+  - “지금 당장 어떤 안전한 변경을 넣을 것인가”에 집중
+
+권장 읽기 순서:
+
+1. `docs/hypoevolve.md`
+2. `prd-behavior-preserving-reimplementation.md`
+3. `test-spec-behavior-preserving-reimplementation.md`
+4. `verified-vs-inferred-ledger.md`
+5. `artifact-consumer-inventory.md`
+6. `phase-0-behavior-freeze-task-list.md`
+7. `first-patch-set-behavior-freeze.md`
+
+---
+
+## 3. 사용자 관점에서 절대 유지해야 하는 외부 계약
+
+대규모 재구현을 하더라도 아래는 깨지면 안 된다.
+
+### 3.1 CLI 계약
+
+현재 CLI 엔트리포인트는 `hypoevolve` 이고, 주요 명령은:
+
+- `hypoevolve run [hypothesis]`
+- `hypoevolve seed`
+- `hypoevolve render`
+- `hypoevolve inspect`
+- `hypoevolve doctor`
+- `hypoevolve runs latest`
+- `hypoevolve runs status`
+- `hypoevolve runs report`
+- `hypoevolve status`
+- `hypoevolve report`
+
+테스트가 고정하는 사용자 경험:
+
+- bare `hypoevolve` 는 **도움말을 출력하고 exit code 1** 로 종료한다.
+- `--help` 에는 배너, quick start, commands 가 나온다.
+- `run` 은 summary / metric highlights / initial hypothesis / best hypothesis 를 출력한다.
+- `run` 에 seed hypothesis 를 직접 안 주면 **자동 seed 생성 경로** 로 간다.
+- `render --tree` 는 ASCII tree 를 출력한다.
+- `runs latest/status/report` 는 persisted artifact 기준으로 작동한다.
+
+### 3.2 출력 아티팩트 계약
+
+한 번의 실행은 기본적으로 아래 구조를 만든다.
 
 ```text
-Natural-language hypothesis
-        │
-        ▼
-  ELG parsing (LLM)
-        │
-        ▼
-Measurable rewrite (LLM)
-        │
-        ▼
-Evaluator code generation (LLM)
-        │
-        ▼
-Local execution on dataset
-        │
-        ▼
-Score / archive update / trace persistence
-        │
-        └───────────────► mutation steering (LLM) ───────────────┐
-                                                                  │
-                                                                  ▼
-                                                           next child ELG
-```
-
----
-
-## 2. Problem Formulation
-
-HypoEvolve의 입력은 자연어 가설 서술 $x$ 와 데이터셋 $D$ 이다. 시스템은 $x$ 를 구조적 가설 $H$ 로 변환한 뒤, 반복적인 제안-평가 루프를 통해 더 높은 점수를 갖는 가설 집합을 탐색한다.
-
-형식적으로 시스템의 목적은 다음과 같이 쓸 수 있다.
-
-$$
-H^* = \arg\max_{H \in \mathcal{H}} s(H; D)
-$$
-
-여기서:
-
-- $\mathcal{H}$ 는 ELG로 표현 가능한 가설 공간
-- $s(H;D)$ 는 데이터셋 $D$ 에 대해 경험적으로 계산되는 평가 점수
-- $H^*$ 는 현재 탐색 예산 아래에서 발견된 최고 점수 가설
-
-중요한 점은 HypoEvolve가 직접 코드 공간을 탐색하지 않는다는 것이다. 대신 시스템은 **가설의 구조 자체**를 탐색하고, 평가 시점에만 LLM이 생성한 실행 코드를 통해 데이터에 대한 점수를 계산한다.
-
----
-
-## 3. Hypothesis Representation: Executable Logic Graph (ELG)
-
-### 3.1 ELG 타입 체계
-
-HypoEvolve의 핵심 표현은 ELG이며, 이는 트리 형태의 불변 구조로 구현된다. 루트는 하나의 `Hypothesis` 객체이며, 내부 노드는 세 가지 범주로 나뉜다.
-
-1. **Atomic node**
-   - 단일 명제 또는 측정 가능한 사건을 표현한다.
-   - 필드: `name`
-2. **Logical node**
-   - 자식 명제를 논리적으로 결합한다.
-   - 연산자는 공통 필드 `name` 에 저장된다. (`AND`, `OR`, `NOT`)
-3. **Relation node**
-   - 조건 측과 목표 측 사이의 관계를 나타낸다.
-   - 관계 타입도 공통 필드 `name` 에 저장된다. (`IMPLIES`, `SUPPORT`, `CONTRADICT`, `CORRELATE`)
-
-루트 가설은 일반적으로 하나의 relation node이며, condition side와 target side를 각각 하나씩 가진다.
-
-### 3.2 ELG 문법
-
-현재 구현의 ELG 문법은 개략적으로 다음과 같다.
-
-```text
-Hypothesis := RelationNode | LogicalNode | AtomicNode
-
-AtomicNode := {
-  kind: "atomic",
-  name: str
-}
-
-LogicalNode := {
-  kind: "logical",
-  name: "AND" | "OR" | "NOT",
-  inputs: [Node, ...]
-}
-
-RelationNode := {
-  kind: "relation",
-  name: "IMPLIES" | "SUPPORT" | "CONTRADICT" | "CORRELATE",
-  inputs: [condition_node, target_node]
-}
-```
-
-### 3.3 Structural validity constraints
-
-구현 수준의 구조 제약은 다음과 같다.
-
-- `AtomicNode.name` 는 공백이 아닌 문자열이어야 한다.
-- `LogicalNode.NOT` 는 정확히 하나의 입력을 가져야 한다.
-- `LogicalNode.AND` 와 `LogicalNode.OR` 는 최소 두 개 이상의 입력을 가져야 한다.
-- `RelationNode` 는 정확히 두 개의 입력을 가져야 한다.
-
-이 제약은 타입 생성 시점과 parser validation 시점 모두에서 적용된다. 따라서 ELG는 단순한 JSON 직렬화 포맷이 아니라, **명시적 well-formedness 규칙을 갖는 실행 가능한 구조 언어**로 볼 수 있다.
-
-### 3.4 Normalization and structural identity
-
-ELG는 탐색 중 중복 후보가 자주 발생할 수 있기 때문에, HypoEvolve는 정규화(normalization)를 통해 구조적 동형성을 완화한다. 정규화 연산은 다음을 수행한다.
-
-1. 재귀적으로 하위 노드를 정규화
-2. 연속된 동일 logical operator를 평탄화(flatten)
-3. 이중 부정 `NOT(NOT(x))` 제거
-4. 동일 자식 제거(deduplication)
-5. 안정된 정렬 키(JSON 직렬화 기반)를 이용한 자식 순서 정렬
-
-정규화된 가설은 stable JSON 으로 직렬화되고 SHA-256 해시를 통해 fingerprint를 생성한다. 따라서 archive는 단순 텍스트 비교가 아니라 **정규화된 구조 해시**를 사용해 중복을 관리한다.
-
-### 3.5 Structural complexity
-
-현재 archive descriptor에서 복잡도는 단순하면서도 안정적인 정의를 사용한다.
-
-$$
-\mathrm{complexity}(H) = \text{count\_nodes}(H)
-$$
-
-즉 원자, 논리, 관계 노드를 모두 포함한 전체 노드 수가 구조 복잡도이다.
-
----
-
-## 4. Dataset Model and Evaluation Interface
-
-HypoEvolve는 evaluator를 데이터셋에 직접 결합하지 않고, `DatasetSchema` 와 `DatasetAccessor` 를 통해 느슨하게 연결한다.
-
-### 4.1 Dataset schema
-
-데이터셋 스키마는 다음 정보를 담는다.
-
-- 데이터셋 설명(description)
-- 인덱스 이름과 dtype
-- 엔티티별 parquet 파일 경로
-- 사용 가능한 컬럼과 각 컬럼 설명
-
-기본 실험 설정은 특정 도메인에 고정되지 않으며, 실제 엔티티와 컬럼은 사용자가 제공한 `dataset.yaml` 스키마에 의해 결정된다.
-
-### 4.2 Dataset accessor abstraction
-
-Evaluator가 사용할 수 있는 데이터 인터페이스는 제한적이고 명시적이다.
-
-- `entities()`
-- `file_map()`
-- `column_names()`
-- `column_descriptions()`
-- `load_dataframe(entity)`
-- `load_all_dataframes()`
-- `head(entity, n=5)`
-- `summary()`
-
-이 추상화는 evaluator prompt에 그대로 삽입되어, LLM이 실제 사용 가능한 데이터 API 범위를 벗어나지 않도록 유도한다.
-
----
-
-## 5. End-to-End Pipeline Overview
-
-HypoEvolve의 단일 실행(run)은 자연어 시드 가설 하나를 입력으로 받아 다음 절차를 수행한다.
-
-### Algorithm 1. Overall run loop
-
-```text
-Input:
-  natural-language hypothesis x
-  config c
-  dataset D
-
-1. create run directory R
-2. configure logger
-3. parse x into ELG hypothesis H0
-4. rewrite H0 into measurable ELG H0'
-5. render H0' back to natural language for metadata
-6. evaluate H0' on D to obtain metrics m0
-7. add (H0', m0) to archive A
-8. persist seed trace / checkpoint / best artifact
-9. for t = 1 .. T:
-10.   sample parent Hp from archive A
-11.   generate child Hc via mutation steering
-12.   evaluate Hc to obtain metrics mc
-13.   compute reward Δ = score(mc) - score(Hp)
-14.   add (Hc, mc) to archive A
-15.   update parent sampling statistics with reward Δ
-16.   persist trace / checkpoint / best / iteration artifact
-17. return best hypothesis in archive A
-```
-
-이 루프는 단일 프로세스(serial mode) 또는 다중 프로세스(worker mode)로 실행될 수 있다.
-
----
-
-## 6. Stage I: Natural-Language Parsing and Measurable Rewrite
-
-### 6.1 Natural-language to ELG parsing
-
-입력 문장 $x$ 는 `llm_parse_hypothesis` 를 통해 ELG root JSON으로 변환된다. 이 단계의 핵심은 LLM을 단순 자유서술 생성기가 아니라 **구조화된 JSON 제안기**로 사용하는 것이다.
-
-절차는 다음과 같다.
-
-1. parser system prompt 로 초기 요청 수행
-2. 응답을 JSON으로 파싱
-3. ELG schema validation 수행
-4. `Hypothesis` 객체로 변환
-5. 정규화 수행
-6. 실패 시 JSON retry prompt를 부착해 재시도
-
-이 과정은 최대 `retries + 1` 회 수행된다.
-
-### 6.2 Parser validation
-
-Parser 출력은 단순 JSON 성공 여부만이 아니라 다음 구조 검증을 통과해야 한다.
-
-- 유효한 `kind`
-- 유효한 logical / relation `name`
-- `inputs` 의 길이 제약
-- atomic node의 non-empty `name`
-
-즉 HypoEvolve에서 parser는 “자연어를 바로 해석한다”기보다, **타입이 보장된 ELG 객체로의 투영(projection)** 을 수행한다.
-
-### 6.3 Measurable rewrite
-
-초기 ELG는 여전히 추상적일 수 있으므로, HypoEvolve는 즉시 두 번째 LLM 단계를 수행한다. 이 단계는 기존 ELG를 입력으로 받아 **더 측정 가능(measurable)한 ELG**로 재작성한다.
-
-이때의 설계 원칙은 다음과 같다.
-
-- hypothesis structure는 가능한 한 유지
-- 데이터에서 직접 평가 가능한 형태로 원자 명제를 구체화
-- 출력 역시 동일한 ELG schema validation을 통과해야 함
-
-따라서 실제 탐색의 출발점은 “raw parse result”가 아니라 “measurable rewrite result”라고 보는 편이 정확하다.
-
-### 6.4 Natural-language rendering for metadata
-
-시스템은 archive metadata와 trace 해석 가능성을 높이기 위해 measurable ELG를 다시 자연어로 렌더링하는 보조 단계를 둔다. 이 렌더링은 탐색 그 자체의 필수 단계는 아니지만, 다음 두 용도에 사용된다.
-
-1. archive entry metadata 저장
-2. 이후 mutation steering prompt에 parent hypothesis의 자연어 서술 제공
-
-렌더링에 실패하면 시스템은 pretty-printed ELG 문자열로 폴백한다.
-
----
-
-## 7. Stage II: Data-Driven Scoring via LLM-Generated Evaluator Code
-
-### 7.1 Motivation
-
-HypoEvolve는 evaluator를 고정된 수식 엔진 하나로 제한하지 않는다. 대신 measurable ELG와 데이터셋 컨텍스트를 읽고, LLM이 해당 가설을 평가할 Python 함수를 생성하도록 한다. 이는 강한 의미의 완전한 프로그램 합성이라기보다, **가설별 평가 코드를 생성하는 constrained code generation procedure** 로 이해하는 편이 정확하다.
-
-### 7.2 Function contract
-
-LLM이 생성하는 evaluator는 정확히 하나의 함수를 정의해야 한다.
-
-```python
-def evaluate_hypothesis(accessor, parameters: dict | None = None) -> dict:
+.hypoevolve/runs/<run-id>/
+  trace.jsonl
+  checkpoint.json
+  best.json
+  run_summary.json
+  score_history.json
+  hypoevolve.log
+  artifacts/
+    seed.json
+    iteration_0001.json
     ...
+    top_evaluators.json
+    top_evaluators/
+      rank_.._candidate.py
+      rank_.._wrapper.py
+      rank_.._evaluation.json
+  report/
+    report.md
+    assets/
+      score_progression.svg
+      seed_vs_best_metrics.svg
+      archive_distribution.svg
 ```
 
-이 함수는 다음 출력을 반드시 반환해야 한다.
+즉 재구현 후에도 적어도 **동일한 의미의 파일 시스템 계약**은 유지하는 것이 안전하다.
+
+최소 payload 의미도 사실상 계약이다.
+
+#### `best.json`
+- 현재 best hypothesis
+- 해당 metrics
+
+#### `checkpoint.json`
+- 마지막 iteration 번호
+- archive snapshot
+- current best hypothesis / best metrics
+
+#### `run_summary.json`
+- requested iteration 수
+- worker 설정
+- duplicate skip 집계
+- best score / best fingerprint / best hypothesis NL
+
+#### `score_history.json`
+- iteration별 상태
+- score 계열 값
+- best update 여부
+- mutation summary / rationale 일부
+
+#### `artifacts/top_evaluators.json`
+- 상위 evaluator candidate code/wrapper/metadata manifest
+
+즉 재구현 후에도 단순히 파일명만 맞추는 것이 아니라,
+
+> **“후속 명령과 분석 도구가 기대하는 의미를 가진 payload shape”**
+
+를 유지해야 한다.
+
+### 3.3 점수 의미 계약
+
+시스템은 현재 다음 평가 개념을 중심으로 동작한다.
+
+- `precision = P(target | condition)`
+- `baseline = P(target)`
+- `coverage = P(condition)`
+- `uplift = precision - baseline`
+- `combined_score = uplift * coverage`
+
+이 scoring 의미는 프롬프트, report, archive, tests, docs 전반에 박혀 있다.
+
+### 3.4 “겉보기 동일성”에 포함되는 것
+
+사용자가 체감하는 동일성은 단순 CLI 명령만이 아니다.
+
+- 같은 prompt 구조
+- 같은 ELG schema
+- 같은 artifact 형태
+- 같은 score 의미
+- 같은 duplicate skip semantics
+- 같은 best/report 계산
+- 같은 seed 생성 경로
+- 같은 worker on/off 동작
+- prompt 제약에 의해 유도되는 **LLM 출력 행동**
+
+까지 포함된다.
+
+즉 재구현 대상은 “코드”가 아니라 사실상 **행동 전체**다.
+
+---
+
+## 4. 현재 아키텍처의 큰 그림
+
+```text
+User/CLI
+  -> hypoevolve.cli
+    -> hypoevolve.config
+    -> hypoevolve.controller
+      -> hypoevolve.parser
+        -> hypoevolve.llm
+        -> prompts/parser, prompts/measurable, prompts/nl
+      -> hypoevolve.mutation
+        -> hypoevolve.llm
+        -> prompts/steering*
+      -> hypoevolve.evaluator
+        -> hypoevolve.llm
+        -> prompts/evaluator*
+        -> hypoevolve.executor
+        -> hypoevolve.dataset
+      -> hypoevolve.archive
+      -> hypoevolve.artifacts
+      -> hypoevolve.runtime
+      -> hypoevolve.reporting
+      -> hypoevolve.workers
+
+Core IR
+  -> elg/*
+
+Optional seed generation path
+  -> hypoevolve.hypo/*
+```
+
+이 구조에서 진짜 중심은 `HypoEvolveController.run()` 이다.
+
+---
+
+## 5. 코드베이스 디렉토리별 역할
+
+## 5.1 `elg/`
+
+이 프로젝트의 **가설 중간표현(IR)** 핵심이다.
+
+주요 역할:
+
+- `ir.py`: ELG 노드 타입 정의
+- `codec.py`: dict/json 직렬화
+- `normalize.py`: canonicalization
+- `metrics.py`: 구조 metrics + fingerprint
+- `render.py`: pretty / tree render
+- `mutate.py`: immutable tree edit primitive
+
+이 디렉토리는 향후 재구현에서도 **가장 안정적인 domain core** 로 볼 수 있다.
+
+## 5.2 `hypoevolve/`
+
+애플리케이션 계층이다.
+
+주요 역할:
+
+- config loading
+- CLI
+- controller orchestration
+- parser / mutation steering / evaluator orchestration
+- dataset schema access
+- worker process execution
+- artifacts / runtime persistence / report generation
+
+즉 `elg/` 가 domain core 라면, `hypoevolve/` 는 application/runtime shell 이다.
+
+## 5.3 `hypoevolve/hypo/`
+
+이건 현재 메인 ELG 파이프라인과는 약간 다른 **legacy/보조 subsystem** 으로 봐야 한다.
+
+역할:
+
+- feature tree 랜덤 생성
+- tree pair 를 보고 자연어 hypothesis seed 생성
+
+현재 실제 사용 지점:
+
+- `hypoevolve run` 에 hypothesis 가 없을 때 seed 자동 생성
+- `hypoevolve seed`
+
+즉 이 서브시스템은 **메인 ELG mutation loop의 일부가 아니라 seed 공급기** 에 가깝다.
+
+## 5.4 `prompts/`
+
+시스템 성능과 행동을 사실상 정의하는 **행동 계약 레이어**다.
+
+중요 prompt:
+
+- `parser/system.md`
+- `measurable/system.md`
+- `nl/system.md`
+- `steering/system.md`
+- `steering-random/system.md`
+- `evaluator/system.md`
+- 각 user prompt 들
+
+이 프로젝트는 prompt 가 단순 리소스가 아니라 **실질적 business logic** 의 일부다.
+
+## 5.5 `tests/`
+
+가장 중요한 “진짜 사양” 중 하나다.
+
+특히 다음을 고정한다.
+
+- CLI UX
+- artifact shape
+- archive semantics
+- parser normalization behavior
+- steering prompt 제약
+- evaluator retry / repair 흐름
+- worker skip semantics
+
+향후 재구현에서 **문서보다 tests 를 더 강한 진실** 로 봐야 한다.
+
+---
+
+## 6. 현재 end-to-end 실행 흐름
+
+## 6.1 `run` 명령 진입
+
+`hypoevolve.cli.run()`
+
+순서:
+
+1. config 로드
+2. logger 설정
+3. `--workers` override 반영
+4. `HypoEvolveController.run(hypothesis)` 호출
+5. 결과를 사람이 읽기 좋은 형태로 출력
+
+## 6.2 seed 결정
+
+`HypoEvolveController._resolve_seed_input_text()`
+
+- 사용자가 hypothesis text 를 줬으면 그대로 사용
+- 없으면 `generate_random_tree_pair_hypothesis()` 로 자동 생성
+
+즉 시스템은 항상 **자연어 hypothesis string** 에서 시작한다.
+
+## 6.3 run directory 생성
+
+`create_run_dir()`
+
+- 기본 위치: `.hypoevolve/runs/<8-char-id>/`
+- `artifacts/` 서브디렉토리를 미리 만든다.
+
+## 6.4 자연어 → ELG parse
+
+`parse_hypothesis_text() -> llm_parse_hypothesis()`
+
+- parser prompt 사용
+- LLM 이 ELG root JSON 생성
+- payload 검증
+- `hypothesis_from_dict(...)`
+- `normalize_hypothesis(...)`
+
+## 6.5 measurable rewrite
+
+`llm_make_hypothesis_measurable()`
+
+- measurable prompt 사용
+- 원 hypothesis 를 더 측정 가능하게 rewriting
+- structure 최대한 유지
+- parameter slot (`{HORIZON}`, `{NEG_Z_THRESHOLD}` 등) 사용 강제
+
+## 6.6 seed evaluation
+
+`Evaluator.evaluate(...)`
+
+- 기본 evaluator 는 `LLMEvaluator`
+- evaluator LLM 이 Python code 생성
+- subprocess 로 실행
+- stdout JSON 을 metrics 로 받음
+
+참고:
+- 과거 Python helper `evaluate_hypothesis(hypothesis, evaluator)` 는 제거되었고,
+- 현재 호출 surface 는 `evaluator.evaluate(hypothesis)` 이다.
+
+## 6.7 archive 초기화
+
+`MAPElitesArchive`
+
+- coverage bin
+- complexity bin
+- per-cell top-k
+- parent sampling mode
+
+seed 가 iteration 0 으로 archive 에 들어간다.
+
+## 6.8 iteration loop
+
+solo mode:
+
+1. archive 에서 parent sample
+2. `steer_mutation(...)`
+3. child fingerprint 확인
+4. duplicate 면 skip
+5. 아니면 evaluate
+6. archive 반영
+7. artifact 기록
+
+worker mode:
+
+1. leader 가 parent sampling / task assembling
+2. worker process 가 mutation + evaluation
+3. leader 가 결과 merge
+4. duplicate / steering error / best update 처리
+
+## 6.9 finalize
+
+마지막에:
+
+- `score_history.json`
+- `run_summary.json`
+- top evaluator artifacts
+- markdown report + SVG assets
+
+를 생성한다.
+
+---
+
+## 7. ELG 표현 계층의 정확한 이해
+
+현재 ELG 는 매우 작고 엄격한 schema 를 갖는다.
+
+### 7.1 node 종류
+
+- `AtomicNode`
+- `LogicalNode`
+- `RelationNode`
+
+### 7.2 logical operator
+
+코드 validator 차원에서는:
+
+- `AND`
+- `OR`
+- `NOT`
+
+을 지원한다.
+
+하지만 **현재 parser / steering prompt 는 사실상 `AND`, `NOT` 중심으로 유도** 하고 있다.
+즉 코드 레벨 허용 범위와 prompt 레벨 유도 범위가 완전히 동일하지는 않다.
+
+### 7.3 relation type
+
+- `IMPLIES`
+- `SUPPORT`
+- `CONTRADICT`
+- `CORRELATE`
+
+### 7.4 핵심 불변조건
+
+- atomic 은 leaf 여야 한다.
+- NOT 은 input 1개
+- AND/OR 는 input 2개 이상
+- relation 은 input 2개 정확히
+- hypothesis root 는 사실상 relation root 가 기대된다.
+
+테스트와 prompts 를 보면 실제 운영상의 기본 가정은:
+
+> **“가설은 condition side 와 target side 를 가지는 relation-level proposition”**
+
+이다.
+
+즉 ELG 자체는 더 일반적이지만, 시스템 전체는 relation-root hypothesis 를 중심으로 설계돼 있다.
+
+### 7.5 normalization 이 중요한 이유
+
+`normalize_hypothesis()` 는:
+
+- nested same-op flatten
+- duplicate removal
+- stable ordering
+- double NOT collapse
+
+를 수행한다.
+
+이 때문에 fingerprint 는 **표현 차이보다 의미에 가까운 구조 차이** 를 추적한다.
+
+즉 duplicate detection 은 raw text 가 아니라 **normalized structure** 기준이다.
+
+이건 절대 보존해야 하는 핵심 계약이다.
+
+---
+
+## 8. Archive 계층의 정확한 의미
+
+현재 archive 는 이름 그대로 완전한 MAP-Elites 구현은 아니고,
+
+> **“MAP-Elites 느낌의 descriptor-binned top-k archive”**
+
+에 가깝다.
+
+### 8.1 descriptor 축
+
+- coverage
+- complexity = `count_nodes(hypothesis)`
+
+### 8.2 binning 규칙
+
+- coverage: `bisect_right`
+- complexity: `bisect_left`
+
+즉 경계 처리 방식이 서로 다르다.
+
+예:
+
+- coverage `0.05` 는 다음 bin 으로 간다.
+- complexity `3` 은 현재 bin 에 남는다.
+
+이 경계 의미는 유지해야 한다.
+
+### 8.3 per-cell top-k
+
+각 cell 마다 상위 `k` 개 elite 를 유지한다.
+
+### 8.4 fingerprint dedup
+
+같은 cell 내부에서 동일 fingerprint 가 다시 들어오면:
+
+- 기존 점수가 더 높으면 유지
+- 새 점수가 더 높으면 교체
+
+### 8.5 parent sampling
+
+두 모드가 있다.
+
+- `random`: 전체 retained entry 중 uniform
+- `map_elites_ucb`:
+  - occupied cell 을 uniform 하게 고른 뒤
+  - 그 cell 안에서 UCB 로 parent 선택
+
+즉 UCB 가 global archive 전체가 아니라 **cell 내부** 에만 걸린다.
+
+### 8.6 reward 의미
+
+`record_parent_outcome()` 에 들어가는 reward 는 대체로:
+
+- `child_score - parent_score`
+
+즉 “그 parent 를 뽑았을 때 개선이 있었는가” 를 추적한다.
+
+### 8.7 중요한 숨은 사실
+
+`len(archive)` 는 **entries 수가 아니라 occupied cells 수** 다.
+
+따라서 현재 `archive_size` 라는 이름으로 저장/출력되는 값은 실제로는
+“retained hypothesis 총수”가 아니라 **occupied cell count** 에 더 가깝다.
+
+이건 재구현 시 함부로 의미를 바꾸면 안 되는 부분이다.
+이름이 어색해도 **현재 행동** 은 보존해야 한다.
+
+---
+
+## 9. Parser / measurable rewrite 의 실제 의미
+
+## 9.1 parser 는 단순 문법 파서가 아니다
+
+현재 parser 는 deterministic parser 가 아니라:
+
+- LLM 호출
+- JSON schema validation
+- ELG normalization
+
+으로 구성된 **semantic parser** 다.
+
+즉 parser 성능은 코드보다 prompt 품질과 모델 행동에 크게 의존한다.
+
+## 9.2 measurable 단계는 매우 중요하다
+
+이 단계는 가설을 evaluator-friendly 한 형태로 강제한다.
+
+주요 규칙:
+
+- threshold/window/horizon 은 숫자 literal 대신 parameter slot 으로 표현
+- predictive hypothesis 면 condition 은 `@t`, target 은 `@t+{HORIZON}`
+- 비-boolean measurable atomic 은 z-score scale 선호
+- structure 는 최대한 보존
+
+즉 measurable rewrite 는 현재 시스템에서
+
+> **“자연어 가설을 평가 가능한 operational form 으로 바꾸는 핵심 정규화 단계”**
+
+다.
+
+이 단계가 흔들리면 evaluator prompt, generated code, score 비교 모두 흔들린다.
+
+---
+
+## 10. Mutation steering 의 실제 의미
+
+현재 mutation 은 `elg/mutate.py` 의 primitive 를 직접 사용하는 방식이 아니다.
+
+실제로는:
+
+- parent hypothesis
+- current metrics
+- recent history
+- top hypotheses
+
+를 prompt 로 넘겨서,
+
+> **LLM 이 full child ELG root 전체를 직접 생성**
+
+한다.
+
+즉 현재 mutation 은 “primitive execution” 이 아니라 **prompt-constrained whole-child generation** 이다.
+
+### 10.1 guided mode
+
+요구 출력:
+
+- `domain_reason`
+- `score_reason`
+- `operation_score_rankings`
+- `child_hypothesis`
+- `mutation_summary`
+
+### 10.2 random steering mode
+
+요구 출력:
+
+- `child_hypothesis`
+- `mutation_summary`
+
+즉 random mode 는 rationale 을 요구하지 않는다.
+
+### 10.3 prompt 가 강제하는 핵심 제약
+
+테스트가 특히 고정하는 제약:
+
+- target/conclusion side 에 `remove_atomic` 금지
+- target side 는 반드시 남아야 함
+- target atomic 이 condition side atomic 과 동일하면 안 됨
+- relation root / 양변 proposition 구조를 유지해야 함
+
+즉 이 시스템은 child 생성 자체를 LLM 에 맡기지만,
+prompt 로 **“로컬 mutation처럼 보이는 full rewrite”** 를 강제하고 있다.
+
+### 10.4 중요한 해석
+
+재구현 시 naive 하게 “primitive mutation engine” 으로 바꾸면
+표면상 비슷해 보여도 실제 LLM behavior distribution 이 달라질 수 있다.
+
+즉 이 부분은 단순 리팩토링 대상이 아니라 **행동 재현 대상** 이다.
+
+---
+
+## 11. Evaluator 계층의 정확한 이해
+
+이 시스템에서 evaluator 는 매우 특이하다.
+
+### 11.1 evaluator 가 하는 일
+
+1. hypothesis + dataset schema 를 prompt 로 준다.
+2. LLM 이 `evaluate_hypothesis(accessor, parameters=None)` 함수를 생성한다.
+3. wrapper script 가 schema / accessor / parameters 를 준비한다.
+4. subprocess 에서 candidate code 를 실행한다.
+5. stdout JSON 을 metrics 로 읽는다.
+
+즉 evaluator 는 사실상:
+
+> **“LLM에게 hypothesis-specific scoring program을 쓰게 하는 meta-evaluator”**
+
+다.
+
+### 11.2 required metric contract
+
+핵심 키:
 
 - `combined_score`
 - `precision`
@@ -296,616 +687,813 @@ def evaluate_hypothesis(accessor, parameters: dict | None = None) -> dict:
 - `rationale`
 - `used_parameters`
 
-### 7.3 Scoring definition
+### 11.3 evaluator prompt 가 강제하는 것
 
-현재 구현의 핵심 점수는 다음과 같이 정의된다.
+- pandas 외 third-party 금지
+- lazy import
+- exact column names만 사용
+- 만들어내지 않은 컬럼 참조 금지
+- `parameters.get(..., default)` 패턴 사용
+- JSON-serializable 반환
+- NaN/inf 반환 금지
+- 미래 누수(leakage) 금지
+- target horizon double-shift 금지
 
-- precision: $P(T \mid C)$
-- baseline: $P(T)$
-- coverage: $P(C)$
-- uplift: $P(T \mid C) - P(T)$
-- combined score:
+즉 evaluator prompt 도 사실상 런타임 규격서다.
 
-$$
-\mathrm{combined\_score} = \mathrm{uplift} \times \mathrm{coverage}
-$$
+### 11.4 repair loop
 
-이를 경험적 카운트로 쓰면,
+실패하면:
 
-$$
-\mathrm{precision} = \frac{n(C \land T)}{n(C)}
-$$
+- failure message
+- previous candidate code
+- specific repair requirements
 
-$$
-\mathrm{baseline} = \frac{n(T)}{N}
-$$
+를 넣어 다시 LLM 에 요청한다.
 
-$$
-\mathrm{coverage} = \frac{n(C)}{N}
-$$
+이 retry/repair loop 는 중요한 품질 계약이다.
 
-$$
-\mathrm{uplift} = \mathrm{precision} - \mathrm{baseline}
-$$
+### 11.5 sanitation
 
-$$
-\mathrm{combined\_score} = \left(\frac{n(C \land T)}{n(C)} - \frac{n(T)}{N}\right) \cdot \frac{n(C)}{N}
-$$
+실행 성공 후에도 payload 를 그대로 믿지 않는다.
 
-여기서:
+- 누락 키는 default 로 채움
+- non-finite 값은 0 / 0.0 으로 sanitize
+- rationale 에 `non_finite_metrics_sanitized` prefix 부여
 
-- $C$ 는 condition event
-- $T$ 는 target event
-- $n(C)$ 는 condition이 참인 시점 수
-- $n(T)$ 는 target이 참인 시점 수
-- $N$ 은 유효 평가 표본 수
+즉 evaluator 는 LLM output + code execution + post-sanitize 의 3단 구조다.
 
-이 스코어는 “조건이 baseline 대비 얼마나 target 확률을 끌어올리는가”와 “그 조건이 얼마나 자주 발생하는가”를 동시에 반영한다.
+### 11.6 보안/운영 관점에서의 의미
 
-### 7.4 Prompt-grounded evaluator generation
+현재 generated code 는 local subprocess 에서 실행된다.
 
-Evaluator LLM prompt는 다음 정보로 구성된다.
+이건 곧:
 
-- readable ELG hypothesis
-- dataset description
-- index metadata
+- generated code sandbox 가 매우 약함
+- filesystem / CPU / memory / import / side effect 위험이 있음
+- enterprise-grade 재구현에서는 별도 sandbox/execution boundary 가 매우 중요함
+
+을 뜻한다.
+
+이건 리팩토링이 아니라 **재설계 포인트** 다.
+
+---
+
+## 12. Worker 병렬 실행의 정확한 의미
+
+worker mode 는 leader 가 archive 를 공유하는 진짜 분산 탐색이 아니라,
+
+> **leader-owned archive + worker-side mutation/evaluation**
+
+구조다.
+
+### 12.1 leader 책임
+
+- parent sampling
+- task 구성
+- known fingerprint 관리
+- archive 반영
+- artifact 기록
+
+### 12.2 worker 책임
+
+- steer_mutation
+- duplicate fingerprint 사전 확인
+- evaluation
+- WorkerResult 반환
+
+### 12.3 중요한 의미
+
+archive state 의 single source of truth 는 leader 다.
+worker 는 archive 를 직접 갱신하지 않는다.
+
+이 구조는 좋은데, 현재는 각 worker task 마다:
+
+- LLMClient 생성
+- dataset schema 로드
+- evaluator 생성
+
+을 반복한다.
+
+즉 성능/구조 측면에서 재구현 여지가 크다.
+
+### 12.4 테스트가 고정하는 worker semantics
+
+- steering error 는 fatal 이 아니라 skip
+- duplicate child 는 evaluation 전에 skip
+- worker mode 켜져도 artifact/report 는 동일하게 생성
+
+---
+
+## 13. Seed generation subsystem (`hypoevolve.hypo`) 의 위치
+
+이 부분은 메인 ELG 시스템과 철학이 다소 다르다.
+
+### 13.1 내부 모델
+
+`hypoevolve.hypo` 는:
+
+- DATA leaf
+- transform/operator 노드
+- 랜덤 트리 generator
+
+를 사용해 feature tree 를 만든다.
+
+그리고 `prompts/hypo/*` 를 사용해:
+
+- 두 feature tree 간의 관계를 설명하는 자연어 hypothesis
+
+를 만든다.
+
+### 13.2 현재 역할
+
+이 subsystem 은 **seed 문장 생성기** 역할이다.
+
+즉:
+
+- ELG core 의 일부 아님
+- mutation loop 의 일부 아님
+- hypothesis search 의 bootstrapper
+
+에 가깝다.
+
+### 13.3 재구현 시 판단
+
+이건 메인 런타임과 분리된 bounded context 로 다루는 것이 좋다.
+
+---
+
+## 14. Dataset / config / YAML 계층
+
+## 14.1 dataset schema
+
+`dataset.yaml` 은 다음을 정의한다.
+
+- description
+- index name/dtype
+- files (entity -> parquet path)
+- columns (name + description)
+
+이 schema 는:
+
+- evaluator prompt
+- DatasetAccessor
+- seed tree DATA node label 공급
+
+에 모두 영향을 준다.
+
+즉 단순 config 가 아니라 **도메인 계약 파일** 이다.
+
+## 14.2 DatasetAccessor
+
+역할:
+
 - entity 목록
-- column specification
-- DatasetAccessor API documentation
-- parameter-slot handling rule
-- 시간 정렬 및 leakage 방지 규칙
-- 출력 계약
+- column 목록/설명
+- parquet dataframe load
+- summary
 
-특히 시간 정렬 규칙은 다음을 강하게 요구한다.
+중요 제약:
 
-- timestamp index를 유일한 time axis로 사용
-- condition은 시점 $t$ 까지의 정보만 사용
-- target은 반드시 미래 시점 $t+h$ 에 대해 계산
-- look-ahead bias 금지
-- resampling 금지
+- `.parquet` 만 지원
+- pandas import 실패 시 에러
 
-### 7.5 Execution wrapper
+## 14.3 simple_yaml
 
-LLM이 생성한 코드는 직접 실행되지 않는다. 시스템은 wrapper script를 생성하여 다음 절차를 수행한다.
+현재 YAML 파서는 full YAML parser 가 아니라 **작은 subset parser** 다.
 
-1. 프로젝트 루트를 `sys.path` 에 추가
-2. dataset schema를 로드
-3. `DatasetAccessor` 생성
-4. `candidate.py` 의 `evaluate_hypothesis` 호출
-5. 결과 dict를 JSON 문자열로 출력
+지원 범위는 제한적이다.
 
-이 wrapper 방식은 evaluator 코드가 최소한 동일한 실행 환경과 데이터 인터페이스를 사용하게 만들며, evaluator 자체는 오직 함수 구현에만 집중하도록 한다.
+- indentation 기반 dict/list
+- basic scalar
+- comment skip
 
-### 7.6 Syntax check, execution, and fallback
-
-Evaluator는 코드 생성 후 즉시 Python AST 파싱을 통해 문법 검사를 수행한다. 그 뒤 로컬 임시 디렉토리에서 subprocess로 실행된다.
-
-실패 가능성은 세 단계로 분류할 수 있다.
-
-1. **generation failure**: LLM이 코드 자체를 잘못 생성
-2. **syntax failure**: AST parse 실패
-3. **runtime failure**: timeout, non-zero exit, empty stdout, invalid JSON
-
-각 실패는 다음 generation attempt의 prompt에 반영된다. 모든 재시도가 실패하면 evaluator는 전체 required key를 갖는 zero-valued payload를 반환하며, `rationale` 에 실패 원인을 기록한다.
-
-### 7.7 Numerical sanitization
-
-Evaluator 출력은 후처리를 통해 다음을 강제한다.
-
-- required key 존재
-- numeric field의 타입 안정성 확보
-- `NaN`, `inf`, `-inf` 제거
-- 잘못된 `used_parameters` 를 빈 dict로 대체
-
-이로써 archive와 search loop는 외부 LLM의 불안정한 출력을 받더라도 최소한의 폐쇄성을 유지한다.
-
-### 7.8 Same-run duplicate skip before evaluation
-
-현재 구현은 **evaluation 자체를 캐시하기보다, 이미 같은 run 안에서 관측된 ELG를 evaluation 직전에 건너뛰는 novelty gate** 를 둔다. 핵심 아이디어는 다음과 같다.
-
-1. child ELG가 생성되면 정규화 기반 fingerprint를 계산한다.
-2. 현재 run에서 이미 archive에 반영된 fingerprint 집합과 비교한다.
-3. 이미 알려진 fingerprint이면 evaluator code generation과 subprocess execution을 수행하지 않고 즉시 skip한다.
-
-이 정책은 특히 evaluator 단계가 가장 큰 병목이라는 점을 반영한 것이다. 같은 ELG를 다시 score해도 새 정보가 거의 없으므로, 현재 시스템은 “같은 run에서 이미 본 ELG는 기본적으로 다시 평가하지 않는다”는 쪽을 택한다.
-
-다만 이 최적화는 **run-local** 하다. 즉 한 번의 `controller.run(...)` 내부에서만 적용되며, persisted checkpoint를 다음 run의 evaluation cache로 복구하지는 않는다.
+즉 향후 PyYAML/ruamel 등으로 갈아타더라도 **현재 읽히는 파일의 행동 호환성** 을 검증해야 한다.
 
 ---
 
-## 8. Stage III: Archive, Diversity Descriptor, and Parent Sampling
+## 15. Prompt 시스템은 사실상 코드다
 
-### 8.1 Archive structure
+이 프로젝트에서 prompt 는 부가 자료가 아니라 **실행 로직의 일부** 다.
 
-HypoEvolve의 archive 클래스는 `MAPElitesArchive` 라는 이름을 사용하지만, 현재 구현은 전형적인 full MAP-Elites 시스템이라기보다 **coverage와 structural complexity의 2차원 descriptor 공간에 top-k 후보를 유지하는 compact archive** 에 가깝다. 따라서 본 문서에서는 이를 “MAP-Elites-like quality-diversity memory”로 해석한다.
+그 이유:
 
-각 candidate는 다음 속성을 가진다.
+1. parser behavior 를 결정한다.
+2. measurable rewrite behavior 를 결정한다.
+3. mutation locality 제약을 결정한다.
+4. evaluator code shape 를 결정한다.
+5. natural-language rendering fidelity 를 결정한다.
 
-- hypothesis
-- metrics
+즉 향후 재구현에서도 prompt 는:
+
+- source-controlled
+- versioned
+- contract-tested
+- domain-reviewed
+
+되어야 한다.
+
+현재 tests 는 실제로 prompt 내용까지 검증한다.
+
+예:
+
+- evaluator prompt 에 pandas-only 규칙이 있는지
+- steering prompt 에 conclusion-side mutation 제약이 있는지
+- prompt 예시가 domain-neutral 한지
+
+이건 매우 중요한 사양이다.
+
+---
+
+## 16. Runtime artifact / reporting 계층의 정확한 역할
+
+`RunArtifactRecorder` 는 controller 로직을 단순화하기 위해 존재하지만,
+실제로는 시스템의 **감사(audit) 레이어** 다.
+
+### 16.1 저장하는 것
+
+- trace
+- best
+- checkpoint
+- per-iteration artifact
+- score history
+- run summary
+- top evaluator code
+
+### 16.2 의도적으로 저장하지 않는 것
+
+테스트가 고정하는 사실:
+
+- child natural language (`hypothesis_nl`) 는 archive metadata 에 저장하지 않음
+- worker task 에 parent hypothesis natural language 를 실어 보내지 않음
+
+이건 아마도:
+
+- metadata 부피 감소
+- worker payload 단순화
+- archive purity 유지
+
+를 위한 현재 설계 의도로 보인다.
+
+### 16.3 report 의 의미
+
+report 는 단순 요약이 아니다.
+
+- best hypothesis
+- structure summary
+- score progression
+- archive distribution
+- top entries
+
+를 제공한다.
+
+즉 재구현 후에도 report 는 **persistent product surface** 로 취급하는 것이 맞다.
+
+---
+
+## 17. 현재 시스템의 중요한 암묵적 제약 / 숨은 결합점
+
+아래는 코드만 대충 보면 놓치기 쉬운 부분들이다.
+
+### 17.1 relation-root assumption
+
+ELG 는 일반 구조를 허용하지만, system-level behavior 는 거의 항상 relation-root hypothesis 를 가정한다.
+
+### 17.2 parser/measurable/steering/evaluator 간 강한 prompt coupling
+
+이 네 단계는 느슨하게 연결된 게 아니라 매우 강하게 묶여 있다.
+
+- parser 가 만든 구조
+- measurable 가 만든 parameter slot / time notation
+- steering 이 보존하려는 relation/condition/target semantics
+- evaluator 가 기대하는 measurable syntax
+
+가 한 체인이다.
+
+한 부분만 바꾸면 전체 distribution 이 흔들린다.
+
+### 17.3 duplicate detection 은 normalized structure 기준
+
+raw JSON/text equality 가 아니다.
+
+### 17.4 report/status 는 persisted file 존재 여부에 의존
+
+예:
+
+- `run_summary.json` 있으면 completed
+- 없고 checkpoint 있으면 running
+
+즉 runtime state 는 DB 가 아니라 **파일 존재 + JSON payload** 기준이다.
+
+### 17.5 CLI example 와 실제 runtime 사이의 작은 불일치 가능성
+
+예를 들어 README/CLI example 은 `.hypoevolve/runs/latest/...` 예시를 보여주지만,
+현재 코드에는 `latest` symlink/materialization 로직이 없다.
+대신 `runs latest` 명령이 최신 run directory 를 찾는다.
+
+즉 문서/예시/코드 간 미세한 불일치도 존재한다.
+
+### 17.6 outdated docs 존재 가능성
+
+`docs/llm-integration-points.md` 같은 보조 문서는 주기적으로 현재 구현에 맞춰 갱신해야 한다.
+과거에는 placeholder/fallback 중심 설명이 섞여 있었지만, 현재는 주요 parser/evaluator/steering 경로 설명을 최신 구현에 맞추는 방향으로 정리되고 있다.
+
+그래도 우선순위는 여전히:
+
+> **현행 사양은 문서보다 코드+테스트 쪽이 더 강한 진실이다.**
+
+### 17.7 “현재 존재하는 결함”과 “보존해야 할 동작”은 다르다
+
+아주 중요하다.
+
+지금 시스템에 관측되는 모든 현상을 재구현 후에도 그대로 유지해야 하는 것은 아니다.
+
+예를 들어 테스트 실행 중 관찰되는 다음과 같은 현상:
+
+- logger sink lifecycle 문제로 인한 closed-stream logging noise
+
+같은 것은 **현재 구현상의 결함/운영상 잡음** 으로 보는 편이 맞고,
+사용자 가치가 있는 product contract 로 취급하면 안 된다.
+
+즉 재구현 시에는 아래 둘을 분리해서 다뤄야 한다.
+
+1. **반드시 유지해야 하는 계약**
+   - CLI behavior
+   - artifact shape
+   - ELG semantics
+   - score semantics
+   - prompt-driven behavioral constraints
+2. **현존 결함이지만 굳이 보존할 필요는 없는 것**
+   - 내부 noisy logging
+   - 우연한 temp path 표현
+   - 테스트 환경 특유 부수 출력
+
+이 구분이 없으면 “동등성”을 잘못 정의하게 된다.
+
+### 17.8 Verified vs Inferred Ledger 가 필요하다
+
+현재 이 문서는 상당 부분 코드/테스트 기반으로 작성됐지만,
+일부는 여전히 **작성자의 해석(inference)** 이 섞여 있다.
+
+재구현 착수 전에 아래 같은 ledger 를 별도 표로 유지하는 것이 좋다.
+
+| Claim | Type | Primary anchor | Secondary anchor | Migration risk if wrong | Re-verify before Phase 1 |
+|---|---|---|---|---|---|
+| seed bootstrap 순서는 parse -> measurable -> evaluate -> archive insert 이다 | verified-by-code | `hypoevolve/controller.py` | `tests/test_hypoevolve_controller.py` | 높음 | fixture-backed run 재검증 |
+| measurable rewrite 는 현재 사실상 필수 단계다 | inferred + partially verified | `hypoevolve/controller.py` | prompt/evaluator 계약 | 높음 | measurable step bypass 실험 금지 여부 확인 |
+| duplicate skip 시 iteration artifact는 쓰지 않는다 | verified-by-code | `hypoevolve/controller.py`, `hypoevolve/artifacts.py` | duplicate tests | 중간 | duplicate fixture 생성 |
+| worker merge의 source of truth 는 leader archive 다 | verified-by-code | `hypoevolve/controller.py`, `hypoevolve/workers.py` | worker tests | 높음 | worker shadow test |
+| report regeneration은 persisted artifacts만으로 가능하다 | verified-by-test | `hypoevolve/cli.py`, `hypoevolve/reporting.py` | CLI report tests | 중간 | persisted-run fixture로 재검증 |
+| `hypoevolve.hypo` 는 seed 공급기 역할로만 분리 가능하다 | inferred | `hypoevolve/cli.py`, `hypoevolve/controller.py` | hypo tests | 중간~높음 | dependency map 재확인 |
+
+이 표는 지금 당장 완벽할 필요는 없지만,
+Phase 1 전에 최소한 위 항목들은 정리돼 있어야 한다.
+
+현재 별도 산출물:
+
+- `.omx/plans/verified-vs-inferred-ledger.md`
+
+---
+
+## 18. 현재 구조의 강점
+
+대규모 재구현의 기반으로서 좋은 점도 분명하다.
+
+### 18.1 ELG core 가 작고 명확하다
+
+IR 가 매우 단순하고 설명 가능하다.
+
+### 18.2 application concerns 가 대체로 모듈 분리되어 있다
+
+- controller
+- archive
+- evaluator
+- runtime/artifacts/reporting
+
+가 이미 어느 정도 나뉘어 있다.
+
+### 18.3 prompt contracts 가 테스트로 잠겨 있다
+
+이건 아주 큰 장점이다.
+
+### 18.4 artifact 중심 구조라 regression 비교가 쉽다
+
+재구현 후에도 같은 run artifact 를 비교하면서 행동 등가성을 검증하기 쉽다.
+
+### 18.5 worker merge ownership 이 leader 에 집중되어 있다
+
+archive consistency 관점에서 유리하다.
+
+---
+
+## 19. 현재 구조의 약점 / 리팩토링 포인트
+
+## 19.1 도메인 코어와 orchestration 이 아직 완전히 분리되지 않았다
+
+controller 가 비교적 많은 책임을 가진다.
+
+## 19.2 evaluator 보안 경계가 약하다
+
+generated Python code 를 local subprocess 에서 직접 실행한다.
+
+## 19.3 prompt-driven behavior 가 강하지만 prompt abstraction layer 는 얇다
+
+현재 `prompts.py` 는 거의 file loader 수준이다.
+
+## 19.4 legacy subsystem (`hypoevolve.hypo`) 과 ELG mainline 의 철학이 다르다
+
+bounded context 를 더 명확히 쪼갤 필요가 있다.
+
+## 19.5 일부 naming/meaning mismatch 존재
+
+대표적으로 `archive_size` 가 실제 entry count 가 아니라 occupied cell count 에 가깝다.
+
+## 19.6 config / dataset parsing 이 minimal custom parser 에 묶여 있다
+
+운영성/에러 메시지/표준성 측면에서 한계가 있다.
+
+## 19.7 worker task payload 에 사용되지 않는 정보가 일부 있다
+
+예: `parser_retries` 는 현재 worker 실행 경로에서 사실상 쓰이지 않는다.
+
+## 19.8 evaluator / parser / mutation retry semantics 가 모듈별로 분산되어 있다
+
+재사용 가능한 failure policy abstraction 이 아직 없다.
+
+---
+
+## 20. 재구현 시 절대 보존해야 할 behavioral invariants
+
+아래는 **사용자가 바뀐 걸 체감하지 않기 위해** 특히 중요하다.
+
+1. **ELG schema**
+2. **normalization + fingerprint semantics**
+3. **score formula semantics**
+4. **CLI command / option / exit-code behavior**
+5. **artifact file names + payload shape**
+6. **report generation outputs**
+7. **prompt text가 강제하는 제약의 실질적 의미**
+8. **duplicate skip semantics**
+9. **worker skip/merge semantics**
+10. **seed generation path when hypothesis is omitted**
+11. **status/report commands reading persisted artifacts**
+12. **measurable parameter-slot notation**
+13. **condition@t / target@t+h temporal interpretation**
+
+---
+
+## 21. 재구현 시 추천되는 아키텍처 분해 방향
+
+현재 코드를 깔끔하게 재구현하려면 아래 bounded context 로 나누는 것이 좋다.
+
+### 21.1 Domain Core
+
+- ELG node model
+- normalization
 - fingerprint
+- structural metrics
+- render
+- archive descriptor logic
+
+### 21.2 Prompted Semantics Layer
+
+- parser contract
+- measurable rewrite contract
+- NL rendering contract
+- mutation steering contract
+- evaluator codegen contract
+
+### 21.3 Search Engine Layer
+
+- run session
+- iteration state
+- parent selection
+- duplicate policy
+- worker coordination
+
+### 21.4 Evaluation Runtime Layer
+
+- code generation
+- execution sandbox
+- retry/repair policy
+- payload validation/sanitization
+
+### 21.5 Persistence & Reporting Layer
+
+- run directory management
+- trace/checkpoint/best/history
+- report generation
+- top evaluator materialization
+
+### 21.6 Delivery Surface Layer
+
+- CLI
+- config loading
+- doctor/status/report UX
+
+### 21.7 Seed Synthesis Layer
+
+- feature-tree generator
+- tree-pair hypothesis synthesis
+
+즉 특히 `hypoevolve.hypo` 는 메인 search engine 과 분리된 별도 subdomain 으로 보는 것이 맞다.
+
+---
+
+## 22. 내가 생각하는 리팩토링/재구현 전략
+
+사용자 체감 0 변화가 목표라면, 추천 전략은 다음과 같다.
+
+### 22.1 1단계: 사양 고정
+
+- 현재 tests 유지/확대
+- artifact golden test 추가
+- prompt golden snapshot 추가
+- sample run 비교 harness 추가
+
+### 22.2 2단계: 읽기 전용 구조화
+
+- package boundary 재정리
+- domain/application/infrastructure 분리
+- 현재 public contracts 를 adapter 로 감싼다.
+
+### 22.3 3단계: 내부 구현 치환
+
+- controller 분해
+- evaluator runtime 분리
+- persistence layer 추상화
+- worker orchestration 분리
+
+### 22.4 4단계: 안전한 품질 상승
+
+- sandbox 강화
+- richer diagnostics
+- deterministic replay / seed reproducibility 강화
+- prompt/version metadata 관리
+
+즉 처음부터 “새 시스템” 을 만드는 게 아니라,
+
+> **동일한 public behavior를 가진 새 내부 구조를 단계적으로 끼워 넣는 방식**
+
+이 맞다.
+
+---
+
+## 23. 앞으로 꼭 더 파악해야 할 것들
+
+이번 문서화는 현재 소스+테스트 기준의 1차 해부다.
+대규모 재구현 전에 아래는 추가로 더 조사해야 한다.
+
+### 23.1 실제 sample run 비교
+
+- 동일 config / 동일 prompt / 동일 model 로 기존 구현의 run artifact 수집
+- 재구현 후보와 diff 비교
+
+### 23.2 prompt-output distribution 분석
+
+- parser
+- measurable
+- steering
+- evaluator
+
+각 단계에서 실제 모델이 어떤 분포의 출력을 내는지 파악해야 한다.
+
+### 23.3 report consumers 확인
+
+누가 `report.md`, `run_summary.json`, `score_history.json` 을 소비하는지 확인 필요.
+
+### 23.4 generated evaluator code 위험 분석
+
+- import 범위
+- file/network side effect
+- subprocess isolation 수준
+
+### 23.5 `hypoevolve.hypo` 의 유지 필요성 판단
+
+이 subsystem 을 계속 유지할지, seed 전용 standalone package 로 뺄지 결정 필요.
+
+### 23.6 parity comparison normalization 규칙 확정
+
+golden artifact 비교를 하려면 “무엇은 exact match, 무엇은 normalized compare, 무엇은 tolerance compare” 인지 먼저 정해야 한다.
+
+예:
+
+- exact:
+  - ELG JSON shape
+  - prompt sections
+  - artifact key set
+- normalized:
+  - temp dir path
+  - run id
+  - timestamp
+- tolerance:
+  - live LLM을 쓸 경우 score/selection 분포 일부
+
+이 규칙이 없으면 이후 테스트 스펙이 흔들린다.
+
+### 23.7 report consumer 실사용 여부 확인
+
+`status`, `report`, `runs status`, `runs report` 외에
+사람이나 다른 스크립트가 `run_summary.json`, `score_history.json`, `report.md`, `top_evaluators.json`
+을 실제로 소비하는지 확인이 필요하다.
+
+이게 확인되면:
+
+- 진짜 public contract
+- 사실상 internal-but-stable contract
+
+를 더 정확히 나눌 수 있다.
+
+---
+
+## 23.8 Phase-1 Entry Blockers
+
+아래가 정리되지 않았다면 Phase 1 구현 착수는 막는 것이 맞다.
+
+- [ ] golden fixture 6종 생성됨
+- [ ] artifact normalization policy 문서화됨
+- [ ] prompt snapshot 고정됨
+- [ ] generated-seed path용 deterministic harness 확보됨
+- [ ] legacy/new shadow diff 기준 정의됨
+- [ ] report consumer 확인됨 또는 “없음”으로 명시됨
+- [ ] Verified vs Inferred Ledger 최소 버전 작성됨
+
+즉 “좋은 계획이 있음”과 “구현에 들어가도 됨”은 다른 상태다.
+
+---
+
+## Appendix A. Persisted Artifact Contract Summary
+
+아래 표는 Phase 0 fixture 설계용 최소 계약 요약이다.
+
+| file | required keys / sections | optional keys | volatile fields to normalize | consumer commands/tests | compatibility rule |
+|---|---|---|---|---|---|
+| `checkpoint.json` | `iteration`, `archive_size`, `archive` | `best_hypothesis`, `best_metrics` | 없음 또는 일부 path-free metadata | controller/report/status flows | key set + semantic meaning 유지 |
+| `best.json` | `hypothesis`, `metrics` | 없음 | 없음 | inspect/report | exact schema 유지 |
+| `run_summary.json` | `iterations_requested`, `best_score`, `archive_size`, `duplicate_skips_total` | worker/best metadata fields | 없음 | status/report | required summary keys 유지 |
+| `score_history.json` | iteration records list | richer metadata fields | 없음 | report/status | status/value semantics 유지 |
+| `artifacts/top_evaluators.json` | manifest list, per-entry rank/fingerprint/score | candidate/wrapper/metadata paths | generated relative filenames 일부 | artifacts tests/report debugging | relative manifest semantics 유지 |
+| `report/report.md` | executive summary, best ELG, search overview 류 섹션 | extra explanatory prose | run id/path 텍스트 일부 | report command/tests | section structure 유지 |
+| `trace.jsonl` | event-per-line JSON | extra metadata fields | none if using stubbed fixture | trace/debugging | event shape compatibility 유지 |
+
+이 표는 implementation spec 이라기보다,
+
+> **golden fixture를 설계할 때 무엇을 exact compare 하고 무엇을 normalize 해야 하는지 정하는 출발점**
+
+이다.
+
+---
+
+## Appendix B. Prompt Input Contract Summary
+
+prompt parity는 raw prompt text만으로 충분하지 않다.
+현재 코드 기준으로 최소한 아래 입력 규칙도 계약으로 봐야 한다.
+
+### Steering prompt input contract
+
+- parent hypothesis: measurable ELG pretty render
+- current metrics: current parent metrics JSON
+- recent history: **최근 2개만 사용**
+- top hypotheses: **global archive 상위 3개**
+- excluded metadata:
+  - child/archive metadata 안의 `hypothesis_nl`
+  - worker task 에서의 parent natural-language text
+
+즉 mutation prompt parity는:
+
+1. raw prompt file
+2. variable names
+3. included/excluded metadata
+4. truncation window
+
+를 함께 고정해야 한다.
+
+### Evaluator prompt input contract
+
+- hypothesis pretty render
+- dataset description / index / entities / column specs
+- accessor API 설명
+- no sample dataframe payload
+
+### Parser / measurable / NL contract
+
+- parser: raw NL input -> ELG root JSON
+- measurable: ELG root -> more measurable ELG root
+- NL render: ELG root -> plain text sentence
+
+즉 “prompt contract”는 단순히 문장 지시가 아니라,
+
+> **무슨 데이터를 어떤 shape로 모델에 넘기느냐까지 포함한다**
+
+고 봐야 한다.
+
+---
+
+## Appendix C. Run Lifecycle / CLI Persisted-Run Contract
+
+현재 persisted run을 둘러싼 CLI 의미 계약은 다음과 같다.
+
+### run directory creation
+
+- `create_run_dir()` 가 run dir + `artifacts/` 를 만든다.
+
+### `runs latest`
+
+- 최신 run dir 선택 기준은 **이름순이 아니라 mtime 기준** 이다.
+
+### `status` / `runs status`
+
+- `run_summary.json` 존재 -> `completed`
+- `checkpoint.json` 만 존재 -> `running`
+- 둘 다 없으면 -> `failed`
+
+### `report` / `runs report`
+
+- `report/report.md` 가 없으면 **disk artifacts로부터 regenerate** 한다.
+
+### worker fallback
+
+- workers disabled 이거나 `worker_count == 1` 이면 single-process path 로 간다.
+
+이 규칙들은 작아 보여도,
+재구현 시 status/report UX와 regression 결과를 흔들 수 있는 핵심 휴리스틱이다.
+
+---
+
+## Appendix D. Artifact Record-Type Summary
+
+특히 `score_history.json` 은 파일 하나지만,
+status별로 record 의미가 다르다.
+
+### `seed`
+- iteration = 0
+- evaluated row
+- best_updated = true
+
+### `evaluated`
+- normal evaluated child
+- score 계열 값 존재
+- mutation metadata 일부 존재 가능
+
+### `skipped_duplicate`
+- **evaluated row 아님**
+- duplicate skip 기록
+- report에서 evaluated count 로 세면 안 된다
+
+### `skipped_steering_error`
+- **evaluated row 아님**
+- steering failure 기록
+- error text 포함 가능
+
+중요:
+
+> skip entry를 `score = 0` 으로 쓰면 안 된다.
+
+현재 report 쪽은 사실상 `score is not None` 류 기준으로 evaluated history 를 해석하므로,
+skip row를 zero-score evaluated row로 바꾸면 report/plot/count가 drift 한다.
+
+### `trace.jsonl`
+
+각 줄은 JSON event 이며, 최소한:
+
 - iteration
+- parent
+- child
+- metrics
 - metadata
-- coverage
-- complexity
-- cell
 
-### 8.2 Descriptor definition
-
-현재 descriptor는 다음 두 요소로 정의된다.
-
-1. **coverage**: evaluator가 보고한 경험적 condition coverage
-2. **complexity**: hypothesis node count
-
-coverage는 $[0,1]$ 범위로 coercion되며, complexity는 정수 노드 수이다.
-
-archive cell은 다음과 같이 계산된다.
-
-$$
-\mathrm{cell}(H) = (b_{cov}(\mathrm{coverage}(H)), b_{cmp}(\mathrm{complexity}(H)))
-$$
-
-여기서:
-
-- $b_{cov}$ 는 `bisect_right` 로 계산되는 coverage bin index
-- $b_{cmp}$ 는 `bisect_left` 로 계산되는 complexity bin index
-
-### 8.3 Per-cell elite retention
-
-각 cell에는 최대 `per_cell_top_k` 개의 후보만 유지된다. 동일 cell 내부에서 같은 fingerprint를 가진 후보가 다시 들어오면, 더 높은 score를 가진 버전만 유지된다.
-
-이 archive dedup은 insertion 시점에 일어나는 반면, search loop의 novelty gate는 그보다 앞선 단계에서 작동한다. 따라서 현재 시스템은
-
-- **pre-eval duplicate skip**: 이미 알려진 ELG면 evaluation 자체를 생략
-- **archive dedup**: 그럼에도 archive에 들어오려는 동일 fingerprint 후보를 cell 내부에서 정리
-
-의 두 층을 가진다.
-
-이 규칙은 다음 목적을 가진다.
-
-- 단순 중복 제거
-- 동일 구조의 score 향상본만 보존
-- descriptor diversity 유지
-- 메모리 사용량 상한 제공
-
-### 8.4 Parent selection
-
-Parent selection은 2단계로 수행된다.
-
-1. **occupied cell을 균등 샘플링**
-2. 선택된 cell 내부에서 UCB-style score가 최대인 entry 선택
-
-cell 내부 선택 점수는 다음과 같이 정의된다.
-
-$$
-\mathrm{UCB}(i) =
-\begin{cases}
-\infty, & \text{if } pulls_i = 0 \\
-\bar{r}_i + c \sqrt{\frac{\log P}{pulls_i}}, & \text{otherwise}
-\end{cases}
-$$
-
-여기서:
-
-- $pulls_i$ 는 해당 후보가 parent로 선택된 횟수
-- $\bar{r}_i$ 는 평균 reward
-- $P$ 는 같은 cell 내 후보들의 총 parent-pull 수
-- $c = 0.01$ 은 exploration weight
-
-무한대 초기값을 사용하므로, 아직 한 번도 parent로 선택되지 않은 entry는 우선적으로 탐색된다.
-
-### 8.5 Reward update
-
-Parent selection 후 child가 평가되면, parent의 reward는 다음과 같이 기록된다.
-
-$$
-\Delta = \mathrm{score}(H_{child}) - \mathrm{score}(H_{parent})
-$$
-
-즉 reward는 절대 score가 아니라 **부모 대비 개선량(delta)** 이다. 이 설계는 “어떤 후보를 확장하는 것이 탐색 관점에서 유리한가”를 측정하는 bandit-style 해석과 잘 맞는다.
+의 의미를 유지해야 한다.
 
 ---
 
-## 9. Stage IV: Mutation Steering
+## 24. 최종 결론
 
-### 9.1 Input context
+현재 HypoEvolve는 겉보기보다 단순한 프로젝트가 아니다.
 
-Child proposal은 단순 random tree edit가 아니라, parent-aware prompt를 받는 LLM steering 단계로 생성된다. 입력 컨텍스트는 다음과 같다.
+이건 단순히:
 
-- parent measurable ELG
-- parent natural-language rendering
-- current metrics
-- recent mutation history (최대 최근 3개)
-- top archive hypotheses (상위 3개)
+- ELG library 하나
+- LLM wrapper 하나
+- CLI 하나
 
-### 9.2 Two steering modes
+가 아니라,
 
-현재 구현은 두 가지 steering 모드를 사용한다.
+> **“prompt가 정의하는 의미 계약” + “ELG 구조 계약” + “generated code evaluator” + “artifact/report runtime” 이 결합된 탐색 시스템**
 
-1. **Score-directed steering**
-   - 현재 metrics를 반영해 precision/coverage trade-off를 개선하려는 child를 생성
-   - `domain_reason`, `score_reason`, `operation_score_rankings`, `mutation_summary` 를 포함
-2. **Random exploratory steering**
-   - `random_steering_prob` 확률로 호출
-   - 더 적은 제약과 더 적은 메타데이터를 갖는 exploratory mutation을 생성
+이다.
 
-이때 random steering 여부는 config에 의해 제어된다.
+따라서 앞으로의 대규모 리팩토링/재구현은 다음 원칙을 따라야 한다.
 
-### 9.3 Full-rewrite but local-mutation policy
+1. **사용자-visible contract 먼저 고정**
+2. **prompt behavior 를 코드만큼 중요하게 취급**
+3. **ELG/fingerprint/scoring/artifacts 를 핵심 불변량으로 간주**
+4. **legacy seed subsystem 과 mainline search engine 을 분리 인식**
+5. **보안/확장성/운영성은 내부에서 크게 개선하되 외부 행동은 보존**
 
-Mutation steering은 child hypothesis를 부분 diff로 반환하지 않는다. 대신 **child 전체 ELG root node** 를 다시 생성한다. 그러나 prompt 수준에서는 이것이 parent에 대한 “국소적 mutation” 으로 행동하도록 요구한다. 즉 구현 관점에서는 full rewrite이고, 알고리즘 관점에서는 **locally constrained proposal distribution** 으로 볼 수 있다.
+이 문서는 앞으로의 재구현 작업에서
 
-### 9.4 Prompted mutation family
+- 무엇을 그대로 지켜야 하는지
+- 무엇을 내부적으로 바꿔도 되는지
+- 어디가 핵심이고 어디가 부수적인지
 
-Score-directed steering prompt는 다음 mutation family를 우선 후보로 제시한다.
-
-- `replace_atomic_feature`
-- `replace_atomic_reformulate`
-- `append_atomic`
-- `remove_atomic`
-- `change_relation_type`
-- `wrap_not`
-
-중요한 점은 ELG core 자체는 이보다 더 일반적인 구조 변환을 표현할 수 있지만, 현재 steering prompt는 탐색 안정성을 위해 더 좁은 mutation family를 사용한다는 것이다.
-
-### 9.5 Structural constraint on child hypothesis
-
-Steering 결과는 다음 구조 제약을 만족해야 한다.
-
-- child는 완전한 relation-level proposition이어야 함
-- root는 relation node를 유지해야 함
-- condition side와 target side를 모두 보존해야 함
-- measurable atomic 표현을 우선해야 함
-
-이 제약은 search loop가 fragment-level proposal이나 degenerate hypothesis로 붕괴하는 것을 방지한다.
-
-### 9.6 Output validation
-
-Mutation steering 출력은 JSON parse 후 다음을 검증한다.
-
-- `domain_reason`, `score_reason`, `mutation_summary` 의 non-empty 여부
-- `operation_score_rankings` 의 dict 여부 및 rank 정수성
-- `child_hypothesis` 의 dict 여부
-- resulting ELG object의 정상 생성 가능 여부
-
-이 validation을 통과한 child만 archive 반영 단계로 이동한다.
-
----
-
-## 10. Serial Search Procedure
-
-Serial mode는 가장 직접적인 구현이며, 검색 동작을 이해하기 위한 기준선이다.
-
-### Algorithm 2. Serial local search update
-
-```text
-Initialize recent_history = []
-For iteration t in {1, ..., T}:
-  1. parent <- sample_parent(archive)
-  2. child <- steer_mutation(parent, recent_history[-3:], archive_top3)
-  3. metrics <- evaluate(child)
-  4. delta <- score(metrics) - score(parent)
-  5. reflect_result(child, metrics, delta)
-  6. record_parent_outcome(parent.fingerprint, delta)
-  7. append result summary to recent_history
-```
-
-`recent_history` 에는 현재까지의 mutation summary, domain/score reason, 결과 hypothesis, score delta가 누적되며, subsequent steering prompt는 이 중 최근 3개만 참조한다. 이 설계는 장기 메모리 폭주를 피하면서도, 아주 최근의 탐색 실패·성공 패턴은 반영하도록 한다.
-
----
-
-## 11. Parallel Worker Procedure
-
-### 11.1 Motivation
-
-Worker mode는 evaluator와 steering이 모두 LLM 및 subprocess를 포함하기 때문에, iteration 간 대기 시간이 상대적으로 큰 상황에서 wall-clock throughput을 높이기 위해 도입되었다.
-
-### 11.2 Worker task payload
-
-각 worker는 다음 정보를 직렬화된 task로 전달받는다.
-
-- parent hypothesis
-- parent hypothesis natural language
-- parent metrics
-- iteration id
-- parent score
-- random steering flag
-- LLM config
-- dataset schema path
-- evaluator parameters
-- parser/steering retry budget
-- recent history
-- top hypotheses snapshot
-- seen fingerprint snapshot
-
-### 11.3 Worker-side execution
-
-Worker는 독립적으로 다음 절차를 수행한다.
-
-1. parent ELG 복원
-2. 로컬 LLM client 구성
-3. dataset schema 로드
-4. worker-local evaluator 생성
-5. 필요 시 parent hypothesis natural-language rendering 재생성
-6. mutation steering 수행
-7. child fingerprint 계산 및 task에 포함된 seen snapshot과 비교
-8. 이미 알려진 fingerprint이면 evaluation 없이 duplicate-skip result 반환
-9. 아니면 child hypothesis 평가
-10. result payload 반환
-
-### 11.4 Controller-side scheduling
-
-Parallel controller는 처음에 `min(worker_count, total_iterations)` 개의 task를 제출한다. 이후 완료된 future를 감지할 때마다 다음을 수행한다.
-
-1. worker result 회수
-2. duplicate-skip 여부 확인
-3. skip이 아니면 archive 반영 및 reward update
-4. recent history 갱신
-5. 남은 iteration budget이 있으면 새 task 제출
-
-이 방식은 strict synchronous generation이 아니라 **completion-driven asynchronous refill** 에 가깝다.
-
-### Algorithm 3. Parallel worker scheduling
-
-```text
-1. submit up to min(W, T) worker tasks
-2. while pending futures exist:
-3.   wait for any completed future
-4.   if result is duplicate-skip:
-5.      do not evaluate/integrate child
-6.   else:
-7.      integrate returned child and metrics into archive
-8.      update parent reward statistics
-9.      append new result to recent_history
-10.  if iteration budget remains:
-11.     build a fresh worker task from current archive snapshot
-12.     submit the next worker
-```
-
-### 11.5 Trade-off
-
-Parallel mode는 throughput 측면에서는 유리하지만, 완전히 직렬적인 “한 step의 결과가 다음 step의 prompt context에 즉시 반영되는” 이상적인 closed-loop search와는 다르다. 즉 이미 제출된 worker task는 이전 archive snapshot을 기반으로 작동하므로, 일부 stale context가 존재한다. 현 구현은 이 trade-off를 감수하고도 practical speedup을 얻는 쪽을 선택한다.
-
-따라서 worker duplicate-skip 역시 완전한 global dedup은 아니다. 이미 archive에 들어온 fingerprint에 대해서는 높은 확률로 evaluation을 피할 수 있지만, 서로 다른 worker가 **동시에 아직 archive에 반영되지 않은 동일 child** 를 생성한 경우에는 중복 evaluation이 남을 수 있다. 현재 설계는 이 남은 race를 허용하는 대신 구현 복잡도를 낮추는 쪽을 택한다.
-
----
-
-## 12. Runtime Persistence and Observability
-
-HypoEvolve는 각 run마다 독립 디렉토리를 생성하고, 탐색 과정을 복수의 artifact로 저장한다.
-
-### 12.1 Run directory
-
-기본 출력 경로는 다음과 같다.
-
-```text
-.hypoevolve/runs/<run-id>/
-```
-
-여기서 `run-id` 는 기본적으로 난수 UUID prefix이다.
-
-### 12.2 Persisted artifacts
-
-각 run은 다음 파일을 생성한다.
-
-- `trace.jsonl`: iteration별 event append-only log
-- `checkpoint.json`: 최신 archive snapshot
-- `best.json`: 현재 최고 가설과 metrics
-- `artifacts/seed.json`: 시드 가설 artifact
-- `artifacts/iteration_XXXX.json`: 각 iteration 산출물
-- `hypoevolve.log`: 실행 로그 파일
-
-### 12.3 Trace event schema
-
-각 trace event는 다음 정보를 포함한다.
-
-- `iteration`
-- `parent`
-- `child`
-- `metrics`
-- `metadata`
-
-metadata에는 예컨대 다음이 들어간다.
-
-- hypothesis natural language
-- parent score
-- score delta
-- mutation summary
-- domain reason
-- score reason
-- map-elites descriptor
-- random steering 여부
-- worker mode 여부
-
-즉 trace는 단순 로그가 아니라, **탐색 trajectory를 재구성할 수 있는 실험 기록** 역할을 한다.
-
-또한 `hypoevolve.log` 에는 duplicate-skip 관련 요약 로그가 남는다.
-
-- iteration-level: `iter.skip_duplicate`, `worker.skip_duplicate`
-- run-level summary: `run.duplicate_summary`
-
-이 로그를 통해 한 run에서 novelty gate가 얼마나 자주 evaluation을 절약했는지 빠르게 확인할 수 있다.
-
----
-
-## 13. Configuration Space
-
-HypoEvolve는 경량 YAML config를 사용하며, 주요 제어 변수는 다음과 같다.
-
-### 13.1 LLM configuration
-
-- `model`
-- `temperature`
-- `max_tokens`
-- `api_key`
-- `api_base`
-- `timeout`
-- `retries`
-- `retry_delay`
-
-### 13.2 Parser and evaluator configuration
-
-- `parser.retries`
-- `evaluator.dataset_schema_path`
-- `evaluator.parameters`
-- `evaluator.seed`
-
-### 13.3 Search configuration
-
-- `search.iterations`
-- `search.steering_retries`
-- `search.random_steering_prob`
-- `search.random_seed`
-
-### 13.4 Archive configuration
-
-- `archive.coverage_bins`
-- `archive.complexity_bins`
-- `archive.per_cell_top_k`
-
-### 13.5 Runtime configuration
-
-- `output.base_dir`
-- `logging.level`
-- `workers.enabled`
-- `workers.count`
-
-이 구성은 “탐색 예산”, “proposal stochasticity”, “quality-diversity granularity”, “병렬성”, “LLM backend”를 서로 독립적으로 제어할 수 있게 한다.
-
----
-
-## 14. Design Rationale
-
-### 14.1 Why ELG instead of raw text?
-
-자연어 가설만으로는 중복 판정, 구조 변형, complexity 측정이 어렵다. ELG는 다음 장점을 제공한다.
-
-- 구조적 정규화 가능
-- 논리 연산 단위 mutation 가능
-- fingerprint 기반 dedup 가능
-- readable rendering과 machine execution 사이의 매개체 역할
-
-### 14.2 Why use LLMs for both proposal and evaluator generation?
-
-Hypothesis space가 넓고 도메인별 operationalization이 다르기 때문에, 고정 템플릿 evaluator 하나로는 충분하지 않다. HypoEvolve는 LLM을 두 곳에 배치한다.
-
-1. **proposal model**: hypothesis structure를 제안
-2. **code generator**: measurable hypothesis를 dataset-aware evaluator code로 operationalize
-
-즉 LLM은 단순 judge가 아니라, **proposal distribution과 evaluation implementation을 동시에 제공하는 생성 계층**으로 기능한다.
-
-### 14.3 Why uplift × coverage?
-
-정밀도(precision)만 최대화하면 극도로 희귀한 패턴이 과대평가될 수 있다. 반대로 coverage만 높이면 baseline과 구별되지 않는 일반 사건에 높은 점수가 갈 수 있다. `uplift × coverage` 는 다음 균형을 제공한다.
-
-- baseline 대비 개선(uplift)
-- 조건의 실질적 적용 범위(coverage)
-
-따라서 이 점수는 “드물지만 완벽한 규칙”과 “흔하지만 무의미한 규칙”을 동시에 억제한다.
-
-### 14.4 Why archive-based selection instead of greedy hill climbing?
-
-가설 탐색은 다봉성(multimodality)을 갖고, 서로 다른 구조가 서로 다른 방식으로 유망할 수 있다. archive는 다음 효과를 제공한다.
-
-- 단일 best candidate로의 조기 수렴 완화
-- coverage-complexity 공간의 다양성 유지
-- bandit-style parent reuse를 통한 proposal budget 재배분
-
----
-
-## 15. Positioning Relative to Adjacent Systems
-
-HypoEvolve는 세 가지 계열의 시스템과 인접해 있다.
-
-1. **rule discovery systems**: 데이터 위에서 설명 가능한 규칙을 찾는다는 점에서 유사하지만, HypoEvolve는 규칙 후보를 자연어-구조-코드의 다층 표현으로 다룬다.
-2. **program evolution systems**: proposal, archive, iterative selection의 구조를 공유하지만, 진화 대상이 실행 코드가 아니라 구조화된 가설이라는 점이 다르다.
-3. **LLM-only reasoning systems**: LLM을 중심에 두지만, 최종 평가는 자유 텍스트 판단이 아니라 데이터셋 위의 실행 결과로 환원된다는 점이 다르다.
-
-따라서 HypoEvolve는 가장 적절하게는 **symbolic hypothesis representation, LLM-guided generation, and dataset-grounded empirical scoring을 결합한 hybrid research system** 으로 위치지을 수 있다.
-
----
-
-## 16. Current Limitations
-
-본 절은 현재 구현의 한계를 방법론 수준에서 명시한다.
-
-### 16.1 Evaluator execution trust boundary
-
-Evaluator 코드는 timeout과 출력 검증을 가지지만, 본질적으로 LLM이 생성한 Python 코드를 로컬 subprocess에서 실행한다. 따라서 현재 시스템은 **실험용 신뢰 경계(trust boundary)** 를 가지며, 강한 샌드박스 보안 모델을 전제로 하지 않는다.
-
-### 16.2 Prompt-level search space restriction
-
-ELG core는 `AND`, `OR`, `NOT` 을 지원하지만, 현재 steering prompt는 주로 `AND`, `NOT` 기반 child generation을 유도한다. 따라서 이론적 hypothesis space와 실제 proposal distribution 사이에는 불일치가 존재한다.
-
-### 16.3 Descriptor simplicity
-
-Archive descriptor는 coverage와 node complexity 두 차원만 사용한다. 이는 계산이 간단하고 안정적이지만, 의미론적 novelty나 temporal regime diversity를 직접 반영하지는 못한다.
-
-### 16.4 Partial staleness in parallel mode
-
-Parallel mode에서 이미 제출된 worker task는 archive의 최신 상태를 즉시 반영하지 못한다. 따라서 완전한 synchronous closed-loop search와 비교하면 context staleness가 존재한다.
-
-### 16.5 External model dependence
-
-Parser, measurable rewrite, natural-language rendering, mutation steering, evaluator codegen 모두 외부 LLM backend에 의존한다. 따라서 재현성과 비용은 모델 응답 품질 및 API 상태에 영향을 받는다.
-
----
-
-## 17. Reproducibility and Experimental Reading
-
-HypoEvolve 결과를 읽을 때에는 다음 세 층위를 분리해 해석하는 것이 바람직하다.
-
-1. **Representation layer**: ELG가 실제로 어떤 구조를 표현했는가
-2. **Proposal layer**: LLM이 어떤 mutation 방향을 선택했는가
-3. **Execution layer**: evaluator code가 그 가설을 데이터 위에서 어떻게 operationalize했는가
-
-이 세 층위를 분리하면, score 개선이 진짜 hypothesis quality 개선인지, evaluator operationalization 차이 때문인지, 또는 prompt stochasticity 때문인지 더 정교하게 분석할 수 있다.
-
-실험 기록 측면에서 최소한 다음 파일을 함께 읽는 것이 권장된다.
-
-- `best.json`
-- `checkpoint.json`
-- `trace.jsonl`
-- `artifacts/seed.json`
-- `artifacts/iteration_XXXX.json`
-- `hypoevolve.log`
-
----
-
-## 18. Summary
-
-HypoEvolve는 현재 구현 기준으로 다음과 같이 요약될 수 있다.
-
-> HypoEvolve는 자연어 가설을 ELG라는 구조적 논리 표현으로 변환하고, LLM이 생성한 mutation proposal과 evaluator code를 이용해 데이터셋 위에서 가설의 경험적 유용성을 반복적으로 최적화하는 archive-based hypothesis evolution system이다.
-
-핵심 특징은 다음 네 가지다.
-
-1. **가설을 코드가 아닌 구조 객체로 직접 다룬다.**
-2. **LLM을 파서이자 proposal model이자 evaluator code generator로 사용한다.**
-3. **uplift × coverage 기반 점수로 경험적 유용성을 측정한다.**
-4. **coverage-complexity archive와 UCB-style parent sampling으로 탐색을 조직한다.**
-
-따라서 HypoEvolve는 단순한 규칙 엔진도, 단순한 prompt optimizer도 아니다. 현재 시스템은 보다 정확히 말해, **구조적 가설 표현, 생성적 코드 작성, quality-diversity memory를 결합한 연구용 hypothesis search runtime** 이다.
-
----
-
-## Appendix A. Implementation Anchors
-
-본 문서와 직접적으로 대응되는 구현 파일은 다음과 같다.
-
-- ELG types: `elg/ir.py`
-- ELG codec: `elg/codec.py`
-- ELG normalization and fingerprinting: `elg/normalize.py`, `elg/metrics.py`
-- Structural mutation helpers: `elg/mutate.py`
-- Config model: `hypoevolve/config.py`
-- CLI entrypoint: `hypoevolve/cli.py`
-- LLM client: `hypoevolve/llm.py`
-- Parser and measurable rewrite: `hypoevolve/parser.py`
-- Evaluator orchestration: `hypoevolve/evaluator.py`
-- Executor sandbox wrapper: `hypoevolve/executor.py`
-- Prompt helpers: `hypoevolve/prompts.py`, `hypoevolve/helper.py`
-- Archive and parent sampling: `hypoevolve/archive.py`
-- Search controller: `hypoevolve/controller.py`
-- Worker runtime: `hypoevolve/workers.py`
-- Dataset abstraction: `hypoevolve/dataset.py`
-- Runtime persistence: `hypoevolve/runtime.py`
+를 판단하는 기준 문서로 사용하면 된다.
