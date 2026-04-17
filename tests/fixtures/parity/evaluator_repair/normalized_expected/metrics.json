@@ -1,0 +1,13 @@
+{
+  "combined_score": 0.1,
+  "precision": 0.2,
+  "baseline": 0.1,
+  "coverage": 0.5,
+  "uplift": 0.1,
+  "support_count": 1,
+  "total_count": 2,
+  "rationale": "fixed",
+  "used_parameters": {
+    "HORIZON": 1
+  }
+}

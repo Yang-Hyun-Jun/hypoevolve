@@ -1,0 +1,54 @@
+[
+  {
+    "baseline": 0.0,
+    "best_score_after": 0.5,
+    "best_updated": true,
+    "cell": [
+      0,
+      0
+    ],
+    "complexity": 1,
+    "coverage": 0.0,
+    "domain_reason": "",
+    "fingerprint": "d8240f708d9f80c2a4394f80bf7ec9f27d2ed7d3a6dfd4a272d3e6ff6c6926f7",
+    "hypothesis_nl": "A",
+    "iteration": 0,
+    "mutation_summary": "",
+    "parent_fingerprint": null,
+    "precision": 0.0,
+    "random_steering": false,
+    "score": 0.5,
+    "score_reason": "",
+    "status": "seed",
+    "support_count": 0,
+    "total_count": 0,
+    "uplift": 0.0,
+    "worker_mode": false
+  },
+  {
+    "baseline": 0.0,
+    "best_score_after": 0.5,
+    "best_updated": false,
+    "cell": [
+      0,
+      0
+    ],
+    "complexity": 1,
+    "coverage": 0.0,
+    "domain_reason": "Generated-seed local mutation.",
+    "fingerprint": "19ddee656473804aee4c65d5b361ae905904e4f0bfea94458f483c5e46277a3d",
+    "hypothesis_nl": "B",
+    "iteration": 1,
+    "mutation_summary": "Applied a replace_atomic-style local mutation.",
+    "parent_fingerprint": "d8240f708d9f80c2a4394f80bf7ec9f27d2ed7d3a6dfd4a272d3e6ff6c6926f7",
+    "precision": 0.0,
+    "random_steering": true,
+    "score": 0.5,
+    "score_reason": "Use generated seed path.",
+    "status": "evaluated",
+    "support_count": 0,
+    "total_count": 0,
+    "uplift": 0.0,
+    "worker_mode": false
+  }
+]

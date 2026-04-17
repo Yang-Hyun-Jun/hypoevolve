@@ -1,0 +1,60 @@
+[
+  {
+    "child": {
+      "root": {
+        "kind": "atomic",
+        "name": "A"
+      }
+    },
+    "iteration": 0,
+    "metadata": {
+      "map_elites": {
+        "complexity": 1,
+        "complexity_bin": 0,
+        "coverage": 0.0,
+        "coverage_bin": 0
+      },
+      "source": "seed"
+    },
+    "metrics": {
+      "combined_score": 0.5
+    },
+    "parent": null
+  },
+  {
+    "child": {
+      "root": {
+        "kind": "atomic",
+        "name": "B"
+      }
+    },
+    "iteration": 1,
+    "metadata": {
+      "domain_reason": "Generated-seed local mutation.",
+      "map_elites": {
+        "complexity": 1,
+        "complexity_bin": 0,
+        "coverage": 0.0,
+        "coverage_bin": 0
+      },
+      "mutation_summary": "Applied a replace_atomic-style local mutation.",
+      "operation_score_rankings": {
+        "replace_atomic_feature": 1
+      },
+      "parent_score": 0.5,
+      "random_steering": true,
+      "score_delta": 0.0,
+      "score_reason": "Use generated seed path.",
+      "steered": true
+    },
+    "metrics": {
+      "combined_score": 0.5
+    },
+    "parent": {
+      "root": {
+        "kind": "atomic",
+        "name": "A"
+      }
+    }
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "hypothesis": {
+    "root": {
+      "inputs": [
+        {
+          "kind": "atomic",
+          "name": "A"
+        },
+        {
+          "kind": "atomic",
+          "name": "B"
+        }
+      ],
+      "kind": "relation",
+      "name": "IMPLIES"
+    }
+  },
+  "metrics": {
+    "combined_score": 0.6
+  }
+}

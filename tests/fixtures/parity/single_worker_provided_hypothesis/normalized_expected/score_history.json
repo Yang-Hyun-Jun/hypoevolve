@@ -1,0 +1,54 @@
+[
+  {
+    "baseline": 0.0,
+    "best_score_after": 0.5,
+    "best_updated": true,
+    "cell": [
+      0,
+      0
+    ],
+    "complexity": 3,
+    "coverage": 0.0,
+    "domain_reason": "",
+    "fingerprint": "bc20fd386097133cfad75283d9a1e385b393a85c23cea986a8029a42b29d2f51",
+    "hypothesis_nl": "IMPLIES(\n  A,\n  B\n)",
+    "iteration": 0,
+    "mutation_summary": "",
+    "parent_fingerprint": null,
+    "precision": 0.0,
+    "random_steering": false,
+    "score": 0.5,
+    "score_reason": "",
+    "status": "seed",
+    "support_count": 0,
+    "total_count": 0,
+    "uplift": 0.0,
+    "worker_mode": false
+  },
+  {
+    "baseline": 0.0,
+    "best_score_after": 0.5,
+    "best_updated": false,
+    "cell": [
+      0,
+      0
+    ],
+    "complexity": 3,
+    "coverage": 0.0,
+    "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
+    "fingerprint": "c449a6aad92e4b3cfd734470607088e74e95209b0b78e0fa36353e7280026a25",
+    "hypothesis_nl": "IMPLIES(\n  A2,\n  B\n)",
+    "iteration": 1,
+    "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
+    "parent_fingerprint": "bc20fd386097133cfad75283d9a1e385b393a85c23cea986a8029a42b29d2f51",
+    "precision": 0.0,
+    "random_steering": true,
+    "score": 0.5,
+    "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
+    "status": "evaluated",
+    "support_count": 0,
+    "total_count": 0,
+    "uplift": 0.0,
+    "worker_mode": false
+  }
+]

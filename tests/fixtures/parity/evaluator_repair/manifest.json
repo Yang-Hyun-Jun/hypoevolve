@@ -1,0 +1,23 @@
+{
+  "scenario": "evaluator_repair",
+  "status": "implemented",
+  "mode": "stubbed",
+  "required_artifacts": [
+    "manifest.json",
+    "input_config.json",
+    "stubbed_llm_responses.json"
+  ],
+  "notes": "evaluator repair baseline fixture placeholder",
+  "normalization": [
+    "run_id",
+    "timestamps",
+    "temp_paths",
+    "executor_work_dir",
+    "log_noise"
+  ],
+  "implemented_files": [
+    "metrics.json",
+    "artifacts.json",
+    "second_user_prompt.txt"
+  ]
+}

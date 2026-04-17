@@ -1,0 +1,76 @@
+# Hypothesis (Readable)
+
+IMPLIES(
+  AND(
+    A,
+    B
+  ),
+  C
+)
+
+# Dataset Description
+
+Test dataset
+
+# Dataframe Index (Not Column)
+
+name: close_time
+dtype: datetime64[us]
+
+# Entities
+
+BTCUSDT
+
+# Column Specifications
+
+- CLOSE: close price
+
+# DatasetAccessor Interface
+
+DatasetAccessor methods:
+- accessor.entities() -> list[str]
+- accessor.column_names() -> list[str]
+- accessor.column_descriptions() -> dict[str, str]
+- accessor.load_dataframe(entity) -> pandas.DataFrame
+- accessor.load_all_dataframes() -> dict[str, pandas.DataFrame]
+- accessor.head(entity, n=5) -> pandas.DataFrame
+- accessor.summary() -> dict
+
+# Task
+
+Write Python code that evaluates the measurable ELG hypothesis on the provided dataset and returns exactly one Python dictionary matching the required output contract from `evaluate_hypothesis(...)`.
+
+Return only raw Python source for `candidate.py`.
+Do not use markdown fences.
+Do not add explanations, notes, or example usage.
+Do not call the function at module scope.
+
+Treat the column names shown in Column Specifications as exact, case-sensitive names.
+Use only those exact dataset column names unless you explicitly create a derived column earlier in the function.
+Do not assume transformed columns already exist in the input dataframe.
+If you need a transformed signal, compute it from the provided base columns first and then reference the derived column you created.
+
+If the measurable ELG contains parameter-slot notation such as `{RET_WINDOW}`, `{HORIZON}`, `{NEG_Z_THRESHOLD}`, or `{POS_Z_THRESHOLD}`, treat those as evaluator parameters, assign reasonable general-purpose values, use them consistently in the computation, and return the actual values used in `used_parameters`.
+
+# Previous Attempt Failed
+
+## Failure Message
+
+RuntimeError: Generated evaluator code failed with exit_code=1: Traceback (most recent call last):
+  File '<CANDIDATE_PATH>', line 3, in evaluate_hypothesis
+KeyError: 'UNKNOWN_COL'
+
+# Previous Candidate Code
+
+def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:
+    df = accessor.load_dataframe('BTCUSDT')
+    _ = df['UNKNOWN_COL']
+    return {'combined_score': 0.0, 'precision': 0.0, 'baseline': 0.0, 'coverage': 0.0, 'uplift': 0.0, 'support_count': 0, 'total_count': 0, 'rationale': 'first', 'used_parameters': {}}
+
+# Repair Requirements
+
+- Diagnose the failure using both the traceback/error message and the previous code.
+- Keep the same function signature and output contract.
+- Do not reuse any dataframe column name unless it exactly matches a provided schema column or is created earlier in the function.
+- If the failure mentions a missing column or KeyError, fix the exact mismatch instead of guessing a similar name.
+- Write a complete corrected version.

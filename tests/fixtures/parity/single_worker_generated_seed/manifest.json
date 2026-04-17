@@ -1,0 +1,25 @@
+{
+  "scenario": "single_worker_generated_seed",
+  "status": "implemented",
+  "mode": "stubbed",
+  "required_artifacts": [
+    "manifest.json",
+    "input_config.json",
+    "stubbed_llm_responses.json"
+  ],
+  "notes": "generated-seed single-worker baseline fixture placeholder",
+  "normalization": [
+    "run_id",
+    "timestamps",
+    "temp_paths",
+    "executor_work_dir",
+    "log_noise"
+  ],
+  "implemented_files": [
+    "best.json",
+    "checkpoint.json",
+    "run_summary.json",
+    "score_history.json",
+    "trace.json"
+  ]
+}

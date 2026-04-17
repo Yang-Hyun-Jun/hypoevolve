@@ -1,0 +1,88 @@
+[
+  {
+    "child": {
+      "root": {
+        "inputs": [
+          {
+            "kind": "atomic",
+            "name": "A"
+          },
+          {
+            "kind": "atomic",
+            "name": "B"
+          }
+        ],
+        "kind": "relation",
+        "name": "IMPLIES"
+      }
+    },
+    "iteration": 0,
+    "metadata": {
+      "map_elites": {
+        "complexity": 3,
+        "complexity_bin": 0,
+        "coverage": 0.0,
+        "coverage_bin": 0
+      },
+      "source": "seed"
+    },
+    "metrics": {
+      "combined_score": 0.5
+    },
+    "parent": null
+  },
+  {
+    "child": {
+      "root": {
+        "inputs": [
+          {
+            "kind": "atomic",
+            "name": "A2"
+          },
+          {
+            "kind": "atomic",
+            "name": "B"
+          }
+        ],
+        "kind": "relation",
+        "name": "IMPLIES"
+      }
+    },
+    "iteration": 1,
+    "metadata": {
+      "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
+      "map_elites": {
+        "complexity": 3,
+        "complexity_bin": 0,
+        "coverage": 0.0,
+        "coverage_bin": 0
+      },
+      "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
+      "operation_score_rankings": {},
+      "parent_score": 0.5,
+      "random_steering": true,
+      "score_delta": 0.0,
+      "score_reason": "Tightening one atomic condition is a local change that may improve precision.",
+      "steered": true
+    },
+    "metrics": {
+      "combined_score": 0.5
+    },
+    "parent": {
+      "root": {
+        "inputs": [
+          {
+            "kind": "atomic",
+            "name": "A"
+          },
+          {
+            "kind": "atomic",
+            "name": "B"
+          }
+        ],
+        "kind": "relation",
+        "name": "IMPLIES"
+      }
+    }
+  }
+]

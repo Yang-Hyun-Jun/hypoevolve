@@ -1,0 +1,11 @@
+{
+  "hypothesis": {
+    "root": {
+      "kind": "atomic",
+      "name": "A"
+    }
+  },
+  "metrics": {
+    "combined_score": 0.5
+  }
+}
