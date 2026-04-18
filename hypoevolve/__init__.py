@@ -24,7 +24,8 @@ from .dataset import (
     dataset_schema_from_dict,
     load_dataset_schema,
 )
-from .evaluator import Evaluator, LLMEvaluator
+from .evaluator import LLMEvaluator
+from .evaluator_contracts import Evaluator
 from .helper import (
     build_evaluator_prompt_variables,
     build_evaluator_runtime_wrapper,
@@ -44,7 +45,8 @@ from .mutation import MutationDecision, steer_mutation
 from .parser import ParseError, llm_hypothesis_to_natural_language, llm_make_hypothesis_measurable, llm_parse_hypothesis, parse_hypothesis_text
 from .prompts import load_prompt
 from .runtime import create_run_dir, write_artifact, write_best, write_checkpoint, write_trace
-from .workers import WorkerResult, WorkerTask, run_worker_task
+from .worker_contracts import WorkerResult, WorkerTask
+from .workers import run_worker_task
 
 __all__ = [
     "ArchiveEntry",

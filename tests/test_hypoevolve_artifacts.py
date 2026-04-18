@@ -5,6 +5,11 @@ import unittest
 
 from elg import AtomicNode, Hypothesis
 from hypoevolve.archive import MAPElitesArchive
+from hypoevolve.artifact_contracts import (
+    build_checkpoint_payload,
+    build_history_entry,
+    build_trace_event,
+)
 from hypoevolve.artifacts import RunArtifactRecorder
 from hypoevolve.runtime import create_run_dir
 
@@ -235,6 +240,31 @@ class TestRunArtifactRecorder(unittest.TestCase):
         self.assertEqual(history_entry['hypothesis_nl'], 'B')
         self.assertTrue(history_entry['worker_mode'])
         self.assertEqual(history_entry['cell'], list(descriptor['cell']))
+        self.assertEqual(checkpoint, build_checkpoint_payload(archive, 2))
+        self.assertEqual(
+            trace_event,
+            build_trace_event(
+                2,
+                parent,
+                child,
+                {'combined_score': 0.4},
+                {'mutation_summary': 'replace A with B'},
+            ),
+        )
+        self.assertEqual(
+            history_entry,
+            build_history_entry(
+                iteration=2,
+                hypothesis=child,
+                metrics={'combined_score': 0.4, 'precision': 0.7},
+                best_score_after=0.4,
+                best_updated=True,
+                status='evaluated',
+                metadata={'mutation_summary': 'replace A with B', 'worker_mode': True},
+                descriptor=descriptor,
+                parent_fingerprint='parent-fp',
+            ),
+        )
 
     def test_materialize_top_k_evaluator_artifacts_writes_only_ranked_entries(self):
         with tempfile.TemporaryDirectory() as tmp:

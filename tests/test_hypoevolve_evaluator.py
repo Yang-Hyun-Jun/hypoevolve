@@ -6,6 +6,10 @@ from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import ColumnSpec, DataFile, DatasetAccessor, DatasetSchema, IndexSpec
+from hypoevolve.evaluator_contracts import (
+    Evaluator as EvaluatorContract,
+    REQUIRED_EVALUATION_KEYS,
+)
 from hypoevolve.evaluator import LLMEvaluator
 from hypoevolve.executor import ExecutionResult
 from hypoevolve.helper import build_evaluator_prompt_variables, build_evaluator_runtime_wrapper, build_steering_prompt_variables
@@ -37,6 +41,12 @@ class FakeExecutor:
 
 
 class TestHypoEvolveEvaluator(unittest.TestCase):
+    def test_evaluator_module_re_exports_contract_protocol_and_required_keys(self):
+        from hypoevolve.evaluator import Evaluator
+
+        self.assertIs(Evaluator, EvaluatorContract)
+        self.assertEqual(LLMEvaluator.REQUIRED_KEYS, REQUIRED_EVALUATION_KEYS)
+
     def setUp(self):
         self.schema = DatasetSchema(
             files=[DataFile(entity="BTCUSDT", path="BTCUSDT.parquet")],

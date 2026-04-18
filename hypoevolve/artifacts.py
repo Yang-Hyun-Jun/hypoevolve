@@ -9,6 +9,11 @@ from typing import Any, Dict
 
 from elg import Hypothesis, fingerprint, render_pretty
 from hypoevolve.archive import MAPElitesArchive
+from hypoevolve.artifact_contracts import (
+    build_checkpoint_payload,
+    build_history_entry,
+    build_trace_event,
+)
 from hypoevolve.reporting import generate_run_report
 from hypoevolve.runtime import (
     write_artifact,
@@ -306,7 +311,9 @@ class RunArtifactRecorder:
         manifest: list[Dict[str, object]] = []
 
         for rank, entry in enumerate(top_entries, start=1):
-            evaluation_artifacts = self.evaluation_artifact_cache.get(entry.fingerprint, {})
+            evaluation_artifacts = self.evaluation_artifact_cache.get(
+                entry.fingerprint, {}
+            )
             source_prefix = (
                 "seed" if entry.iteration == 0 else f"iteration_{entry.iteration:04d}"
             )
@@ -356,14 +363,7 @@ class RunArtifactRecorder:
     def _checkpoint_payload(
         self, archive: MAPElitesArchive, iteration: int
     ) -> Dict[str, object]:
-        best = archive.best
-        return {
-            "iteration": iteration,
-            "archive_size": len(archive),
-            "best_metrics": dict(best.metrics) if best else {},
-            "best_hypothesis": best.hypothesis.to_dict() if best else None,
-            "archive": archive.snapshot(),
-        }
+        return build_checkpoint_payload(archive, iteration)
 
     def _trace_event(
         self,
@@ -373,13 +373,7 @@ class RunArtifactRecorder:
         metrics: Dict[str, object],
         metadata: Dict[str, object],
     ) -> Dict[str, object]:
-        return {
-            "iteration": iteration,
-            "parent": parent.to_dict() if parent else None,
-            "child": child.to_dict(),
-            "metrics": metrics,
-            "metadata": metadata,
-        }
+        return build_trace_event(iteration, parent, child, metrics, metadata)
 
     def _history_entry(
         self,
@@ -394,27 +388,14 @@ class RunArtifactRecorder:
         descriptor: Dict[str, object],
         parent_fingerprint: str | None = None,
     ) -> Dict[str, object]:
-        hypothesis_nl = str(metadata.get("hypothesis_nl", "")).strip()
-        return {
-            "iteration": iteration,
-            "status": status,
-            "fingerprint": fingerprint(hypothesis),
-            "parent_fingerprint": parent_fingerprint,
-            "score": float(metrics.get("combined_score", 0.0)),
-            "precision": metrics.get("precision", 0.0),
-            "baseline": metrics.get("baseline", 0.0),
-            "coverage": metrics.get("coverage", 0.0),
-            "uplift": metrics.get("uplift", 0.0),
-            "support_count": metrics.get("support_count", 0),
-            "total_count": metrics.get("total_count", 0),
-            "best_score_after": best_score_after,
-            "best_updated": best_updated,
-            "hypothesis_nl": hypothesis_nl or render_pretty(hypothesis),
-            "mutation_summary": metadata.get("mutation_summary", ""),
-            "score_reason": metadata.get("score_reason", ""),
-            "domain_reason": metadata.get("domain_reason", ""),
-            "worker_mode": bool(metadata.get("worker_mode", False)),
-            "random_steering": bool(metadata.get("random_steering", False)),
-            "complexity": descriptor.get("complexity", 0),
-            "cell": list(descriptor.get("cell", [])),
-        }
+        return build_history_entry(
+            iteration=iteration,
+            hypothesis=hypothesis,
+            metrics=metrics,
+            best_score_after=best_score_after,
+            best_updated=best_updated,
+            status=status,
+            metadata=metadata,
+            descriptor=descriptor,
+            parent_fingerprint=parent_fingerprint,
+        )

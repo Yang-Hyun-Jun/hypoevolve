@@ -5,12 +5,15 @@ from __future__ import annotations
 import ast
 import json
 import math
-from typing import Protocol
 
 from elg import Hypothesis
 from hypoevolve.dataset import DatasetAccessor, DatasetSchema
+from hypoevolve.evaluator_contracts import REQUIRED_EVALUATION_KEYS, Evaluator
 from hypoevolve.executor import CodeExecutor, LocalSubprocessExecutor
-from hypoevolve.helper import build_evaluator_prompt_variables, build_evaluator_runtime_wrapper
+from hypoevolve.helper import (
+    build_evaluator_prompt_variables,
+    build_evaluator_runtime_wrapper,
+)
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
     log_error_event,
@@ -20,36 +23,13 @@ from hypoevolve.logger import (
 )
 from hypoevolve.prompts import load_and_render_prompt, load_prompt
 
-
-class Evaluator(Protocol):
-    """Protocol for objects that can score a hypothesis."""
-
-    def evaluate(self, hypothesis: Hypothesis) -> dict[str, object]:
-        """Evaluate one hypothesis.
-
-        Args:
-            hypothesis: The hypothesis to score.
-
-        Returns:
-            dict[str, object]: The normalized evaluation payload.
-        """
-        ...
+__all__ = ["Evaluator", "LLMEvaluator"]
 
 
 class LLMEvaluator:
     """Generate and execute evaluator code for a hypothesis."""
 
-    REQUIRED_KEYS = (
-        "combined_score",
-        "precision",
-        "baseline",
-        "coverage",
-        "uplift",
-        "support_count",
-        "total_count",
-        "rationale",
-        "used_parameters",
-    )
+    REQUIRED_KEYS = REQUIRED_EVALUATION_KEYS
 
     def __init__(
         self,
@@ -138,7 +118,9 @@ class LLMEvaluator:
                 try:
                     ast.parse(code)
                 except SyntaxError as exc:
-                    raise ValueError(f"Generated code has invalid syntax: {exc}") from exc
+                    raise ValueError(
+                        f"Generated code has invalid syntax: {exc}"
+                    ) from exc
                 execution = self.executor.execute(
                     wrapper,
                     files={"candidate.py": f"{code.rstrip()}\n"},
@@ -180,7 +162,13 @@ class LLMEvaluator:
                 rationale = sanitized.get("rationale")
                 sanitized["rationale"] = rationale if isinstance(rationale, str) else ""
 
-                for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
+                for key in (
+                    "combined_score",
+                    "precision",
+                    "baseline",
+                    "coverage",
+                    "uplift",
+                ):
                     value = sanitized.get(key)
                     if not isinstance(value, (int, float)) or isinstance(value, bool):
                         sanitized[key] = 0.0
@@ -192,7 +180,13 @@ class LLMEvaluator:
 
                 non_finite_keys: list[str] = []
 
-                for key in ("combined_score", "precision", "baseline", "coverage", "uplift"):
+                for key in (
+                    "combined_score",
+                    "precision",
+                    "baseline",
+                    "coverage",
+                    "uplift",
+                ):
                     value = sanitized.get(key)
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
                         if not math.isfinite(float(value)):
@@ -213,7 +207,9 @@ class LLMEvaluator:
                     )
                     rationale = str(sanitized.get("rationale", "")).strip()
                     prefix = "non_finite_metrics_sanitized"
-                    sanitized["rationale"] = f"{prefix}: {rationale}" if rationale else prefix
+                    sanitized["rationale"] = (
+                        f"{prefix}: {rationale}" if rationale else prefix
+                    )
 
                 return sanitized
             except Exception as exc:  # noqa: BLE001

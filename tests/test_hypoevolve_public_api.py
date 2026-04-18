@@ -3,6 +3,13 @@ import unittest
 from pathlib import Path
 
 import hypoevolve
+from hypoevolve.evaluator import LLMEvaluator
+from hypoevolve.evaluator_contracts import Evaluator as EvaluatorContract
+from hypoevolve.worker_contracts import (
+    WorkerResult as WorkerResultContract,
+    WorkerTask as WorkerTaskContract,
+)
+from hypoevolve.workers import run_worker_task
 
 
 class TestHypoEvolvePublicAPI(unittest.TestCase):
@@ -44,6 +51,22 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
     def test_internal_worker_payload_types_are_not_advertised_in_root_all(self):
         self.assertNotIn("WorkerTask", hypoevolve.__all__)
         self.assertNotIn("WorkerResult", hypoevolve.__all__)
+
+    def test_root_compatibility_attrs_still_point_at_contract_and_runtime_surfaces(self):
+        self.assertIs(hypoevolve.Evaluator, EvaluatorContract)
+        self.assertIs(hypoevolve.LLMEvaluator, LLMEvaluator)
+        self.assertIs(hypoevolve.WorkerTask, WorkerTaskContract)
+        self.assertIs(hypoevolve.WorkerResult, WorkerResultContract)
+        self.assertIs(hypoevolve.run_worker_task, run_worker_task)
+
+    def test_package_root_sources_boundary_types_from_contract_modules(self):
+        init_path = Path(__file__).resolve().parents[1] / "hypoevolve" / "__init__.py"
+        text = init_path.read_text(encoding="utf-8")
+
+        self.assertIn("from .evaluator_contracts import Evaluator", text)
+        self.assertIn("from .worker_contracts import WorkerResult, WorkerTask", text)
+        self.assertNotIn("from .evaluator import Evaluator, LLMEvaluator", text)
+        self.assertNotIn("from .workers import WorkerResult, WorkerTask, run_worker_task", text)
 
     def test_production_modules_do_not_import_package_root_or_cli(self):
         package_root = Path(__file__).resolve().parents[1] / "hypoevolve"

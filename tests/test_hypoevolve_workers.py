@@ -3,10 +3,18 @@ from unittest.mock import patch
 
 from elg import AtomicNode, Hypothesis, fingerprint
 from hypoevolve.parser import ParseError
+from hypoevolve.worker_contracts import (
+    WorkerResult as WorkerResultContract,
+    WorkerTask as WorkerTaskContract,
+)
 from hypoevolve.workers import WorkerResult, WorkerTask, run_worker_task
 
 
 class TestHypoEvolveWorkers(unittest.TestCase):
+    def test_workers_module_re_exports_contract_types(self):
+        self.assertIs(WorkerTask, WorkerTaskContract)
+        self.assertIs(WorkerResult, WorkerResultContract)
+
     def test_run_worker_task_returns_scored_worker_result_with_child_hypothesis_payload(self):
         task = WorkerTask(
             parent_hypothesis=Hypothesis(root=AtomicNode('A')).to_dict(),

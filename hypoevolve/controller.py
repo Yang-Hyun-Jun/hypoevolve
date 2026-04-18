@@ -13,7 +13,8 @@ from hypoevolve.archive import ArchiveEntry, MAPElitesArchive
 from hypoevolve.artifacts import RunArtifactRecorder
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.dataset import load_dataset_schema
-from hypoevolve.evaluator import Evaluator, LLMEvaluator
+from hypoevolve.evaluator import LLMEvaluator
+from hypoevolve.evaluator_contracts import Evaluator
 from hypoevolve.hypo import generate_random_tree_pair_hypothesis
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
@@ -33,7 +34,8 @@ from hypoevolve.parser import (
     parse_hypothesis_text,
 )
 from hypoevolve.runtime import create_run_dir
-from hypoevolve.workers import WorkerTask, run_worker_task
+from hypoevolve.worker_contracts import WorkerTask
+from hypoevolve.workers import run_worker_task
 
 
 @dataclass(slots=True)
