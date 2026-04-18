@@ -12,6 +12,7 @@ from hypoevolve.archive import MAPElitesArchive
 from hypoevolve.artifact_contracts import (
     build_checkpoint_payload,
     build_history_entry,
+    build_run_summary_payload,
     build_trace_event,
 )
 from hypoevolve.reporting import generate_run_report
@@ -258,32 +259,24 @@ class RunArtifactRecorder:
         Returns:
             Path: The generated markdown report path.
         """
-        best = archive.best
         write_score_history(
             self.run_dir,
             sorted(self.score_history, key=lambda item: item["iteration"]),
         )
         write_run_summary(
             self.run_dir,
-            {
-                "seed_input_text": self.seed_input_text,
-                "iterations_requested": iterations_requested,
-                "worker_count": self.worker_count,
-                "workers_enabled": self.workers_enabled,
-                "dataset_schema_path": self.dataset_schema_path,
-                "archive_size": len(archive),
-                "occupied_cells": archive.occupancy_stats()["occupied_cells"],
-                "occupancy_summary": archive.occupancy_summary(),
-                "duplicate_skips_total": self.duplicate_skips_solo
-                + self.duplicate_skips_worker,
-                "duplicate_skips_solo": self.duplicate_skips_solo,
-                "duplicate_skips_worker": self.duplicate_skips_worker,
-                "known_fingerprint_count": known_fingerprint_count,
-                "best_iteration": best.iteration if best else 0,
-                "best_fingerprint": best.fingerprint if best else "",
-                "best_score": best.score if best else 0.0,
-                "best_hypothesis_nl": best_hypothesis_nl,
-            },
+            build_run_summary_payload(
+                archive=archive,
+                seed_input_text=self.seed_input_text,
+                iterations_requested=iterations_requested,
+                worker_count=self.worker_count,
+                workers_enabled=self.workers_enabled,
+                dataset_schema_path=self.dataset_schema_path,
+                duplicate_skips_solo=self.duplicate_skips_solo,
+                duplicate_skips_worker=self.duplicate_skips_worker,
+                known_fingerprint_count=known_fingerprint_count,
+                best_hypothesis_nl=best_hypothesis_nl,
+            ),
         )
         self._materialize_top_k_evaluator_artifacts(archive)
         return generate_run_report(self.run_dir).markdown_path

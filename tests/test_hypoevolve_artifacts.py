@@ -8,6 +8,7 @@ from hypoevolve.archive import MAPElitesArchive
 from hypoevolve.artifact_contracts import (
     build_checkpoint_payload,
     build_history_entry,
+    build_run_summary_payload,
     build_trace_event,
 )
 from hypoevolve.artifacts import RunArtifactRecorder
@@ -142,10 +143,25 @@ class TestRunArtifactRecorder(unittest.TestCase):
             self.assertIn("archive", checkpoint_payload)
             self.assertIn("best_hypothesis", checkpoint_payload)
             self.assertIn("best_metrics", checkpoint_payload)
-            self.assertIn("iterations_requested", run_summary)
-            self.assertIn("best_score", run_summary)
-            self.assertIn("archive_size", run_summary)
-            self.assertIn("duplicate_skips_total", run_summary)
+            self.assertEqual(
+                run_summary,
+                build_run_summary_payload(
+                    archive=archive,
+                    seed_input_text="if A then B",
+                    iterations_requested=2,
+                    worker_count=1,
+                    workers_enabled=False,
+                    dataset_schema_path="dataset.yaml",
+                    duplicate_skips_solo=1,
+                    duplicate_skips_worker=0,
+                    known_fingerprint_count=2,
+                    best_hypothesis_nl="Child B.",
+                ),
+            )
+            self.assertEqual(run_summary["iterations_requested"], 2)
+            self.assertEqual(run_summary["archive_size"], 2)
+            self.assertEqual(run_summary["duplicate_skips_total"], 1)
+            self.assertEqual(run_summary["best_score"], 0.3)
             self.assertEqual(len(top_manifest), 1)
             self.assertEqual(
                 sorted(top_manifest[0].keys()),

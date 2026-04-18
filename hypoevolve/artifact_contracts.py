@@ -79,8 +79,45 @@ def build_history_entry(
     }
 
 
+def build_run_summary_payload(
+    *,
+    archive: MAPElitesArchive,
+    seed_input_text: str,
+    iterations_requested: int,
+    worker_count: int,
+    workers_enabled: bool,
+    dataset_schema_path: str,
+    duplicate_skips_solo: int,
+    duplicate_skips_worker: int,
+    known_fingerprint_count: int,
+    best_hypothesis_nl: str,
+) -> dict[str, object]:
+    """Build the persisted run summary payload."""
+    best = archive.best
+    occupancy = archive.occupancy_stats()
+    return {
+        "seed_input_text": seed_input_text,
+        "iterations_requested": iterations_requested,
+        "worker_count": worker_count,
+        "workers_enabled": workers_enabled,
+        "dataset_schema_path": dataset_schema_path,
+        "archive_size": len(archive),
+        "occupied_cells": occupancy["occupied_cells"],
+        "occupancy_summary": archive.occupancy_summary(),
+        "duplicate_skips_total": duplicate_skips_solo + duplicate_skips_worker,
+        "duplicate_skips_solo": duplicate_skips_solo,
+        "duplicate_skips_worker": duplicate_skips_worker,
+        "known_fingerprint_count": known_fingerprint_count,
+        "best_iteration": best.iteration if best else 0,
+        "best_fingerprint": best.fingerprint if best else "",
+        "best_score": best.score if best else 0.0,
+        "best_hypothesis_nl": best_hypothesis_nl,
+    }
+
+
 __all__ = [
     "build_checkpoint_payload",
     "build_history_entry",
+    "build_run_summary_payload",
     "build_trace_event",
 ]
