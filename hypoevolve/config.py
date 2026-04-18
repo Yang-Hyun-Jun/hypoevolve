@@ -102,6 +102,28 @@ class HypoEvolveConfig:
     workers: WorkerConfig = field(default_factory=WorkerConfig)
 
 
+def resolve_config_path(
+    path: str | Path | None,
+    default_path: str | Path = "hypoevolve.yaml",
+) -> Path:
+    """Resolve the config path used for one runtime entrypoint."""
+    return Path(path or default_path)
+
+
+def load_runtime_config(
+    path: str | Path | None = None,
+    *,
+    default_path: str | Path = "hypoevolve.yaml",
+) -> HypoEvolveConfig:
+    """Load runtime config using default-path fallback semantics."""
+    config_path = resolve_config_path(path, default_path)
+    if config_path.exists():
+        return load_config(config_path)
+    if path is None:
+        return HypoEvolveConfig()
+    raise ConfigError(f"Config file not found: {config_path}")
+
+
 def load_config(path: str | Path | None = None) -> HypoEvolveConfig:
     """Load a config file or return default settings when no path is given."""
     if path is None:

@@ -9,6 +9,8 @@ from hypoevolve.config import (
     _filter_known,
     _validate_archive_bins,
     load_config,
+    load_runtime_config,
+    resolve_config_path,
 )
 from hypoevolve.dataset import load_dataset_schema
 
@@ -30,6 +32,35 @@ class TestHypoEvolveConfig(unittest.TestCase):
             self.assertEqual(config.search.iterations, 3)
             self.assertEqual(config.archive.coverage_bins, [0.05, 0.15, 0.30])
             self.assertEqual(config.output.top_k_evaluator_code_artifacts, 5)
+
+    def test_resolve_config_path_uses_explicit_or_default_location(self):
+        self.assertEqual(
+            resolve_config_path("custom.yaml", "ignored.yaml"),
+            Path("custom.yaml"),
+        )
+        self.assertEqual(
+            resolve_config_path(None, "hypoevolve.local.yaml"),
+            Path("hypoevolve.local.yaml"),
+        )
+
+    def test_load_runtime_config_rejects_explicit_missing_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ConfigError):
+                load_runtime_config(Path(tmp) / "missing.yaml")
+
+    def test_load_runtime_config_allows_missing_default_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load_runtime_config(None, default_path=Path(tmp) / "missing.yaml")
+        self.assertEqual(config.search.iterations, 5)
+
+    def test_load_runtime_config_reads_present_default_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            default_path = Path(tmp) / "hypoevolve.yaml"
+            default_path.write_text("search:\n  iterations: 7\n", encoding="utf-8")
+
+            config = load_runtime_config(None, default_path=default_path)
+
+        self.assertEqual(config.search.iterations, 7)
 
     def test_llm_api_key_loads_from_yaml(self):
         with tempfile.TemporaryDirectory() as tmp:

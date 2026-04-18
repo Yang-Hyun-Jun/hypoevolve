@@ -247,16 +247,6 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("Workers", result.output)
         self.assertIn("1", result.output)
 
-    def test_load_runtime_config_rejects_explicit_missing_config(self):
-        with self.runner.isolated_filesystem():
-            with self.assertRaises(cli.ConfigError):
-                cli._load_runtime_config("missing.yaml")
-
-    def test_load_runtime_config_allows_missing_default_file(self):
-        with self.runner.isolated_filesystem():
-            config = cli._load_runtime_config(None)
-        self.assertEqual(config.search.iterations, 5)
-
     def test_runs_latest_json_returns_newest_run_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "hypoevolve.yaml"

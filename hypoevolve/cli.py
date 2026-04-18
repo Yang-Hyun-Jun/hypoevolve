@@ -11,7 +11,12 @@ from pathlib import Path
 import click
 
 from elg import hypothesis_from_dict, render_pretty, render_tree
-from hypoevolve.config import ConfigError, HypoEvolveConfig, load_config
+from hypoevolve.config import (
+    ConfigError,
+    load_config,
+    load_runtime_config,
+    resolve_config_path,
+)
 from hypoevolve.controller import HypoEvolveController
 from hypoevolve.dataset import DatasetSchemaError
 from hypoevolve.hypo import (
@@ -121,7 +126,7 @@ def app(ctx: click.Context) -> None:
 def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
     """Run the hypothesis evolution loop from one natural-language seed."""
     try:
-        loaded = _load_runtime_config(config)
+        loaded = load_runtime_config(config, default_path=DEFAULT_CONFIG_PATH)
         configure_logger(loaded.logging.level)
         if workers is not None:
             loaded.workers.count = workers
@@ -183,7 +188,7 @@ def run(hypothesis: str | None, config: str | None, workers: int | None) -> int:
 def seed(config: str | None, max_depth: int) -> int:
     """Generate one random seed hypothesis without running evolution."""
     try:
-        loaded = _load_runtime_config(config)
+        loaded = load_runtime_config(config, default_path=DEFAULT_CONFIG_PATH)
         configure_logger(loaded.logging.level)
         log_info_event("cli.seed.start", max_depth=max_depth)
         result = generate_random_tree_pair_hypothesis(
@@ -216,7 +221,7 @@ def seed(config: str | None, max_depth: int) -> int:
 def render(hypothesis: str, config: str | None, tree: bool) -> int:
     """Parse one hypothesis and render it as ELG text or an ASCII tree."""
     try:
-        loaded = _load_runtime_config(config)
+        loaded = load_runtime_config(config, default_path=DEFAULT_CONFIG_PATH)
         configure_logger(loaded.logging.level)
         log_info_event("cli.render.start", tree=tree)
         parsed = parse_hypothesis_text(
@@ -285,7 +290,7 @@ def inspect(path: Path, as_json: bool) -> int:
 def doctor(config: str | None) -> int:
     """Report environment and configuration diagnostics for the CLI."""
     _echo_banner()
-    config_path = Path(config or DEFAULT_CONFIG_PATH)
+    config_path = resolve_config_path(config, DEFAULT_CONFIG_PATH)
     rows = [
         ("Python", platform.python_version()),
         ("Platform", platform.platform()),
@@ -347,7 +352,7 @@ def runs() -> None:
 )
 def runs_latest(config: str | None, as_json: bool) -> int:
     """Print the latest run directory."""
-    loaded = _load_runtime_config(config)
+    loaded = load_runtime_config(config, default_path=DEFAULT_CONFIG_PATH)
     base_dir = Path(loaded.output.base_dir)
     latest = _latest_run_dir(base_dir)
     if latest is None:
@@ -499,16 +504,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
-def _load_runtime_config(config: str | None) -> HypoEvolveConfig:
-    """Load an explicit config or fall back to the default config path."""
-    config_path = Path(config or DEFAULT_CONFIG_PATH)
-    if config_path.exists():
-        return load_config(config_path)
-    if config is None:
-        return HypoEvolveConfig()
-    raise ConfigError(f"Config file not found: {config_path}")
-
-
 def _render_banner() -> str:
     wordmark = click.style(CLI_WORDMARK, fg="cyan", bold=True)
     name = click.style("HypoEvolve", fg="cyan", bold=True)
@@ -581,7 +576,7 @@ def _latest_run_dir(base_dir: Path) -> Path | None:
 
 
 def _resolve_runs_base_dir(config: str | None) -> Path:
-    loaded = _load_runtime_config(config)
+    loaded = load_runtime_config(config, default_path=DEFAULT_CONFIG_PATH)
     return Path(loaded.output.base_dir)
 
 
