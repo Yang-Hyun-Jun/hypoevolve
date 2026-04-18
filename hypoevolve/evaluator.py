@@ -16,8 +16,8 @@ from hypoevolve.helper import (
 )
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
+    log_debug_event,
     log_error_event,
-    log_info_event,
     log_warning_event,
     summarize_exception,
 )
@@ -108,7 +108,7 @@ class LLMEvaluator:
                     if lines and lines[-1].startswith("```"):
                         lines = lines[:-1]
                     code = "\n".join(lines).strip()
-                log_info_event("eval.codegen", attempt=attempt_number)
+                log_debug_event("eval.codegen", attempt=attempt_number)
                 last_candidate_code = code
                 self.last_evaluation_artifacts = {
                     "candidate_code": code,
@@ -142,7 +142,9 @@ class LLMEvaluator:
                 if not isinstance(payload, dict):
                     raise ValueError("Generated evaluator output must be a JSON object")
                 duration_ms = int(execution.duration_sec * 1000)
-                log_info_event("eval.exec", attempt=attempt_number, dur_ms=duration_ms)
+                log_debug_event(
+                    "eval.exec", attempt=attempt_number, dur_ms=duration_ms
+                )
                 sanitized = {
                     "combined_score": 0.0,
                     "precision": 0.0,

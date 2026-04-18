@@ -7,6 +7,8 @@ from hypoevolve.logger import (
     compact_text,
     configure_logger,
     event_message,
+    log_debug_event,
+    log_info_event,
     logger,
     _format_log_value,
     _quote_if_needed,
@@ -37,6 +39,19 @@ class TestHypoEvolveLogger(unittest.TestCase):
             rendered,
             'event=iter.eval i=3 score=0.125 note="compact summary"',
         )
+
+    def test_debug_events_are_suppressed_by_info_level_file_sink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / 'hypoevolve.log'
+            configure_logger('INFO', log_path)
+
+            log_debug_event('parser.attempt', attempt=1)
+            log_info_event('run.start', run='demo')
+
+            log_text = log_path.read_text(encoding='utf-8')
+
+        self.assertNotIn('event=parser.attempt', log_text)
+        self.assertIn('event=run.start run=demo', log_text)
 
     def test_summarize_hypothesis_returns_compact_structural_fields(self):
         hypothesis = Hypothesis(

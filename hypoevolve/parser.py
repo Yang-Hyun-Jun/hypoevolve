@@ -6,7 +6,11 @@ from typing import Any, Dict, List, Optional
 
 from elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
 from hypoevolve.llm import LLMClient
-from hypoevolve.logger import log_error_event, log_info_event, summarize_exception
+from hypoevolve.logger import (
+    log_debug_event,
+    log_error_event,
+    summarize_exception,
+)
 from hypoevolve.prompts import load_prompt
 
 
@@ -44,14 +48,14 @@ def llm_parse_hypothesis(
 
     errors: List[str] = []
     attempts = retries + 1
-    log_info_event(
+    log_debug_event(
         "parser.start",
         attempts=attempts,
         chars=len(text.strip()),
     )
     for attempt in range(1, attempts + 1):
         try:
-            log_info_event("parser.attempt", attempt=attempt)
+            log_debug_event("parser.attempt", attempt=attempt)
             system_prompt = (
                 PARSER_SYSTEM_PROMPT
                 if attempt == 1
@@ -64,7 +68,7 @@ def llm_parse_hypothesis(
             )
             _validate_parser_payload(payload)
             hypothesis = hypothesis_from_dict({"root": payload})
-            log_info_event("parser.ok", attempt=attempt)
+            log_debug_event("parser.ok", attempt=attempt)
             return normalize_hypothesis(hypothesis)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"attempt {attempt}: {exc}")
@@ -82,11 +86,11 @@ def llm_make_hypothesis_measurable(
     """Rewrite a hypothesis into a more measurable ELG form."""
     errors: List[str] = []
     attempts = retries + 1
-    log_info_event("measurable.start", attempts=attempts)
+    log_debug_event("measurable.start", attempts=attempts)
 
     for attempt in range(1, attempts + 1):
         try:
-            log_info_event("measurable.attempt", attempt=attempt)
+            log_debug_event("measurable.attempt", attempt=attempt)
             system_prompt = (
                 MEASURABLE_SYSTEM_PROMPT
                 if attempt == 1
@@ -100,7 +104,7 @@ def llm_make_hypothesis_measurable(
             )
             _validate_parser_payload(payload)
             measurable = hypothesis_from_dict({"root": payload})
-            log_info_event("measurable.ok", attempt=attempt)
+            log_debug_event("measurable.ok", attempt=attempt)
             return normalize_hypothesis(measurable)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"attempt {attempt}: {exc}")
@@ -122,11 +126,11 @@ def llm_hypothesis_to_natural_language(
     """Render a measurable ELG hypothesis back into natural language."""
     errors: List[str] = []
     attempts = retries + 1
-    log_info_event("nl_render.start", attempts=attempts)
+    log_debug_event("nl_render.start", attempts=attempts)
 
     for attempt in range(1, attempts + 1):
         try:
-            log_info_event("nl_render.attempt", attempt=attempt)
+            log_debug_event("nl_render.attempt", attempt=attempt)
             system_prompt = NL_SYSTEM_PROMPT
             response = llm.generate_text(
                 system_prompt,
@@ -136,7 +140,7 @@ def llm_hypothesis_to_natural_language(
             rendered = response.strip()
             if not rendered:
                 raise ParseError("Natural-language rendering returned empty text")
-            log_info_event("nl_render.ok", attempt=attempt, chars=len(rendered))
+            log_debug_event("nl_render.ok", attempt=attempt, chars=len(rendered))
             return rendered
         except Exception as exc:  # noqa: BLE001
             errors.append(f"attempt {attempt}: {exc}")

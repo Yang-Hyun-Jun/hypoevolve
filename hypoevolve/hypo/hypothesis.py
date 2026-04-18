@@ -7,7 +7,12 @@ from typing import Callable, List, Optional, Tuple
 
 from hypoevolve.hypo.tree.base import HypoTree
 from hypoevolve.llm import LLMClient
-from hypoevolve.logger import compact_text, log_error_event, log_info_event, summarize_exception
+from hypoevolve.logger import (
+    compact_text,
+    log_debug_event,
+    log_error_event,
+    summarize_exception,
+)
 from hypoevolve.prompts import load_and_render_prompt, load_prompt
 
 
@@ -68,11 +73,11 @@ def llm_generate_hypothesis_from_trees(
     user_prompt = load_and_render_prompt("hypo", "user.md", variables=variables)
     errors: List[str] = []
     attempts = retries + 1
-    log_info_event("tree_hypothesis.start", attempts=attempts)
+    log_debug_event("tree_hypothesis.start", attempts=attempts)
 
     for attempt in range(1, attempts + 1):
         try:
-            log_info_event("tree_hypothesis.attempt", attempt=attempt)
+            log_debug_event("tree_hypothesis.attempt", attempt=attempt)
             system_prompt = (
                 HYPO_SYSTEM_PROMPT
                 if attempt == 1
@@ -84,7 +89,7 @@ def llm_generate_hypothesis_from_trees(
                 raise HypothesisGenerationError(
                     "LLM returned an empty hypothesis payload"
                 )
-            log_info_event(
+            log_debug_event(
                 "tree_hypothesis.ok",
                 attempt=attempt,
                 chars=len(hypothesis),

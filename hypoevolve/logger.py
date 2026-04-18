@@ -26,10 +26,22 @@ except Exception:  # noqa: BLE001
                 except Exception:
                     pass
 
-        def add(self, sink: Any, level: str = "INFO", format: str | None = None, **kwargs: Any) -> None:
-            handler = logging.StreamHandler(sink) if hasattr(sink, "write") else logging.FileHandler(sink)
+        def add(
+            self,
+            sink: Any,
+            level: str = "INFO",
+            format: str | None = None,
+            **kwargs: Any,
+        ) -> None:
+            handler = (
+                logging.StreamHandler(sink)
+                if hasattr(sink, "write")
+                else logging.FileHandler(sink)
+            )
             handler.setLevel(getattr(logging, level.upper(), logging.INFO))
-            handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-5s | %(message)s"))
+            handler.setFormatter(
+                logging.Formatter("%(asctime)s | %(levelname)-5s | %(message)s")
+            )
             self._logger.addHandler(handler)
             self._logger.setLevel(getattr(logging, level.upper(), logging.INFO))
 
@@ -109,6 +121,11 @@ def event_message(event: str, **fields: Any) -> str:
 def log_info_event(event: str, **fields: Any) -> None:
     """Emit one compact info-level event."""
     logger.info(event_message(event, **fields))
+
+
+def log_debug_event(event: str, **fields: Any) -> None:
+    """Emit one compact debug-level event."""
+    logger.debug(event_message(event, **fields))
 
 
 def log_warning_event(event: str, **fields: Any) -> None:
