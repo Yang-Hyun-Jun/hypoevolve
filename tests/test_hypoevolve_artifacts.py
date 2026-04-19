@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from elg import AtomicNode, Hypothesis
+from hypoevolve.elg import AtomicNode, Hypothesis
 from hypoevolve.archive import MAPElitesArchive
 from hypoevolve.artifact_contracts import (
     build_checkpoint_payload,

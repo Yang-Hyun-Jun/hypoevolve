@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
-from elg import Hypothesis, render_pretty
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.dataset import DatasetAccessor, DatasetSchema
+from hypoevolve.elg import Hypothesis, render_pretty
 
 
 def build_evaluator_prompt_variables(

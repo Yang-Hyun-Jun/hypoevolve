@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
+from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
 from hypoevolve.reporting import (
     _as_float,
     _build_archive_distribution_svg,

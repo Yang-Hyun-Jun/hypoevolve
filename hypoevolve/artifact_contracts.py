@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from elg import Hypothesis, fingerprint, render_pretty
 from hypoevolve.archive import MAPElitesArchive
+from hypoevolve.elg import Hypothesis, fingerprint, render_pretty
 
 
 def build_checkpoint_payload(

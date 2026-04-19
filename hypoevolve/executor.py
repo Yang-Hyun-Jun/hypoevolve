@@ -65,7 +65,9 @@ class LocalSubprocessExecutor:
         self.timeout = timeout
         self.cleanup = cleanup
 
-    def execute(self, code: str, files: Optional[Dict[str, str]] = None) -> ExecutionResult:
+    def execute(
+        self, code: str, files: Optional[Dict[str, str]] = None
+    ) -> ExecutionResult:
         """Run code plus support files and return the captured result."""
         start = time.monotonic()
         work_dir = Path(tempfile.mkdtemp(prefix="hypoevolve-exec-"))
@@ -88,8 +90,16 @@ class LocalSubprocessExecutor:
                 work_dir=str(work_dir),
             )
         except subprocess.TimeoutExpired as exc:
-            stdout = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout.decode() if exc.stdout else "")
-            stderr = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr.decode() if exc.stderr else "")
+            stdout = (
+                exc.stdout
+                if isinstance(exc.stdout, str)
+                else (exc.stdout.decode() if exc.stdout else "")
+            )
+            stderr = (
+                exc.stderr
+                if isinstance(exc.stderr, str)
+                else (exc.stderr.decode() if exc.stderr else "")
+            )
             result = ExecutionResult(
                 stdout=stdout,
                 stderr=stderr,

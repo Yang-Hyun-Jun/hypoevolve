@@ -2,7 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
-from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
+from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
 from hypoevolve.dataset import ColumnSpec, DataFile, DatasetSchema, IndexSpec
 from hypoevolve.evaluator import LLMEvaluator
 from hypoevolve.executor import ExecutionResult

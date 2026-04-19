@@ -8,8 +8,7 @@ from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from elg import Hypothesis, count_nodes, fingerprint
-
+from hypoevolve.elg import Hypothesis, count_nodes, fingerprint
 
 Cell = Tuple[int, int]
 
@@ -196,7 +195,7 @@ class MAPElitesArchive:
             ),
             None,
         )
-        
+
         if duplicate_index is not None:
             if cell_entries[duplicate_index].score >= new_entry.score:
                 return cell_entries[duplicate_index]
@@ -226,7 +225,7 @@ class MAPElitesArchive:
             coverage_bin(coverage, self.coverage_bins),
             complexity_bin(complexity, self.complexity_bins),
         )
-        
+
         return {
             "coverage": coverage,
             "complexity": complexity,
@@ -314,9 +313,7 @@ class MAPElitesArchive:
         """
         stats = self.occupancy_stats()
         coverage_text = ",".join(str(value) for value in stats["coverage_counts"])
-        complexity_text = ",".join(
-            str(value) for value in stats["complexity_counts"]
-        )
+        complexity_text = ",".join(str(value) for value in stats["complexity_counts"])
         return f"cells={stats['occupied_cells']} cov=[{coverage_text}] cmp=[{complexity_text}]"
 
     def snapshot(self) -> List[Dict[str, object]]:
@@ -371,7 +368,9 @@ class MAPElitesArchive:
         if stats.pulls == 0:
             return float("inf")
 
-        total_pulls = sum(self._stats_for(candidate.fingerprint).pulls for candidate in candidates)
+        total_pulls = sum(
+            self._stats_for(candidate.fingerprint).pulls for candidate in candidates
+        )
         if total_pulls <= 1:
             return stats.mean_reward
 
@@ -379,6 +378,7 @@ class MAPElitesArchive:
             math.log(total_pulls) / stats.pulls
         )
         return stats.mean_reward + exploration_bonus
+
 
 def coverage_bin(coverage: float, bins: List[float]) -> int:
     """Map a coverage value to its coverage-bin index."""

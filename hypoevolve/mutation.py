@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
-from elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
 from hypoevolve.archive import ArchiveEntry
+from hypoevolve.elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
 from hypoevolve.helper import build_steering_prompt_variables
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import compact_text, log_info_event
@@ -92,7 +92,10 @@ def steer_mutation(
                         "Steering output must include a non-empty score_reason"
                     )
                 operation_score_rankings = payload.get("operation_score_rankings")
-                if not isinstance(operation_score_rankings, dict) or not operation_score_rankings:
+                if (
+                    not isinstance(operation_score_rankings, dict)
+                    or not operation_score_rankings
+                ):
                     raise ParseError(
                         "Steering output must include a non-empty operation_score_rankings dictionary"
                     )
@@ -129,9 +132,7 @@ def steer_mutation(
                 )
 
             child_hypothesis = normalize_hypothesis(
-                hypothesis_from_dict(
-                    {"root": child_root}
-                )
+                hypothesis_from_dict({"root": child_root})
             )
 
             log_info_event(

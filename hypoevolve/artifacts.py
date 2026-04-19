@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
 
-from elg import Hypothesis, fingerprint, render_pretty
 from hypoevolve.archive import MAPElitesArchive
 from hypoevolve.artifact_contracts import (
     build_checkpoint_payload,
@@ -15,6 +14,7 @@ from hypoevolve.artifact_contracts import (
     build_run_summary_payload,
     build_trace_event,
 )
+from hypoevolve.elg import Hypothesis, fingerprint, render_pretty
 from hypoevolve.reporting import generate_run_report
 from hypoevolve.runtime import (
     write_artifact,

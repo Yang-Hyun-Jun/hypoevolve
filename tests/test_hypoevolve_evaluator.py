@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
+from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import ColumnSpec, DataFile, DatasetAccessor, DatasetSchema, IndexSpec

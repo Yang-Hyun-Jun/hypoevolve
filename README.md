@@ -28,7 +28,7 @@ The long-term goal is a data-driven hypothesis search system where LLMs can help
 
 ## Current Features
 
-### ELG core (`elg/`)
+### ELG core (`hypoevolve/elg/`)
 - atomic / logical / relation node model
 - JSON serialization and deserialization
 - normalization and fingerprinting
@@ -51,7 +51,7 @@ The long-term goal is a data-driven hypothesis search system where LLMs can help
 ## Repository Layout
 
 ```text
-elg/            # hypothesis representation and mutation core
+hypoevolve/elg/ # hypothesis representation and mutation core
 hypoevolve/     # app/runtime layer around ELG
 tests/          # HypoEvolve app-layer tests
 docs/           # project and comparison docs
@@ -220,7 +220,7 @@ Current MVP outputs:
 ## Example: ELG rendering
 
 ```python
-from elg import (
+from hypoevolve.elg import (
     AtomicNode,
     LogicalNode,
     RelationNode,
@@ -245,6 +245,11 @@ hypothesis = Hypothesis(
 print(render_pretty(hypothesis))
 print(render_tree(hypothesis))
 ```
+
+Legacy compatibility note: root-level `import elg` / `from elg import ...` still
+works as a thin compatibility shim, but `hypoevolve.elg` is the canonical import
+path. Old submodule paths such as `elg.codec` are not preserved as compatibility
+targets.
 
 ---
 

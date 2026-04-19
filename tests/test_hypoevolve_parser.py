@@ -1,6 +1,6 @@
 import unittest
 
-from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode, RelationType
+from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode, RelationType
 from hypoevolve.prompts import load_prompt
 from hypoevolve.parser import (
     ParseError,

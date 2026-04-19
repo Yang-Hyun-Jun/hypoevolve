@@ -140,7 +140,7 @@ def log_error_event(event: str, **fields: Any) -> None:
 
 def summarize_hypothesis(hypothesis: Any) -> dict[str, Any]:
     """Return a compact structural summary for one hypothesis."""
-    from elg import (
+    from hypoevolve.elg import (
         count_atomics,
         count_logicals,
         count_nodes,

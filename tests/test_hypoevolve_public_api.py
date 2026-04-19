@@ -2,7 +2,9 @@ import re
 import unittest
 from pathlib import Path
 
+import elg
 import hypoevolve
+import hypoevolve.elg as hypoevolve_elg
 from hypoevolve.evaluator import LLMEvaluator
 from hypoevolve.evaluator_contracts import Evaluator as EvaluatorContract
 from hypoevolve.worker_contracts import (
@@ -51,6 +53,11 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
     def test_internal_worker_payload_types_are_not_advertised_in_root_all(self):
         self.assertNotIn("WorkerTask", hypoevolve.__all__)
         self.assertNotIn("WorkerResult", hypoevolve.__all__)
+
+    def test_legacy_elg_imports_remain_compatible_with_canonical_package(self):
+        self.assertIs(elg.Hypothesis, hypoevolve_elg.Hypothesis)
+        self.assertIs(elg.render_pretty, hypoevolve_elg.render_pretty)
+        self.assertEqual(elg.__all__, hypoevolve_elg.__all__)
 
     def test_root_compatibility_attrs_still_point_at_contract_and_runtime_surfaces(self):
         self.assertIs(hypoevolve.Evaluator, EvaluatorContract)

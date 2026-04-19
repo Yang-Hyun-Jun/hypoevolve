@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Timer
 from unittest.mock import Mock, patch
 
-from elg import AtomicNode, Hypothesis, fingerprint
+from hypoevolve.elg import AtomicNode, Hypothesis, fingerprint
 from hypoevolve.archive import MAPElitesArchive
 from hypoevolve.artifacts import RunArtifactRecorder
 from hypoevolve.config import HypoEvolveConfig

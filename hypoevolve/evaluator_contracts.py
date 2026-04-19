@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from elg import Hypothesis
-
+from hypoevolve.elg import Hypothesis
 
 REQUIRED_EVALUATION_KEYS = (
     "combined_score",

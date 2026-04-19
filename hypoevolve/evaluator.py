@@ -6,8 +6,8 @@ import ast
 import json
 import math
 
-from elg import Hypothesis
 from hypoevolve.dataset import DatasetAccessor, DatasetSchema
+from hypoevolve.elg import Hypothesis
 from hypoevolve.evaluator_contracts import REQUIRED_EVALUATION_KEYS, Evaluator
 from hypoevolve.executor import CodeExecutor, LocalSubprocessExecutor
 from hypoevolve.helper import (
@@ -142,9 +142,7 @@ class LLMEvaluator:
                 if not isinstance(payload, dict):
                     raise ValueError("Generated evaluator output must be a JSON object")
                 duration_ms = int(execution.duration_sec * 1000)
-                log_debug_event(
-                    "eval.exec", attempt=attempt_number, dur_ms=duration_ms
-                )
+                log_debug_event("eval.exec", attempt=attempt_number, dur_ms=duration_ms)
                 sanitized = {
                     "combined_score": 0.0,
                     "precision": 0.0,

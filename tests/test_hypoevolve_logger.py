@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from elg import AtomicNode, Hypothesis, RelationNode
+from hypoevolve.elg import AtomicNode, Hypothesis, RelationNode
 from hypoevolve.logger import (
     compact_text,
     configure_logger,

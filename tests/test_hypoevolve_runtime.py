@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from elg import AtomicNode, Hypothesis
+from hypoevolve.elg import AtomicNode, Hypothesis
 from hypoevolve.runtime import (
     create_run_dir,
     write_artifact,

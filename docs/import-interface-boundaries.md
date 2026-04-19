@@ -44,7 +44,7 @@ Examples include:
 - `hypoevolve/parser.py`
 - `hypoevolve/dataset.py`
 - `hypoevolve/hypo/*`
-- `elg/*`
+- `hypoevolve/elg/*`
 
 These modules hold core search semantics, ELG structure, parsing, mutation,
 archive behavior, and dataset access rules.

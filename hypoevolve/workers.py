@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from elg import fingerprint, hypothesis_from_dict
 from hypoevolve.archive import ArchiveEntry
 from hypoevolve.config import LLMConfig
 from hypoevolve.dataset import load_dataset_schema
+from hypoevolve.elg import fingerprint, hypothesis_from_dict
 from hypoevolve.evaluator import LLMEvaluator
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
@@ -18,7 +18,6 @@ from hypoevolve.logger import (
 from hypoevolve.mutation import steer_mutation
 from hypoevolve.parser import ParseError
 from hypoevolve.worker_contracts import WorkerResult, WorkerTask
-
 
 __all__ = ["WorkerTask", "WorkerResult", "run_worker_task"]
 

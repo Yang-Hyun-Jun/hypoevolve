@@ -167,7 +167,7 @@ LLM critique 또는 mutation steering이 들어갈 수 있는 지점은:
 
 ### 그 다음
 3. `hypoevolve/controller.py`
-4. `elg/sampler.py`
+4. `hypoevolve/mutation.py`
 
 이 둘은 mutation steering / critique 기반 검색 품질을 높이는 단계다.
 
@@ -179,7 +179,7 @@ LLM critique 또는 mutation steering이 들어갈 수 있는 지점은:
 - `hypoevolve/parser.py`
 - `hypoevolve/evaluator.py`
 - `hypoevolve/controller.py`
-- `elg/sampler.py`
+- `hypoevolve/mutation.py`
 
 ### 함수 기준
 - `parse_hypothesis_text(...)`

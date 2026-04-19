@@ -9,7 +9,7 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-from elg import (
+from hypoevolve.elg import (
     AtomicNode,
     Hypothesis,
     LogicalNode,

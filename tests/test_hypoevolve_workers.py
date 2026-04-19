@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from elg import AtomicNode, Hypothesis, fingerprint
+from hypoevolve.elg import AtomicNode, Hypothesis, fingerprint
 from hypoevolve.parser import ParseError
 from hypoevolve.worker_contracts import (
     WorkerResult as WorkerResultContract,

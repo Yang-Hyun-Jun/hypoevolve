@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
+from hypoevolve.elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
     log_debug_event,

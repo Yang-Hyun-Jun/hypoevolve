@@ -1,6 +1,6 @@
 import unittest
 
-from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode, fingerprint, hypothesis_to_json, normalize_hypothesis
+from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode, fingerprint, hypothesis_to_json, normalize_hypothesis
 
 
 class TestELGFingerprintGolden(unittest.TestCase):

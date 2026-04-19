@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from elg import AtomicNode, Hypothesis
+from hypoevolve.elg import AtomicNode, Hypothesis
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.controller import HypoEvolveController
 from hypoevolve.parser import ParseError

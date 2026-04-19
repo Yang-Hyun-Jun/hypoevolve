@@ -8,11 +8,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 
-from elg import Hypothesis, fingerprint, hypothesis_from_dict, render_pretty
 from hypoevolve.archive import ArchiveEntry, MAPElitesArchive
 from hypoevolve.artifacts import RunArtifactRecorder
 from hypoevolve.config import HypoEvolveConfig
 from hypoevolve.dataset import load_dataset_schema
+from hypoevolve.elg import Hypothesis, fingerprint, hypothesis_from_dict, render_pretty
 from hypoevolve.evaluator import LLMEvaluator
 from hypoevolve.evaluator_contracts import Evaluator
 from hypoevolve.hypo import generate_random_tree_pair_hypothesis
@@ -527,7 +527,9 @@ class HypoEvolveController:
                 future = executor.submit(run_worker_task, task)
                 pending[future] = parent_entry
 
-            while submitted < min(self.config.workers.count, self.config.search.iterations):
+            while submitted < min(
+                self.config.workers.count, self.config.search.iterations
+            ):
                 submit_next()
 
             while pending:
@@ -578,7 +580,9 @@ class HypoEvolveController:
                     log_info_event(
                         "worker.result",
                         i=result.iteration,
-                        child_fp=result.child_fingerprint[:12] if result.child_fingerprint else None,
+                        child_fp=result.child_fingerprint[:12]
+                        if result.child_fingerprint
+                        else None,
                         **summarize_metrics(result.metrics),
                         summary=compact_text(result.mutation_summary, max_len=96),
                     )

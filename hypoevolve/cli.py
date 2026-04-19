@@ -10,7 +10,6 @@ from pathlib import Path
 
 import click
 
-from elg import hypothesis_from_dict, render_pretty, render_tree
 from hypoevolve.config import (
     ConfigError,
     load_config,
@@ -19,6 +18,7 @@ from hypoevolve.config import (
 )
 from hypoevolve.controller import HypoEvolveController
 from hypoevolve.dataset import DatasetSchemaError
+from hypoevolve.elg import hypothesis_from_dict, render_pretty, render_tree
 from hypoevolve.hypo import (
     HypothesisGenerationError,
     generate_random_tree_pair_hypothesis,
@@ -28,7 +28,6 @@ from hypoevolve.logger import (
     configure_logger,
     log_error_event,
     log_info_event,
-    logger,
     summarize_exception,
 )
 from hypoevolve.parser import ParseError, parse_hypothesis_text

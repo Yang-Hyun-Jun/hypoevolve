@@ -229,7 +229,7 @@ User/CLI
       -> hypoevolve.workers
 
 Core IR
-  -> elg/*
+  -> hypoevolve/elg/*
 
 Optional seed generation path
   -> hypoevolve.hypo/*
@@ -241,7 +241,7 @@ Optional seed generation path
 
 ## 5. 코드베이스 디렉토리별 역할
 
-## 5.1 `elg/`
+## 5.1 `hypoevolve/elg/`
 
 이 프로젝트의 **가설 중간표현(IR)** 핵심이다.
 
@@ -270,7 +270,7 @@ Optional seed generation path
 - worker process execution
 - artifacts / runtime persistence / report generation
 
-즉 `elg/` 가 domain core 라면, `hypoevolve/` 는 application/runtime shell 이다.
+즉 `hypoevolve/elg/` 가 domain core 라면, `hypoevolve/` 는 application/runtime shell 이다.
 
 ## 5.3 `hypoevolve/hypo/`
 
@@ -598,7 +598,7 @@ worker mode:
 
 ## 10. Mutation steering 의 실제 의미
 
-현재 mutation 은 `elg/mutate.py` 의 primitive 를 직접 사용하는 방식이 아니다.
+현재 mutation 은 `hypoevolve/elg/mutate.py` 의 primitive 를 직접 사용하는 방식이 아니다.
 
 실제로는:
 

@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
+from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
 from hypoevolve.archive import (
     ArchiveEntry,
     MAPElitesArchive,

@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict
 
-from elg import Hypothesis, hypothesis_to_json
+from hypoevolve.elg import Hypothesis, hypothesis_to_json
 from hypoevolve.logger import log_info_event
 
 

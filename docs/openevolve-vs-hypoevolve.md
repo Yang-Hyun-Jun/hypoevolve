@@ -9,7 +9,7 @@
 
 비교 기준은 로컬 저장소에 있는 현재 구현체다.  
 - OpenEvolve 구현 참조: `openevolve/openevolve/`  
-- HypoEvolve 구현 참조: `hypoevolve/`, `elg/`
+- HypoEvolve 구현 참조: `hypoevolve/`, `hypoevolve/elg/`
 
 ---
 
@@ -50,7 +50,7 @@
 OpenEvolve의 후보는 본질적으로 `Program` 객체이고, 중심 필드는 `code: str`이다. 즉 후보의 정체성이 결국 **코드 문자열**에 있다. 이 구조는 코드 최적화에는 잘 맞지만, 가설/명제/논리 구조를 직접 다루기에는 부자연스럽다. (`openevolve/openevolve/database.py`)
 
 ### HypoEvolve
-HypoEvolve는 `ELG`를 후보 표현의 중심으로 둔다. `AtomicNode`, `LogicalNode`, `RelationNode`, `Hypothesis`가 있고, hypothesis는 구조적 트리로 표현된다. 즉 후보가 처음부터 **논리 구조 객체**다. (`elg/ir.py`)
+HypoEvolve는 `ELG`를 후보 표현의 중심으로 둔다. `AtomicNode`, `LogicalNode`, `RelationNode`, `Hypothesis`가 있고, hypothesis는 구조적 트리로 표현된다. 즉 후보가 처음부터 **논리 구조 객체**다. (`hypoevolve/elg/ir.py`)
 
 ### 판단
 가설 진화라는 문제에 한정하면, 이 영역은 **HypoEvolve가 이미 더 잘 설계되어 있다.**
@@ -69,7 +69,7 @@ HypoEvolve는 다음을 이미 갖췄다.
 - `normalize_node`, `normalize_hypothesis`
 - `fingerprint`
 
-즉 저장/복원뿐 아니라, **구조적 동치에 가까운 정규화 기반 식별**이 가능하다. (`elg/codec.py`, `elg/normalize.py`, `elg/metrics.py`)
+즉 저장/복원뿐 아니라, **구조적 동치에 가까운 정규화 기반 식별**이 가능하다. (`hypoevolve/elg/codec.py`, `hypoevolve/elg/normalize.py`, `hypoevolve/elg/metrics.py`)
 
 ### 판단
 이 부분은 **HypoEvolve가 OpenEvolve보다 가설 도메인에 더 잘 맞고, 기술적으로도 더 정교한 코어를 갖고 있다.**
@@ -90,7 +90,7 @@ HypoEvolve는 mutation primitive를 명시적으로 갖고 있다.
 - wrap/unwrap NOT
 - append/remove child
 
-또한 이 mutation은 **immutable 구조 변환**으로 구현돼 있다. (`elg/mutate.py`)
+또한 이 mutation은 **immutable 구조 변환**으로 구현돼 있다. (`hypoevolve/elg/mutate.py`)
 
 ### 판단
 가설 구조를 다루는 관점에서는 **HypoEvolve의 mutation core가 훨씬 직접적이고 강하다.**  
@@ -302,7 +302,7 @@ HypoEvolve는 더 작지만, 사용성은 MVP 기준으로 나쁘지 않다.
 - fingerprint
 - top-k hypothesis archive
 
-즉 도메인 적합성은 HypoEvolve 쪽이 훨씬 높다. (`elg/ir.py`, `elg/mutate.py`, `elg/normalize.py`, `hypoevolve/archive.py`)
+즉 도메인 적합성은 HypoEvolve 쪽이 훨씬 높다. (`hypoevolve/elg/ir.py`, `hypoevolve/elg/mutate.py`, `hypoevolve/elg/normalize.py`, `hypoevolve/archive.py`)
 
 ### 판단
 이 영역은 **HypoEvolve가 OpenEvolve보다 분명히 더 잘 맞다.**
