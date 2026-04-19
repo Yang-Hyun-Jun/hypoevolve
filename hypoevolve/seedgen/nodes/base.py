@@ -74,7 +74,7 @@ class Node(NodeMixin):
 
     @classmethod
     def from_dict(cls, data: dict):
-        from hypoevolve.hypo.nodes import nodes
+        from hypoevolve.seedgen.nodes import nodes
 
         node_class = getattr(nodes, data["class"])
         return node_class(**data["params"])

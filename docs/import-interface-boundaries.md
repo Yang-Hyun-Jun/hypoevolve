@@ -43,7 +43,7 @@ Examples include:
 - `hypoevolve/mutation.py`
 - `hypoevolve/parser.py`
 - `hypoevolve/dataset.py`
-- `hypoevolve/hypo/*`
+- `hypoevolve/seedgen/*`
 - `hypoevolve/elg/*`
 
 These modules hold core search semantics, ELG structure, parsing, mutation,

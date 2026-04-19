@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from hypoevolve.hypo.nodes.base import Node, NodeIOTypes
+from hypoevolve.seedgen.nodes.base import Node, NodeIOTypes
 
 
 class DATA(Node):

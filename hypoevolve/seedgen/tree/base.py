@@ -21,7 +21,7 @@ except ImportError:  # pragma: no cover - lightweight fallback for bare environm
 
         yield from walk(root)
 
-from hypoevolve.hypo.nodes.base import Node
+from hypoevolve.seedgen.nodes.base import Node
 
 
 class HypoTree:

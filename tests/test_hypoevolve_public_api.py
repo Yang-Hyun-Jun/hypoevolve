@@ -5,6 +5,7 @@ from pathlib import Path
 import elg
 import hypoevolve
 import hypoevolve.elg as hypoevolve_elg
+import hypoevolve.seedgen as hypoevolve_seedgen
 from hypoevolve.evaluator import LLMEvaluator
 from hypoevolve.evaluator_contracts import Evaluator as EvaluatorContract
 from hypoevolve.worker_contracts import (
@@ -62,6 +63,10 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
     def test_root_compatibility_attrs_still_point_at_contract_and_runtime_surfaces(self):
         self.assertIs(hypoevolve.Evaluator, EvaluatorContract)
         self.assertIs(hypoevolve.LLMEvaluator, LLMEvaluator)
+        self.assertIs(
+            hypoevolve.generate_random_tree_pair_hypothesis,
+            hypoevolve_seedgen.generate_random_tree_pair_hypothesis,
+        )
         self.assertIs(hypoevolve.WorkerTask, WorkerTaskContract)
         self.assertIs(hypoevolve.WorkerResult, WorkerResultContract)
         self.assertIs(hypoevolve.run_worker_task, run_worker_task)

@@ -106,7 +106,7 @@ OpenEvolve는 parent sampling은 확률적으로 하지만, 명시적인 구조�
 ### HypoEvolve
 현재 HypoEvolve에는 별도 random mutation sampler가 없다.
 실제 mutation steering은 parent measurable ELG와 metric 문맥을 바탕으로
-LLM이 full child ELG를 직접 생성하는 방식이다. (`hypoevolve/mutation.py`, `prompts/steering/system.md`)
+LLM이 full child ELG를 직접 생성하는 방식이다. (`hypoevolve/mutation.py`, `hypoevolve/prompts/steering/system.md`)
 
 ### 판단
 이 부분은 현재 기준으로 **둘 다 명시적 primitive sampler는 없다**고 보는 편이 정확하다.

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from importlib import resources
 from pathlib import Path
 
 from hypoevolve.prompts import load_and_render_prompt, load_prompt, render_prompt
@@ -93,6 +94,13 @@ class TestHypoEvolvePrompts(unittest.TestCase):
                 self.assertEqual(load_prompt('demo', 'sample.md'), 'hello world')
             finally:
                 prompts_module.PROMPTS_DIR = original
+
+    def test_default_packaged_prompts_live_in_resource_tree(self):
+        asset_path = resources.files("hypoevolve.prompts").joinpath(
+            "evaluator", "system.md"
+        )
+        self.assertTrue(asset_path.is_file())
+        self.assertIn("Do not use code fences", asset_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

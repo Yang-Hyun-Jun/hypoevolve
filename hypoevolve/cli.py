@@ -19,7 +19,7 @@ from hypoevolve.config import (
 from hypoevolve.controller import HypoEvolveController
 from hypoevolve.dataset import DatasetSchemaError
 from hypoevolve.elg import hypothesis_from_dict, render_pretty, render_tree
-from hypoevolve.hypo import (
+from hypoevolve.seedgen import (
     HypothesisGenerationError,
     generate_random_tree_pair_hypothesis,
 )

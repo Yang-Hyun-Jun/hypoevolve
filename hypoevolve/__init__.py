@@ -27,7 +27,7 @@ from .dataset import (
 from .evaluator import LLMEvaluator
 from .evaluator_contracts import Evaluator
 from .executor import CodeExecutor, ExecutionResult, LocalSubprocessExecutor
-from .hypo import (
+from .seedgen import (
     HypothesisGenerationError,
     TreePairHypothesis,
     generate_random_tree_pair_hypothesis,

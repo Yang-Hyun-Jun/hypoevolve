@@ -53,6 +53,8 @@ The long-term goal is a data-driven hypothesis search system where LLMs can help
 ```text
 hypoevolve/elg/ # hypothesis representation and mutation core
 hypoevolve/     # app/runtime layer around ELG
+hypoevolve/seedgen/ # random seed-hypothesis generation subsystem
+hypoevolve/prompts/ # packaged markdown prompt templates
 tests/          # HypoEvolve app-layer tests
 docs/           # project and comparison docs
 ```

@@ -8,6 +8,9 @@ packages = [
   { include = "hypoevolve" },
   { include = "elg" },
 ]
+include = [
+  { path = "hypoevolve/prompts/**/*.md", format = ["sdist", "wheel"] },
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"

@@ -1,15 +1,15 @@
-"""Small helpers for loading and rendering markdown prompt templates."""
+"""Small helpers for loading and rendering packaged markdown prompt templates."""
 
 from __future__ import annotations
 
-from pathlib import Path
+from importlib import resources
 from typing import Mapping
 
-PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+PROMPTS_DIR = resources.files("hypoevolve.prompts")
 
 
 def load_prompt(*parts: str) -> str:
-    """Load one prompt file relative to the project prompt directory."""
+    """Load one prompt file relative to the packaged prompt directory."""
     path = PROMPTS_DIR.joinpath(*parts)
     return path.read_text(encoding="utf-8").strip()
 

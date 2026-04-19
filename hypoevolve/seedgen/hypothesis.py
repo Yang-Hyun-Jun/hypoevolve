@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
-from hypoevolve.hypo.tree.base import HypoTree
+from hypoevolve.seedgen.tree.base import HypoTree
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
     compact_text,
@@ -152,6 +152,6 @@ def _extract_hypothesis_text(response: str) -> str:
 
 def _load_tree_generation_helpers() -> Tuple[Callable, Callable]:
     """Lazily import tree-generation helpers to avoid eager optional deps."""
-    from hypoevolve.hypo.helper import generate_trees, get_tree_generator
+    from hypoevolve.seedgen.helper import generate_trees, get_tree_generator
 
     return get_tree_generator, generate_trees

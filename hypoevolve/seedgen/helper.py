@@ -2,9 +2,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from hypoevolve.dataset import load_dataset_schema
-from hypoevolve.hypo.nodes import nodes
-from hypoevolve.hypo.tree.base import HypoTree
-from hypoevolve.hypo.tree.generator import HypoTreeGenerator
+from hypoevolve.seedgen.nodes import nodes
+from hypoevolve.seedgen.tree.base import HypoTree
+from hypoevolve.seedgen.tree.generator import HypoTreeGenerator
 
 DEFAULT_DATASET_SCHEMA_PATH = "dataset.yaml"
 

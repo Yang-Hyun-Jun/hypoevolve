@@ -213,13 +213,13 @@ User/CLI
     -> hypoevolve.controller
       -> hypoevolve.parser
         -> hypoevolve.llm
-        -> prompts/parser, prompts/measurable, prompts/nl
+        -> hypoevolve/prompts/parser, hypoevolve/prompts/measurable, hypoevolve/prompts/nl
       -> hypoevolve.mutation
         -> hypoevolve.llm
-        -> prompts/steering*
+        -> hypoevolve/prompts/steering*
       -> hypoevolve.evaluator
         -> hypoevolve.llm
-        -> prompts/evaluator*
+        -> hypoevolve/prompts/evaluator*
         -> hypoevolve.executor
         -> hypoevolve.dataset
       -> hypoevolve.archive
@@ -232,7 +232,7 @@ Core IR
   -> hypoevolve/elg/*
 
 Optional seed generation path
-  -> hypoevolve.hypo/*
+  -> hypoevolve.seedgen/*
 ```
 
 이 구조에서 진짜 중심은 `HypoEvolveController.run()` 이다.
@@ -272,7 +272,7 @@ Optional seed generation path
 
 즉 `hypoevolve/elg/` 가 domain core 라면, `hypoevolve/` 는 application/runtime shell 이다.
 
-## 5.3 `hypoevolve/hypo/`
+## 5.3 `hypoevolve/seedgen/`
 
 이건 현재 메인 ELG 파이프라인과는 약간 다른 **legacy/보조 subsystem** 으로 봐야 한다.
 
@@ -288,7 +288,7 @@ Optional seed generation path
 
 즉 이 서브시스템은 **메인 ELG mutation loop의 일부가 아니라 seed 공급기** 에 가깝다.
 
-## 5.4 `prompts/`
+## 5.4 `hypoevolve/prompts/`
 
 시스템 성능과 행동을 사실상 정의하는 **행동 계약 레이어**다.
 
@@ -785,13 +785,13 @@ worker 는 archive 를 직접 갱신하지 않는다.
 
 ---
 
-## 13. Seed generation subsystem (`hypoevolve.hypo`) 의 위치
+## 13. Seed generation subsystem (`hypoevolve.seedgen`) 의 위치
 
 이 부분은 메인 ELG 시스템과 철학이 다소 다르다.
 
 ### 13.1 내부 모델
 
-`hypoevolve.hypo` 는:
+`hypoevolve.seedgen` 는:
 
 - DATA leaf
 - transform/operator 노드
@@ -799,7 +799,7 @@ worker 는 archive 를 직접 갱신하지 않는다.
 
 를 사용해 feature tree 를 만든다.
 
-그리고 `prompts/hypo/*` 를 사용해:
+그리고 `hypoevolve/prompts/hypo/*` 를 사용해:
 
 - 두 feature tree 간의 관계를 설명하는 자연어 hypothesis
 
@@ -1044,7 +1044,7 @@ raw JSON/text equality 가 아니다.
 | duplicate skip 시 iteration artifact는 쓰지 않는다 | verified-by-code | `hypoevolve/controller.py`, `hypoevolve/artifacts.py` | duplicate tests | 중간 | duplicate fixture 생성 |
 | worker merge의 source of truth 는 leader archive 다 | verified-by-code | `hypoevolve/controller.py`, `hypoevolve/workers.py` | worker tests | 높음 | worker shadow test |
 | report regeneration은 persisted artifacts만으로 가능하다 | verified-by-test | `hypoevolve/cli.py`, `hypoevolve/reporting.py` | CLI report tests | 중간 | persisted-run fixture로 재검증 |
-| `hypoevolve.hypo` 는 seed 공급기 역할로만 분리 가능하다 | inferred | `hypoevolve/cli.py`, `hypoevolve/controller.py` | hypo tests | 중간~높음 | dependency map 재확인 |
+| `hypoevolve.seedgen` 는 seed 공급기 역할로만 분리 가능하다 | inferred | `hypoevolve/cli.py`, `hypoevolve/controller.py` | seedgen tests | 중간~높음 | dependency map 재확인 |
 
 이 표는 지금 당장 완벽할 필요는 없지만,
 Phase 1 전에 최소한 위 항목들은 정리돼 있어야 한다.
@@ -1100,7 +1100,7 @@ generated Python code 를 local subprocess 에서 직접 실행한다.
 
 현재 `prompts.py` 는 거의 file loader 수준이다.
 
-## 19.4 legacy subsystem (`hypoevolve.hypo`) 과 ELG mainline 의 철학이 다르다
+## 19.4 seed generation subsystem (`hypoevolve.seedgen`) 과 ELG mainline 의 철학이 다르다
 
 bounded context 를 더 명확히 쪼갤 필요가 있다.
 
@@ -1196,7 +1196,7 @@ bounded context 를 더 명확히 쪼갤 필요가 있다.
 - feature-tree generator
 - tree-pair hypothesis synthesis
 
-즉 특히 `hypoevolve.hypo` 는 메인 search engine 과 분리된 별도 subdomain 으로 보는 것이 맞다.
+즉 특히 `hypoevolve.seedgen` 은 메인 search engine 과 분리된 별도 subdomain 으로 보는 것이 맞다.
 
 ---
 
@@ -1268,7 +1268,7 @@ bounded context 를 더 명확히 쪼갤 필요가 있다.
 - file/network side effect
 - subprocess isolation 수준
 
-### 23.5 `hypoevolve.hypo` 의 유지 필요성 판단
+### 23.5 `hypoevolve.seedgen` 의 유지 필요성 판단
 
 이 subsystem 을 계속 유지할지, seed 전용 standalone package 로 뺄지 결정 필요.
 

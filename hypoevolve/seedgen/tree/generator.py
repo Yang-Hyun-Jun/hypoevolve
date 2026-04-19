@@ -2,8 +2,8 @@ import copy
 
 import numpy as np
 
-from hypoevolve.hypo.nodes.base import Node, NodeIOTypes
-from hypoevolve.hypo.tree.base import HypoTree
+from hypoevolve.seedgen.nodes.base import Node, NodeIOTypes
+from hypoevolve.seedgen.tree.base import HypoTree
 
 
 class HypoTreeGenerator:
@@ -62,7 +62,7 @@ class HypoTreeGenerator:
             # IO가 일치하고 리프 노드가 아닌 노드들만 고려
             mask = [
                 1
-                if (n.output_type in self.tree.current.input_types) & n.max_childs
+                if (n.output_type in self.tree.current.input_types) and n.max_childs
                 else 0
                 for n in self.nodes
             ]
@@ -71,13 +71,14 @@ class HypoTreeGenerator:
             # IO가 일치하고 리프 노드인 노드들만 고려
             mask = [
                 1
-                if (n.output_type in self.tree.current.input_types) & ~n.max_childs
+                if (n.output_type in self.tree.current.input_types)
+                and (not n.max_childs)
                 else 0
                 for n in self.nodes
             ]
 
         # 배치할 수 있는 노드가 없으면 랜덤 생성 실패
-        if (sum(mask) == 0) & ~is_done:
+        if (sum(mask) == 0) and (not is_done):
             self.max_depth += 1
 
         return {"mask": mask, "done": is_done}
@@ -87,7 +88,9 @@ class HypoTreeGenerator:
         Hypo Tree Root Node Masking
         """
         initial_mask = [
-            1 if (n.output_type == NodeIOTypes.BINARY) & (n.max_childs >= 1) else 0
+            1
+            if (n.output_type == NodeIOTypes.BINARY) and (n.max_childs >= 1)
+            else 0
             for n in self.nodes
         ]
 
