@@ -15,7 +15,6 @@ from hypoevolve.dataset import load_dataset_schema
 from hypoevolve.elg import Hypothesis, fingerprint, hypothesis_from_dict, render_pretty
 from hypoevolve.evaluator import LLMEvaluator
 from hypoevolve.evaluator_contracts import Evaluator
-from hypoevolve.seedgen import generate_random_tree_pair_hypothesis
 from hypoevolve.llm import LLMClient
 from hypoevolve.logger import (
     compact_text,
@@ -34,6 +33,7 @@ from hypoevolve.parser import (
     parse_hypothesis_text,
 )
 from hypoevolve.runtime import create_run_dir
+from hypoevolve.seedgen import generate_random_tree_pair_hypothesis
 from hypoevolve.worker_contracts import WorkerTask
 from hypoevolve.workers import run_worker_task
 
