@@ -5,8 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis
-from hypoevolve.config import HypoEvolveConfig
-from hypoevolve.controller import HypoEvolveController
+from hypoevolve.core.config import HypoEvolveConfig
+from hypoevolve.core.orchestrator import HypoEvolveController
 
 
 class TestPhase0SingleWorkerGeneratedSeedFixture(unittest.TestCase):
@@ -27,15 +27,15 @@ class TestPhase0SingleWorkerGeneratedSeedFixture(unittest.TestCase):
         )()
 
         with tempfile.TemporaryDirectory() as tmp, patch(
-            'hypoevolve.controller.generate_random_tree_pair_hypothesis', return_value=fake_tree_result
+            'hypoevolve.core.orchestrator.generate_random_tree_pair_hypothesis', return_value=fake_tree_result
         ), patch(
-            'hypoevolve.controller.parse_hypothesis_text', return_value=seed
+            'hypoevolve.core.orchestrator.parse_hypothesis_text', return_value=seed
         ), patch(
-            'hypoevolve.controller.llm_make_hypothesis_measurable', return_value=seed
+            'hypoevolve.core.orchestrator.llm_make_hypothesis_measurable', return_value=seed
         ), patch(
-            'hypoevolve.controller.llm_hypothesis_to_natural_language', return_value='A'
+            'hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language', return_value='A'
         ), patch(
-            'hypoevolve.controller.steer_mutation', return_value=fake_decision
+            'hypoevolve.core.orchestrator.steer_mutation', return_value=fake_decision
         ):
             config = HypoEvolveConfig()
             config.search.iterations = 1

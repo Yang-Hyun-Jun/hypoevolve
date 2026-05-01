@@ -2,12 +2,12 @@ import unittest
 from unittest.mock import patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis, fingerprint
-from hypoevolve.parser import ParseError
-from hypoevolve.worker_contracts import (
+from hypoevolve.skills.elg_compile import ParseError
+from hypoevolve.runtime.worker import (
     WorkerResult as WorkerResultContract,
     WorkerTask as WorkerTaskContract,
 )
-from hypoevolve.workers import WorkerResult, WorkerTask, run_worker_task
+from hypoevolve.runtime.worker import WorkerResult, WorkerTask, run_worker_task
 
 
 class TestHypoEvolveWorkers(unittest.TestCase):
@@ -39,10 +39,10 @@ class TestHypoEvolveWorkers(unittest.TestCase):
                 "mutation_summary": "Applied a replace_atomic-style local mutation.",
             },
         )()
-        with patch("hypoevolve.workers.LLMClient"), \
-             patch("hypoevolve.workers.load_dataset_schema"), \
-             patch("hypoevolve.workers.LLMEvaluator") as evaluator_cls, \
-             patch("hypoevolve.workers.steer_mutation", return_value=fake_decision):
+        with patch("hypoevolve.runtime.worker.LLMClient"), \
+             patch("hypoevolve.runtime.worker.load_dataset_schema"), \
+             patch("hypoevolve.runtime.worker.LLMEvaluator") as evaluator_cls, \
+             patch("hypoevolve.runtime.worker.steer_mutation", return_value=fake_decision):
             evaluator_cls.return_value.evaluate.return_value = {"combined_score": 0.2}
             result = run_worker_task(task)
         self.assertIsInstance(result, WorkerResult)
@@ -76,10 +76,10 @@ class TestHypoEvolveWorkers(unittest.TestCase):
             },
         )()
 
-        with patch("hypoevolve.workers.LLMClient"), \
-             patch("hypoevolve.workers.load_dataset_schema"), \
-             patch("hypoevolve.workers.LLMEvaluator") as evaluator_cls, \
-             patch("hypoevolve.workers.steer_mutation", return_value=fake_decision) as steer_mutation_mock:
+        with patch("hypoevolve.runtime.worker.LLMClient"), \
+             patch("hypoevolve.runtime.worker.load_dataset_schema"), \
+             patch("hypoevolve.runtime.worker.LLMEvaluator") as evaluator_cls, \
+             patch("hypoevolve.runtime.worker.steer_mutation", return_value=fake_decision) as steer_mutation_mock:
             evaluator_cls.return_value.evaluate.return_value = {"combined_score": 0.2}
             result = run_worker_task(task)
 
@@ -113,10 +113,10 @@ class TestHypoEvolveWorkers(unittest.TestCase):
             },
         )()
 
-        with patch("hypoevolve.workers.LLMClient"), \
-             patch("hypoevolve.workers.load_dataset_schema"), \
-             patch("hypoevolve.workers.LLMEvaluator") as evaluator_cls, \
-             patch("hypoevolve.workers.steer_mutation", return_value=fake_decision):
+        with patch("hypoevolve.runtime.worker.LLMClient"), \
+             patch("hypoevolve.runtime.worker.load_dataset_schema"), \
+             patch("hypoevolve.runtime.worker.LLMEvaluator") as evaluator_cls, \
+             patch("hypoevolve.runtime.worker.steer_mutation", return_value=fake_decision):
             result = run_worker_task(task)
 
         evaluator_cls.return_value.evaluate.assert_not_called()
@@ -139,11 +139,11 @@ class TestHypoEvolveWorkers(unittest.TestCase):
             top_hypotheses=[],
         )
 
-        with patch("hypoevolve.workers.LLMClient"), \
-             patch("hypoevolve.workers.load_dataset_schema"), \
-             patch("hypoevolve.workers.LLMEvaluator") as evaluator_cls, \
+        with patch("hypoevolve.runtime.worker.LLMClient"), \
+             patch("hypoevolve.runtime.worker.load_dataset_schema"), \
+             patch("hypoevolve.runtime.worker.LLMEvaluator") as evaluator_cls, \
              patch(
-                 "hypoevolve.workers.steer_mutation",
+                 "hypoevolve.runtime.worker.steer_mutation",
                  side_effect=ParseError("Failed to steer mutation via LLM"),
              ):
             result = run_worker_task(task)
@@ -185,7 +185,7 @@ class TestHypoEvolveWorkers(unittest.TestCase):
             },
         )()
 
-        with patch('hypoevolve.workers.LLMClient'),              patch('hypoevolve.workers.load_dataset_schema'),              patch('hypoevolve.workers.LLMEvaluator') as evaluator_cls,              patch('hypoevolve.workers.steer_mutation', return_value=fake_decision) as steer_mutation_mock:
+        with patch('hypoevolve.runtime.worker.LLMClient'),              patch('hypoevolve.runtime.worker.load_dataset_schema'),              patch('hypoevolve.runtime.worker.LLMEvaluator') as evaluator_cls,              patch('hypoevolve.runtime.worker.steer_mutation', return_value=fake_decision) as steer_mutation_mock:
             evaluator_cls.return_value.evaluate.return_value = {'combined_score': 0.2}
             run_worker_task(task)
 
@@ -217,7 +217,7 @@ class TestHypoEvolveWorkers(unittest.TestCase):
             },
         )()
 
-        with patch('hypoevolve.workers.LLMClient'),              patch('hypoevolve.workers.load_dataset_schema'),              patch('hypoevolve.workers.LLMEvaluator') as evaluator_cls,              patch('hypoevolve.workers.steer_mutation', return_value=fake_decision):
+        with patch('hypoevolve.runtime.worker.LLMClient'),              patch('hypoevolve.runtime.worker.load_dataset_schema'),              patch('hypoevolve.runtime.worker.LLMEvaluator') as evaluator_cls,              patch('hypoevolve.runtime.worker.steer_mutation', return_value=fake_decision):
             evaluator_cls.return_value.evaluate.return_value = {'combined_score': 0.2}
             evaluator_cls.return_value.last_evaluation_artifacts = {'candidate_code': 'print(1)'}
             result = run_worker_task(task)

@@ -2,7 +2,7 @@ import random
 import unittest
 
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
-from hypoevolve.archive import (
+from hypoevolve.memory.archive import (
     ArchiveEntry,
     MAPElitesArchive,
     SamplingStats,

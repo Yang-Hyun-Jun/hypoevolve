@@ -2,7 +2,7 @@ import unittest
 
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode, RelationType
 from hypoevolve.prompts import load_prompt
-from hypoevolve.parser import (
+from hypoevolve.skills.elg_compile import (
     ParseError,
     llm_hypothesis_to_natural_language,
     llm_make_hypothesis_measurable,

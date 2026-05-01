@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from hypoevolve.config import HypoEvolveConfig
-from hypoevolve.controller import HypoEvolveController
+from hypoevolve.core.config import HypoEvolveConfig
+from hypoevolve.core.orchestrator import HypoEvolveController
 
 
 class FakeLLM:

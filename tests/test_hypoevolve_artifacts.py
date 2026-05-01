@@ -4,15 +4,15 @@ from pathlib import Path
 import unittest
 
 from hypoevolve.elg import AtomicNode, Hypothesis
-from hypoevolve.archive import MAPElitesArchive
-from hypoevolve.artifact_contracts import (
+from hypoevolve.memory.archive import MAPElitesArchive
+from hypoevolve.memory.artifacts import (
     build_checkpoint_payload,
     build_history_entry,
     build_run_summary_payload,
     build_trace_event,
 )
-from hypoevolve.artifacts import RunArtifactRecorder
-from hypoevolve.runtime import create_run_dir
+from hypoevolve.memory.artifacts import RunArtifactRecorder
+from hypoevolve.runtime.checkpoint import create_run_dir
 
 
 class TestRunArtifactRecorder(unittest.TestCase):

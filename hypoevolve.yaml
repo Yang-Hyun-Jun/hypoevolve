@@ -1,7 +1,7 @@
 llm:
-  api_key: EMPTY
-  api_base: http://127.0.0.1:8000/v1
-  model: Qwen2.5-14B-Instruct
+  api_key: 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
+  api_base: https://openrouter.ai/api/v1
+  model: deepseek/deepseek-v4-pro
   temperature: 0.8
   max_tokens: 10000
   retries: 1

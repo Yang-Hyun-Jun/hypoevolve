@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from hypoevolve.elg import AtomicNode, Hypothesis, RelationNode
-from hypoevolve.logger import (
+from hypoevolve.observability.logger import (
     compact_text,
     configure_logger,
     event_message,

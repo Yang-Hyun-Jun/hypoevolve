@@ -5,9 +5,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis
-from hypoevolve.config import HypoEvolveConfig
-from hypoevolve.controller import HypoEvolveController
-from hypoevolve.parser import ParseError
+from hypoevolve.core.config import HypoEvolveConfig
+from hypoevolve.core.orchestrator import HypoEvolveController
+from hypoevolve.skills.elg_compile import ParseError
 
 
 class TestPhase0SteeringFailureFixture(unittest.TestCase):
@@ -21,13 +21,13 @@ class TestPhase0SteeringFailureFixture(unittest.TestCase):
             return {'combined_score': 0.5}
 
         with tempfile.TemporaryDirectory() as tmp, patch(
-            'hypoevolve.controller.parse_hypothesis_text', return_value=seed
+            'hypoevolve.core.orchestrator.parse_hypothesis_text', return_value=seed
         ), patch(
-            'hypoevolve.controller.llm_make_hypothesis_measurable', return_value=seed
+            'hypoevolve.core.orchestrator.llm_make_hypothesis_measurable', return_value=seed
         ), patch(
-            'hypoevolve.controller.llm_hypothesis_to_natural_language', return_value='A'
+            'hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language', return_value='A'
         ), patch(
-            'hypoevolve.controller.steer_mutation', side_effect=ParseError('Failed to steer mutation via LLM')
+            'hypoevolve.core.orchestrator.steer_mutation', side_effect=ParseError('Failed to steer mutation via LLM')
         ):
             config.output.base_dir = tmp
             fake_evaluator = type(

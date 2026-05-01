@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
 
 class LogicalOp(str, Enum):

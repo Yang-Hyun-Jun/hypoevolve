@@ -7,11 +7,11 @@ from threading import Timer
 from unittest.mock import Mock, patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis, fingerprint
-from hypoevolve.archive import MAPElitesArchive
-from hypoevolve.artifacts import RunArtifactRecorder
-from hypoevolve.config import HypoEvolveConfig
-from hypoevolve.controller import HypoEvolveController
-from hypoevolve.workers import WorkerResult
+from hypoevolve.memory.archive import MAPElitesArchive
+from hypoevolve.memory.artifacts import RunArtifactRecorder
+from hypoevolve.core.config import HypoEvolveConfig
+from hypoevolve.core.orchestrator import HypoEvolveController
+from hypoevolve.runtime.worker import WorkerResult
 
 
 class ImmediateFuture(Future):
@@ -92,10 +92,10 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
             controller.evaluator.last_evaluation_artifacts = {}
 
             with (
-                patch("hypoevolve.controller.parse_hypothesis_text", return_value=seed),
-                patch("hypoevolve.controller.llm_make_hypothesis_measurable", return_value=seed),
-                patch("hypoevolve.controller.llm_hypothesis_to_natural_language", return_value="A"),
-                patch("hypoevolve.controller.run_worker_task", side_effect=fake_run_worker_task),
+                patch("hypoevolve.core.orchestrator.parse_hypothesis_text", return_value=seed),
+                patch("hypoevolve.core.orchestrator.llm_make_hypothesis_measurable", return_value=seed),
+                patch("hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language", return_value="A"),
+                patch("hypoevolve.core.orchestrator.run_worker_task", side_effect=fake_run_worker_task),
             ):
                 controller.run("if A then B")
 
@@ -171,7 +171,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 dataset_schema_path="dataset.yaml",
             )
 
-            with patch("hypoevolve.controller.run_worker_task", side_effect=fake_run_worker_task):
+            with patch("hypoevolve.core.orchestrator.run_worker_task", side_effect=fake_run_worker_task):
                 known_fingerprint_count = controller._run_worker_iterations(
                     archive=archive,
                     recorder=recorder,
@@ -215,14 +215,14 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
             run_dir.mkdir()
             recorder.finalize.return_value = run_dir / "report.md"
             with (
-                patch("hypoevolve.controller.create_run_dir", return_value=run_dir),
-                patch("hypoevolve.controller.RunArtifactRecorder", return_value=recorder),
-                patch("hypoevolve.controller.configure_logger"),
-                patch("hypoevolve.controller.log_info_event"),
-                patch("hypoevolve.controller.parse_hypothesis_text", return_value=Hypothesis(root=AtomicNode("A"))),
-                patch("hypoevolve.controller.llm_make_hypothesis_measurable", return_value=Hypothesis(root=AtomicNode("A"))),
-                patch("hypoevolve.controller.run_worker_task") as run_with_workers,
-                patch("hypoevolve.controller.llm_hypothesis_to_natural_language", return_value="A"),
+                patch("hypoevolve.core.orchestrator.create_run_dir", return_value=run_dir),
+                patch("hypoevolve.core.orchestrator.RunArtifactRecorder", return_value=recorder),
+                patch("hypoevolve.core.orchestrator.configure_logger"),
+                patch("hypoevolve.core.orchestrator.log_info_event"),
+                patch("hypoevolve.core.orchestrator.parse_hypothesis_text", return_value=Hypothesis(root=AtomicNode("A"))),
+                patch("hypoevolve.core.orchestrator.llm_make_hypothesis_measurable", return_value=Hypothesis(root=AtomicNode("A"))),
+                patch("hypoevolve.core.orchestrator.run_worker_task") as run_with_workers,
+                patch("hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language", return_value="A"),
             ):
                 result = controller.run("if A then B")
 
@@ -252,20 +252,20 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
             run_dir.mkdir()
             recorder.finalize.return_value = run_dir / "report.md"
             with (
-                patch("hypoevolve.controller.create_run_dir", return_value=run_dir),
-                patch("hypoevolve.controller.RunArtifactRecorder", return_value=recorder),
-                patch("hypoevolve.controller.configure_logger"),
-                patch("hypoevolve.controller.log_info_event"),
-                patch("hypoevolve.controller.parse_hypothesis_text", return_value=Hypothesis(root=AtomicNode("A"))),
-                patch("hypoevolve.controller.llm_make_hypothesis_measurable", return_value=Hypothesis(root=AtomicNode("A"))),
-                patch("hypoevolve.controller.run_worker_task", return_value=WorkerResult(
+                patch("hypoevolve.core.orchestrator.create_run_dir", return_value=run_dir),
+                patch("hypoevolve.core.orchestrator.RunArtifactRecorder", return_value=recorder),
+                patch("hypoevolve.core.orchestrator.configure_logger"),
+                patch("hypoevolve.core.orchestrator.log_info_event"),
+                patch("hypoevolve.core.orchestrator.parse_hypothesis_text", return_value=Hypothesis(root=AtomicNode("A"))),
+                patch("hypoevolve.core.orchestrator.llm_make_hypothesis_measurable", return_value=Hypothesis(root=AtomicNode("A"))),
+                patch("hypoevolve.core.orchestrator.run_worker_task", return_value=WorkerResult(
                     child_hypothesis=Hypothesis(root=AtomicNode("A")).to_dict(),
                     metrics={"combined_score": 0.5},
                     iteration=1,
                     mutation_summary="worker",
                     parent_score=0.5,
                 )) as run_with_workers,
-                patch("hypoevolve.controller.llm_hypothesis_to_natural_language", return_value="A"),
+                patch("hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language", return_value="A"),
             ):
                 result = controller.run("if A then B")
 
@@ -304,13 +304,13 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
             run_dir = Path(tmp) / "run"
             run_dir.mkdir()
             with (
-                patch("hypoevolve.controller.create_run_dir", return_value=run_dir),
-                patch("hypoevolve.controller.RunArtifactRecorder", return_value=recorder),
-                patch("hypoevolve.controller.configure_logger"),
-                patch("hypoevolve.controller.log_info_event", side_effect=log_side_effect) as log_info_event,
-                patch("hypoevolve.controller.parse_hypothesis_text", return_value=Hypothesis(root=AtomicNode("A"))),
-                patch("hypoevolve.controller.llm_make_hypothesis_measurable", return_value=Hypothesis(root=AtomicNode("A"))),
-                patch("hypoevolve.controller.run_worker_task", return_value=WorkerResult(
+                patch("hypoevolve.core.orchestrator.create_run_dir", return_value=run_dir),
+                patch("hypoevolve.core.orchestrator.RunArtifactRecorder", return_value=recorder),
+                patch("hypoevolve.core.orchestrator.configure_logger"),
+                patch("hypoevolve.core.orchestrator.log_info_event", side_effect=log_side_effect) as log_info_event,
+                patch("hypoevolve.core.orchestrator.parse_hypothesis_text", return_value=Hypothesis(root=AtomicNode("A"))),
+                patch("hypoevolve.core.orchestrator.llm_make_hypothesis_measurable", return_value=Hypothesis(root=AtomicNode("A"))),
+                patch("hypoevolve.core.orchestrator.run_worker_task", return_value=WorkerResult(
                     child_hypothesis=Hypothesis(root=AtomicNode("A")).to_dict(),
                     metrics={"combined_score": 0.5},
                     iteration=1,
@@ -318,7 +318,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                     parent_score=0.5,
                 )),
                 patch.object(recorder, "finalize", side_effect=finalize_side_effect) as finalize_run,
-                patch("hypoevolve.controller.llm_hypothesis_to_natural_language", return_value="A"),
+                patch("hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language", return_value="A"),
             ):
                 result = controller.run("if A then B")
 
@@ -385,7 +385,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 "description: test\nindex:\n  name: close_time\n  dtype: datetime64[us]\nfiles:\n  -\n    entity: BTCUSDT\n    path: /tmp/BTCUSDT.parquet\ncolumns:\n  -\n    name: CLOSE\n",
                 encoding="utf-8",
             )
-            with patch("hypoevolve.controller.run_worker_task", side_effect=fake_run_worker_task):
+            with patch("hypoevolve.core.orchestrator.run_worker_task", side_effect=fake_run_worker_task):
                 controller = HypoEvolveController(config, llm_client=FakeLLM(), evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {"combined_score": 0.5}})(), executor_factory=FakeExecutor)
                 result = controller.run("if A then B")
             self.assertTrue((result.run_dir / "trace.jsonl").exists())
@@ -524,7 +524,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 "description: test\nindex:\n  name: close_time\n  dtype: datetime64[us]\nfiles:\n  -\n    entity: BTCUSDT\n    path: /tmp/BTCUSDT.parquet\ncolumns:\n  -\n    name: CLOSE\n",
                 encoding="utf-8",
             )
-            with patch("hypoevolve.controller.run_worker_task", side_effect=fake_run_worker_task):
+            with patch("hypoevolve.core.orchestrator.run_worker_task", side_effect=fake_run_worker_task):
                 controller = HypoEvolveController(
                     config,
                     llm_client=FakeLLM(),
@@ -585,7 +585,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 "description: test\nindex:\n  name: close_time\n  dtype: datetime64[us]\nfiles:\n  -\n    entity: BTCUSDT\n    path: /tmp/BTCUSDT.parquet\ncolumns:\n  -\n    name: CLOSE\n",
                 encoding="utf-8",
             )
-            with patch("hypoevolve.controller.run_worker_task", side_effect=fake_run_worker_task):
+            with patch("hypoevolve.core.orchestrator.run_worker_task", side_effect=fake_run_worker_task):
                 controller = HypoEvolveController(
                     config,
                     llm_client=FakeLLM(),

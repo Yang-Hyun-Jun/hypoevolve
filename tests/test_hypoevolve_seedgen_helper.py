@@ -3,9 +3,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from hypoevolve.seedgen.helper import get_labels, get_nodes
-from hypoevolve.seedgen.nodes.nodes import DATA
-from hypoevolve.seedgen.tree.generator import HypoTreeGenerator
+from hypoevolve.skills.seed_generation.helper import get_labels, get_nodes
+from hypoevolve.skills.seed_generation.nodes.nodes import DATA
+from hypoevolve.skills.seed_generation.tree.generator import HypoTreeGenerator
 
 
 class TestHypoHelper(unittest.TestCase):
@@ -86,8 +86,8 @@ class TestHypoHelper(unittest.TestCase):
         self.assertGreater(len(generated_nodes), 1)
 
     def test_get_tree_generator_builds_generator_from_schema_nodes(self):
-        with patch("hypoevolve.seedgen.helper.get_nodes", return_value=["NODE_A", "NODE_B"]):
-            from hypoevolve.seedgen.helper import get_tree_generator
+        with patch("hypoevolve.skills.seed_generation.helper.get_nodes", return_value=["NODE_A", "NODE_B"]):
+            from hypoevolve.skills.seed_generation.helper import get_tree_generator
 
             generator = get_tree_generator("dataset.yaml")
 

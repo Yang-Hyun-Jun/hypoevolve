@@ -1,9 +1,9 @@
 import unittest
 
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
-from hypoevolve.archive import ArchiveEntry
-from hypoevolve.config import LLMConfig
-from hypoevolve.mutation import (
+from hypoevolve.memory.archive import ArchiveEntry
+from hypoevolve.core.config import LLMConfig
+from hypoevolve.skills.mutation import (
     MutationDecision,
     STEERING_RANDOM_SYSTEM_PROMPT,
     STEERING_SYSTEM_PROMPT,

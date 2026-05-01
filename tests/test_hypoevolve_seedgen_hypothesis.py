@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from hypoevolve.seedgen.hypothesis import (
+from hypoevolve.skills.seed_generation.hypothesis import (
     HypothesisGenerationError,
     TreePairHypothesis,
     build_hypothesis_prompt_variables,
@@ -85,7 +85,7 @@ class TestHypoTreeHypothesisGeneration(unittest.TestCase):
         get_tree_generator = Mock(return_value="GENERATOR")
 
         with patch(
-            "hypoevolve.seedgen.hypothesis._load_tree_generation_helpers",
+            "hypoevolve.skills.seed_generation.hypothesis._load_tree_generation_helpers",
             return_value=(
                 get_tree_generator,
                 lambda generator, max_depth, num_trees: [tree_a, tree_b],
@@ -117,7 +117,7 @@ class TestHypoTreeHypothesisGeneration(unittest.TestCase):
                 return "<hypothesis>Provided generator hypothesis.</hypothesis>"
 
         with patch(
-            "hypoevolve.seedgen.hypothesis._load_tree_generation_helpers",
+            "hypoevolve.skills.seed_generation.hypothesis._load_tree_generation_helpers",
             return_value=(
                 Mock(name="get_tree_generator"),
                 Mock(return_value=[tree_a, tree_b]),
@@ -138,7 +138,7 @@ class TestHypoTreeHypothesisGeneration(unittest.TestCase):
 
 
     def test_extract_hypothesis_text_prefers_tagged_block_and_falls_back_to_raw_text(self):
-        from hypoevolve.seedgen.hypothesis import _extract_hypothesis_text
+        from hypoevolve.skills.seed_generation.hypothesis import _extract_hypothesis_text
 
         self.assertEqual(
             _extract_hypothesis_text('<hypothesis>  Alpha implies Beta  </hypothesis>'),
@@ -147,7 +147,7 @@ class TestHypoTreeHypothesisGeneration(unittest.TestCase):
         self.assertEqual(_extract_hypothesis_text('Plain response'), 'Plain response')
 
     def test_load_tree_generation_helpers_returns_callable_pair(self):
-        from hypoevolve.seedgen.hypothesis import _load_tree_generation_helpers
+        from hypoevolve.skills.seed_generation.hypothesis import _load_tree_generation_helpers
 
         get_tree_generator, generate_trees = _load_tree_generation_helpers()
         self.assertTrue(callable(get_tree_generator))

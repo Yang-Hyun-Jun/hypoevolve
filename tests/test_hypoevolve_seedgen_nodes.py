@@ -1,7 +1,7 @@
 import unittest
 
-from hypoevolve.seedgen.nodes.base import Node, NodeIOTypes
-from hypoevolve.seedgen.nodes.nodes import DATA
+from hypoevolve.skills.seed_generation.nodes.base import Node, NodeIOTypes
+from hypoevolve.skills.seed_generation.nodes.nodes import DATA
 
 
 class _LeafNode(Node):

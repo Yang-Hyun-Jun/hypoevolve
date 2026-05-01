@@ -3,9 +3,9 @@ import unittest
 from pathlib import Path
 
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
-from hypoevolve.dataset import ColumnSpec, DataFile, DatasetSchema, IndexSpec
-from hypoevolve.evaluator import LLMEvaluator
-from hypoevolve.executor import ExecutionResult
+from hypoevolve.data.dataset import ColumnSpec, DataFile, DatasetSchema, IndexSpec
+from hypoevolve.skills.evaluation import LLMEvaluator
+from hypoevolve.runtime.sandbox import ExecutionResult
 from tests.test_hypoevolve_evaluator import FakeExecutor, FakeLLMClient
 
 
@@ -14,6 +14,7 @@ def _normalize_prompt(text: str) -> str:
 
 
 def _normalize_artifacts(payload: dict) -> dict:
+    project_root = str(Path(__file__).resolve().parents[1])
     normalized = dict(payload)
     normalized['wrapper_code'] = (
         normalized['wrapper_code']
@@ -21,6 +22,8 @@ def _normalize_artifacts(payload: dict) -> dict:
         .replace('"dataset.yaml"', '"<DATASET_SCHEMA_PATH>"')
         .replace('"/home/hjyang/workspace/hypoevolve/dataset.yaml"', '"<DATASET_SCHEMA_PATH>"')
         .replace('/home/hjyang/workspace/hypoevolve', '<PROJECT_ROOT>')
+        .replace(f'"{project_root}/dataset.yaml"', '"<DATASET_SCHEMA_PATH>"')
+        .replace(project_root, '<PROJECT_ROOT>')
     )
     normalized['work_dir'] = '<WORK_DIR>'
     return normalized

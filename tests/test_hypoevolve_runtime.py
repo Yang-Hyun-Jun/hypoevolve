@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis
-from hypoevolve.runtime import (
+from hypoevolve.runtime.checkpoint import (
     create_run_dir,
     write_artifact,
     write_best,
@@ -44,7 +44,7 @@ class TestHypoEvolveRuntime(unittest.TestCase):
     def test_create_run_dir_generates_id_and_logs_event(self):
         with tempfile.TemporaryDirectory() as tmp:
             fake_uuid = type('FakeUUID', (), {'hex': 'abcdef1234567890'})()
-            with patch('hypoevolve.runtime.uuid.uuid4', return_value=fake_uuid),                  patch('hypoevolve.runtime.log_info_event') as log_info_event:
+            with patch('hypoevolve.runtime.checkpoint.uuid.uuid4', return_value=fake_uuid),                  patch('hypoevolve.runtime.checkpoint.log_info_event') as log_info_event:
                 run_dir = create_run_dir(tmp)
 
             self.assertEqual(run_dir.name, 'abcdef12')

@@ -27,3 +27,4 @@ hypoevolve_batch_*.log
 
 # Keep vendored reference project out of this repo
 openevolve/
+.omc/

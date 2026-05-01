@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from hypoevolve.config import (
+from hypoevolve.core.config import (
     ConfigError,
     HypoEvolveConfig,
     _ensure_mapping,
@@ -12,7 +12,7 @@ from hypoevolve.config import (
     load_runtime_config,
     resolve_config_path,
 )
-from hypoevolve.dataset import load_dataset_schema
+from hypoevolve.data.dataset import load_dataset_schema
 
 
 class TestHypoEvolveConfig(unittest.TestCase):

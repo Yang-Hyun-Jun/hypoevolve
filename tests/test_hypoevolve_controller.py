@@ -5,16 +5,16 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis, fingerprint
-from hypoevolve.archive import MAPElitesArchive
-from hypoevolve.artifacts import RunArtifactRecorder
-from hypoevolve.config import HypoEvolveConfig
-from hypoevolve.controller import (
+from hypoevolve.memory.archive import MAPElitesArchive
+from hypoevolve.memory.artifacts import RunArtifactRecorder
+from hypoevolve.core.config import HypoEvolveConfig
+from hypoevolve.core.orchestrator import (
     HypoEvolveController,
     _build_steering_metadata,
     _record_completed_child,
     _record_skip,
 )
-from hypoevolve.parser import ParseError
+from hypoevolve.skills.elg_compile import ParseError
 
 
 class TestHypoEvolveController(unittest.TestCase):
@@ -40,8 +40,8 @@ class TestHypoEvolveController(unittest.TestCase):
         seed = Hypothesis(root=AtomicNode("A"))
 
         with (
-            patch("hypoevolve.controller.parse_hypothesis_text", return_value=seed),
-            patch("hypoevolve.controller.llm_make_hypothesis_measurable", return_value=seed),
+            patch("hypoevolve.core.orchestrator.parse_hypothesis_text", return_value=seed),
+            patch("hypoevolve.core.orchestrator.llm_make_hypothesis_measurable", return_value=seed),
         ):
             seed_state = controller._bootstrap_seed(
                 seed_input_text="if A then B",
@@ -93,7 +93,7 @@ class TestHypoEvolveController(unittest.TestCase):
         )()
 
         with patch(
-            "hypoevolve.controller.steer_mutation",
+            "hypoevolve.core.orchestrator.steer_mutation",
             return_value=fake_decision,
         ) as steer_mutation_mock:
             child, metadata = controller._choose_mutation(
@@ -357,10 +357,10 @@ class TestHypoEvolveController(unittest.TestCase):
         recorder.finalize.side_effect = finalize_side_effect
 
         with patch(
-            "hypoevolve.controller.llm_hypothesis_to_natural_language",
+            "hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language",
             side_effect=ParseError("nl fail"),
         ), patch(
-            "hypoevolve.controller.log_info_event",
+            "hypoevolve.core.orchestrator.log_info_event",
             side_effect=log_side_effect,
         ):
             result = controller._finalize_run_result(
@@ -399,11 +399,11 @@ class TestHypoEvolveController(unittest.TestCase):
                 "_resolve_seed_input_text",
                 return_value=("if A then B", False),
             ),
-            patch("hypoevolve.controller.create_run_dir", return_value=Path("/tmp/run-1")),
-            patch("hypoevolve.controller.RunArtifactRecorder", return_value=recorder) as recorder_cls,
-            patch("hypoevolve.controller.configure_logger", side_effect=lambda *args, **kwargs: call_order.append("configure_logger")),
+            patch("hypoevolve.core.orchestrator.create_run_dir", return_value=Path("/tmp/run-1")),
+            patch("hypoevolve.core.orchestrator.RunArtifactRecorder", return_value=recorder) as recorder_cls,
+            patch("hypoevolve.core.orchestrator.configure_logger", side_effect=lambda *args, **kwargs: call_order.append("configure_logger")),
             patch(
-                "hypoevolve.controller.log_info_event",
+                "hypoevolve.core.orchestrator.log_info_event",
                 side_effect=lambda event_name, **kwargs: call_order.append(event_name),
             ),
         ):
@@ -492,20 +492,20 @@ class TestHypoEvolveController(unittest.TestCase):
             run_dir.mkdir()
             recorder = Mock(duplicate_skips_solo=0, duplicate_skips_worker=0)
             with (
-                patch("hypoevolve.controller.create_run_dir", return_value=run_dir),
-                patch("hypoevolve.controller.RunArtifactRecorder", return_value=recorder),
-                patch("hypoevolve.controller.configure_logger"),
-                patch("hypoevolve.controller.log_info_event", side_effect=log_side_effect),
+                patch("hypoevolve.core.orchestrator.create_run_dir", return_value=run_dir),
+                patch("hypoevolve.core.orchestrator.RunArtifactRecorder", return_value=recorder),
+                patch("hypoevolve.core.orchestrator.configure_logger"),
+                patch("hypoevolve.core.orchestrator.log_info_event", side_effect=log_side_effect),
                 patch(
-                    "hypoevolve.controller.parse_hypothesis_text",
+                    "hypoevolve.core.orchestrator.parse_hypothesis_text",
                     return_value=Hypothesis(root=AtomicNode("A")),
                 ),
                 patch(
-                    "hypoevolve.controller.llm_make_hypothesis_measurable",
+                    "hypoevolve.core.orchestrator.llm_make_hypothesis_measurable",
                     return_value=Hypothesis(root=AtomicNode("A")),
                 ),
                 patch(
-                    "hypoevolve.controller.llm_hypothesis_to_natural_language",
+                    "hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language",
                     return_value="A",
                 ),
                 patch.object(
@@ -707,7 +707,7 @@ class TestHypoEvolveController(unittest.TestCase):
                 config, evaluator=fake_evaluator, llm_client=FakeLLM()
             )
             with patch(
-                "hypoevolve.controller.steer_mutation",
+                "hypoevolve.core.orchestrator.steer_mutation",
                 side_effect=ParseError("Failed to steer mutation via LLM"),
             ):
                 result = controller.run("if A then B")
@@ -746,16 +746,16 @@ class TestHypoEvolveController(unittest.TestCase):
             return {"combined_score": 0.5}
 
         with tempfile.TemporaryDirectory() as tmp, patch(
-            "hypoevolve.controller.parse_hypothesis_text",
+            "hypoevolve.core.orchestrator.parse_hypothesis_text",
             return_value=seed,
         ), patch(
-            "hypoevolve.controller.llm_make_hypothesis_measurable",
+            "hypoevolve.core.orchestrator.llm_make_hypothesis_measurable",
             return_value=seed,
         ), patch(
-            "hypoevolve.controller.llm_hypothesis_to_natural_language",
+            "hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language",
             return_value="A",
         ), patch(
-            "hypoevolve.controller.steer_mutation",
+            "hypoevolve.core.orchestrator.steer_mutation",
             return_value=fake_decision,
         ):
             config.output.base_dir = tmp
@@ -803,19 +803,19 @@ class TestHypoEvolveController(unittest.TestCase):
         )()
 
         with tempfile.TemporaryDirectory() as tmp, patch(
-            "hypoevolve.controller.generate_random_tree_pair_hypothesis",
+            "hypoevolve.core.orchestrator.generate_random_tree_pair_hypothesis",
             return_value=fake_tree_result,
         ) as generate_seed_mock, patch(
-            "hypoevolve.controller.parse_hypothesis_text",
+            "hypoevolve.core.orchestrator.parse_hypothesis_text",
             return_value=seed,
         ) as parse_mock, patch(
-            "hypoevolve.controller.llm_make_hypothesis_measurable",
+            "hypoevolve.core.orchestrator.llm_make_hypothesis_measurable",
             return_value=seed,
         ), patch(
-            "hypoevolve.controller.llm_hypothesis_to_natural_language",
+            "hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language",
             return_value="A",
         ), patch(
-            "hypoevolve.controller.steer_mutation",
+            "hypoevolve.core.orchestrator.steer_mutation",
             return_value=type(
                 "FakeDecision",
                 (),
@@ -869,11 +869,11 @@ class TestHypoEvolveController(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config.output.base_dir = tmp
             with (
-                patch("hypoevolve.controller.parse_hypothesis_text", return_value=Hypothesis(root=AtomicNode("A"))),
-                patch("hypoevolve.controller.llm_make_hypothesis_measurable", return_value=Hypothesis(root=AtomicNode("A"))),
-                patch("hypoevolve.controller.RunArtifactRecorder.record_seed") as record_seed,
-                patch("hypoevolve.controller.llm_hypothesis_to_natural_language", return_value="A"),
-                patch("hypoevolve.controller.RunArtifactRecorder.finalize", return_value=Path(tmp) / "report.md"),
+                patch("hypoevolve.core.orchestrator.parse_hypothesis_text", return_value=Hypothesis(root=AtomicNode("A"))),
+                patch("hypoevolve.core.orchestrator.llm_make_hypothesis_measurable", return_value=Hypothesis(root=AtomicNode("A"))),
+                patch("hypoevolve.core.orchestrator.RunArtifactRecorder.record_seed") as record_seed,
+                patch("hypoevolve.core.orchestrator.llm_hypothesis_to_natural_language", return_value="A"),
+                patch("hypoevolve.core.orchestrator.RunArtifactRecorder.finalize", return_value=Path(tmp) / "report.md"),
             ):
                 controller.run("if A then B")
 

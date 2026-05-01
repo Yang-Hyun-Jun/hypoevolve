@@ -1,6 +1,6 @@
 {
   "candidate_code": "def evaluate_hypothesis(accessor: DatasetAccessor, parameters: dict[str, object] | None = None) -> dict[str, object]:\n    return {'combined_score': 0.1, 'precision': 0.2, 'baseline': 0.1, 'coverage': 0.5, 'uplift': 0.1, 'support_count': 1, 'total_count': 2, 'rationale': 'fixed', 'used_parameters': {'HORIZON': 1}}",
-  "wrapper_code": "import io\nimport json\nimport sys\nfrom contextlib import redirect_stdout\nsys.path.insert(0, \"<PROJECT_ROOT>\")\nfrom hypoevolve.dataset import DatasetAccessor, load_dataset_schema\nfrom candidate import evaluate_hypothesis\n\nschema = load_dataset_schema(\"<DATASET_SCHEMA_PATH>\")\naccessor = DatasetAccessor(schema)\nparameters = None\nbuffer = io.StringIO()\nwith redirect_stdout(buffer):\n    result = evaluate_hypothesis(accessor, parameters=parameters)\nprint(json.dumps(result, ensure_ascii=False))\n",
+  "wrapper_code": "import io\nimport json\nimport sys\nfrom contextlib import redirect_stdout\nsys.path.insert(0, \"<PROJECT_ROOT>\")\nfrom hypoevolve.data.dataset import DatasetAccessor, load_dataset_schema\nfrom candidate import evaluate_hypothesis\n\nschema = load_dataset_schema(\"<DATASET_SCHEMA_PATH>\")\naccessor = DatasetAccessor(schema)\nparameters = None\nbuffer = io.StringIO()\nwith redirect_stdout(buffer):\n    result = evaluate_hypothesis(accessor, parameters=parameters)\nprint(json.dumps(result, ensure_ascii=False))\n",
   "attempt": 2,
   "work_dir": "<WORK_DIR>"
 }

@@ -1,6 +1,6 @@
 import unittest
 
-from hypoevolve.simple_yaml import SimpleYAMLError, ensure_mapping, parse_simple_yaml
+from hypoevolve.data.yaml_parser import SimpleYAMLError, ensure_mapping, parse_simple_yaml
 
 
 class TestHypoEvolveSimpleYaml(unittest.TestCase):

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
-from hypoevolve.reporting import (
+from hypoevolve.skills.reporting import (
     _as_float,
     _build_archive_distribution_svg,
     _build_score_progression_svg,
@@ -20,7 +20,7 @@ from hypoevolve.reporting import (
     _read_json,
     generate_run_report,
 )
-from hypoevolve.runtime import create_run_dir, write_best, write_checkpoint, write_run_summary, write_score_history
+from hypoevolve.runtime.checkpoint import create_run_dir, write_best, write_checkpoint, write_run_summary, write_score_history
 
 
 class TestHypoEvolveReporting(unittest.TestCase):

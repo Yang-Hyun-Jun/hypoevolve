@@ -1,8 +1,8 @@
 import unittest
 
-from hypoevolve.seedgen.nodes import nodes
-from hypoevolve.seedgen.tree.base import HypoTree
-from hypoevolve.seedgen.tree.generator import HypoTreeGenerator
+from hypoevolve.skills.seed_generation.nodes import nodes
+from hypoevolve.skills.seed_generation.tree.base import HypoTree
+from hypoevolve.skills.seed_generation.tree.generator import HypoTreeGenerator
 
 
 class TestHypoTree(unittest.TestCase):

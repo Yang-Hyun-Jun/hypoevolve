@@ -5,14 +5,14 @@ from pathlib import Path
 import elg
 import hypoevolve
 import hypoevolve.elg as hypoevolve_elg
-import hypoevolve.seedgen as hypoevolve_seedgen
-from hypoevolve.evaluator import LLMEvaluator
-from hypoevolve.evaluator_contracts import Evaluator as EvaluatorContract
-from hypoevolve.worker_contracts import (
+import hypoevolve.skills.seed_generation as hypoevolve_seedgen
+from hypoevolve.skills.evaluation import LLMEvaluator
+from hypoevolve.skills.evaluation import Evaluator as EvaluatorContract
+from hypoevolve.runtime.worker import (
     WorkerResult as WorkerResultContract,
     WorkerTask as WorkerTaskContract,
 )
-from hypoevolve.workers import run_worker_task
+from hypoevolve.runtime.worker import run_worker_task
 
 
 class TestHypoEvolvePublicAPI(unittest.TestCase):
@@ -43,6 +43,18 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
                 "llm_make_hypothesis_measurable",
                 "parse_hypothesis_text",
                 "run_worker_task",
+                # Protocol and policy exports
+                "HookBus",
+                "SelectionPolicy",
+                "StoppingPolicy",
+                "ContextProvider",
+                "SeedGenerationSkill",
+                "CompileSkill",
+                "MutationSkill",
+                "EvaluationSkill",
+                "ReportingSkill",
+                "UCBSelectionPolicy",
+                "IterationStoppingPolicy",
             ],
         )
 
@@ -71,14 +83,12 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
         self.assertIs(hypoevolve.WorkerResult, WorkerResultContract)
         self.assertIs(hypoevolve.run_worker_task, run_worker_task)
 
-    def test_package_root_sources_boundary_types_from_contract_modules(self):
+    def test_package_root_sources_boundary_types_from_canonical_modules(self):
         init_path = Path(__file__).resolve().parents[1] / "hypoevolve" / "__init__.py"
         text = init_path.read_text(encoding="utf-8")
 
-        self.assertIn("from .evaluator_contracts import Evaluator", text)
-        self.assertIn("from .worker_contracts import WorkerResult, WorkerTask", text)
-        self.assertNotIn("from .evaluator import Evaluator, LLMEvaluator", text)
-        self.assertNotIn("from .workers import WorkerResult, WorkerTask, run_worker_task", text)
+        self.assertIn("from .skills.evaluation import Evaluator", text)
+        self.assertIn("from .runtime.worker import WorkerResult, WorkerTask", text)
 
     def test_production_modules_do_not_import_package_root_or_cli(self):
         package_root = Path(__file__).resolve().parents[1] / "hypoevolve"
@@ -89,7 +99,10 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
         disallowed_cli_pattern = re.compile(r"^\s*from\s+hypoevolve\.cli\s+import\b|^\s*import\s+hypoevolve\.cli\b")
 
         for path in sorted(package_root.rglob("*.py")):
-            if path.name in {"__init__.py", "cli.py"}:
+            if path.name == "__init__.py":
+                continue
+            # cli is now a package; skip all files under cli/
+            if "cli" in path.relative_to(package_root).parts:
                 continue
             text = path.read_text(encoding="utf-8")
             for line in text.splitlines():

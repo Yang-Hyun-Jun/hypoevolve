@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from hypoevolve.dataset import (
+from hypoevolve.data.dataset import (
     ColumnSpec,
     DataFile,
     DatasetAccessor,

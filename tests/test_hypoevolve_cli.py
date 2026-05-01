@@ -60,8 +60,8 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 best_hypothesis=SimpleNamespace(),
                 best_metrics={"combined_score": 0.9},
             )
-            with patch("hypoevolve.cli.HypoEvolveController") as controller_cls, patch(
-                "hypoevolve.cli.render_pretty",
+            with patch("hypoevolve.cli.commands.HypoEvolveController") as controller_cls, patch(
+                "hypoevolve.cli.commands.render_pretty",
                 side_effect=[
                     "IMPLIES(\n  SEED_A,\n  SEED_B\n)",
                     "IMPLIES(\n  BEST_A,\n  BEST_B\n)",
@@ -99,8 +99,8 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 seed_input_text="Generated seed hypothesis.",
                 seed_generated=True,
             )
-            with patch("hypoevolve.cli.HypoEvolveController") as controller_cls, patch(
-                "hypoevolve.cli.render_pretty",
+            with patch("hypoevolve.cli.commands.HypoEvolveController") as controller_cls, patch(
+                "hypoevolve.cli.commands.render_pretty",
                 side_effect=[
                     "IMPLIES(\n  SEED_A,\n  SEED_B\n)",
                     "IMPLIES(\n  BEST_A,\n  BEST_B\n)",
@@ -149,7 +149,7 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 encoding="utf-8",
             )
             with patch(
-                "hypoevolve.cli.generate_random_tree_pair_hypothesis",
+                "hypoevolve.cli.commands.generate_random_tree_pair_hypothesis",
                 return_value=fake_result,
             ) as generate_mock:
                 result = self.runner.invoke(
@@ -176,9 +176,9 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("Python", result.output)
 
     def test_render_subcommand_tree_mode(self):
-        with patch("hypoevolve.cli.LLMClient"), patch(
-            "hypoevolve.cli.parse_hypothesis_text", return_value=SimpleNamespace()
-        ), patch("hypoevolve.cli.render_tree", return_value="ROOT\n└── A"):
+        with patch("hypoevolve.cli.commands.LLMClient"), patch(
+            "hypoevolve.cli.commands.parse_hypothesis_text", return_value=SimpleNamespace()
+        ), patch("hypoevolve.cli.commands.render_tree", return_value="ROOT\n└── A"):
             result = self.runner.invoke(
                 cli.app,
                 ["render", "if A then B", "--tree"],
@@ -194,8 +194,8 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 '{"hypothesis": {"kind": "atomic", "name": "A"}, "metrics": {"combined_score": 0.5}}',
                 encoding="utf-8",
             )
-            with patch("hypoevolve.cli.hypothesis_from_dict", return_value=SimpleNamespace()), patch(
-                "hypoevolve.cli.render_pretty", return_value="A"
+            with patch("hypoevolve.cli.commands.hypothesis_from_dict", return_value=SimpleNamespace()), patch(
+                "hypoevolve.cli.commands.render_pretty", return_value="A"
             ):
                 result = self.runner.invoke(cli.app, ["inspect", str(payload_path)])
         self.assertEqual(result.exit_code, 0)
@@ -228,8 +228,8 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 best_hypothesis=SimpleNamespace(),
                 best_metrics={"combined_score": 0.8},
             )
-            with patch("hypoevolve.cli.HypoEvolveController") as controller_cls, patch(
-                "hypoevolve.cli.render_pretty", return_value="SUPPORT(\n  A,\n  B\n)"
+            with patch("hypoevolve.cli.commands.HypoEvolveController") as controller_cls, patch(
+                "hypoevolve.cli.commands.render_pretty", return_value="SUPPORT(\n  A,\n  B\n)"
             ):
                 controller_cls.return_value.run.return_value = fake_result
                 result = self.runner.invoke(
@@ -265,71 +265,6 @@ class TestHypoEvolveCLI(unittest.TestCase):
             )
         self.assertEqual(result.exit_code, 0)
         self.assertIn(str(newer), result.output)
-
-    def test_status_json_reads_run_summary_and_report_path(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            run_dir = Path(tmp) / "run1"
-            (run_dir / "report").mkdir(parents=True)
-            (run_dir / "run_summary.json").write_text(
-                '{"iterations_requested": 10, "best_score": 0.7, "best_hypothesis_nl": "If A then B.", "archive_size": 4, "duplicate_skips_total": 2}',
-                encoding="utf-8",
-            )
-            (run_dir / "checkpoint.json").write_text(
-                '{"iteration": 10, "archive_size": 4}',
-                encoding="utf-8",
-            )
-            (run_dir / "score_history.json").write_text("[]", encoding="utf-8")
-            (run_dir / "report" / "report.md").write_text("# report\n", encoding="utf-8")
-            result = self.runner.invoke(cli.app, ["status", str(run_dir), "--json"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn('"status": "completed"', result.output)
-        self.assertIn('"best_score": 0.7', result.output)
-        self.assertIn('"report_path"', result.output)
-
-    def test_status_json_marks_failed_when_checkpoint_and_summary_missing(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            run_dir = Path(tmp) / "run1"
-            run_dir.mkdir()
-            result = self.runner.invoke(cli.app, ["status", str(run_dir), "--json"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn('"status": "failed"', result.output)
-
-    def test_status_json_marks_running_when_only_checkpoint_exists(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            run_dir = Path(tmp) / "run1"
-            run_dir.mkdir()
-            (run_dir / "checkpoint.json").write_text(
-                '{"iteration": 3, "archive_size": 2, "best_metrics": {"combined_score": 0.4}}',
-                encoding="utf-8",
-            )
-            result = self.runner.invoke(cli.app, ["status", str(run_dir), "--json"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn('"status": "running"', result.output)
-
-    def test_report_json_regenerates_missing_report(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            run_dir = Path(tmp) / "run1"
-            run_dir.mkdir()
-            (run_dir / "best.json").write_text(
-                '{"hypothesis": {"root": {"kind": "atomic", "name": "A"}}, "metrics": {"combined_score": 0.5}}',
-                encoding="utf-8",
-            )
-            (run_dir / "checkpoint.json").write_text(
-                '{"iteration": 0, "archive_size": 1, "archive": [], "best_hypothesis": {"root": {"kind": "atomic", "name": "A"}}, "best_metrics": {"combined_score": 0.5}}',
-                encoding="utf-8",
-            )
-            (run_dir / "run_summary.json").write_text(
-                '{"iterations_requested": 1, "best_score": 0.5, "best_hypothesis_nl": "A", "archive_size": 1, "duplicate_skips_total": 0, "best_fingerprint": ""}',
-                encoding="utf-8",
-            )
-            (run_dir / "score_history.json").write_text(
-                '[{"iteration": 0, "score": 0.5, "best_updated": true, "hypothesis_nl": "A"}]',
-                encoding="utf-8",
-            )
-            result = self.runner.invoke(cli.app, ["report", str(run_dir), "--json"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn('"report_path"', result.output)
-        self.assertIn("report.md", result.output)
 
     def test_runs_status_json_resolves_run_id_under_configured_base_dir(self):
         with tempfile.TemporaryDirectory() as tmp:

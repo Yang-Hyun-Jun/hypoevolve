@@ -5,9 +5,9 @@ from concurrent.futures import Future
 from pathlib import Path
 from unittest.mock import patch
 
-from hypoevolve.config import HypoEvolveConfig
-from hypoevolve.controller import HypoEvolveController
-from hypoevolve.workers import WorkerResult
+from hypoevolve.core.config import HypoEvolveConfig
+from hypoevolve.core.orchestrator import HypoEvolveController
+from hypoevolve.runtime.worker import WorkerResult
 
 
 class ImmediateFuture(Future):
@@ -99,7 +99,7 @@ class TestPhase0MultiWorkerFixture(unittest.TestCase):
                 "description: test\nindex:\n  name: close_time\n  dtype: datetime64[us]\nfiles:\n  -\n    entity: BTCUSDT\n    path: /tmp/BTCUSDT.parquet\ncolumns:\n  -\n    name: CLOSE\n",
                 encoding='utf-8',
             )
-            with patch('hypoevolve.controller.run_worker_task', side_effect=fake_run_worker_task):
+            with patch('hypoevolve.core.orchestrator.run_worker_task', side_effect=fake_run_worker_task):
                 controller = HypoEvolveController(
                     config,
                     llm_client=FakeLLM(),

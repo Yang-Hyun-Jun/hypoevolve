@@ -2,8 +2,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from hypoevolve.config import LLMConfig
-from hypoevolve.llm import (
+from hypoevolve.core.config import LLMConfig
+from hypoevolve.runtime.llm_client import (
     LLMClient,
     LLMError,
     _extract_json_payload,

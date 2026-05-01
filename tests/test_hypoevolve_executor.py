@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from hypoevolve.executor import ExecutionResult, LocalSubprocessExecutor
+from hypoevolve.runtime.sandbox import ExecutionResult, LocalSubprocessExecutor
 
 
 class TestHypoEvolveExecutor(unittest.TestCase):

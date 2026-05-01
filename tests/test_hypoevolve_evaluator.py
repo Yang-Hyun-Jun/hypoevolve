@@ -3,16 +3,16 @@ import unittest
 from unittest.mock import patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
-from hypoevolve.archive import ArchiveEntry
-from hypoevolve.config import LLMConfig
-from hypoevolve.dataset import ColumnSpec, DataFile, DatasetAccessor, DatasetSchema, IndexSpec
-from hypoevolve.evaluator_contracts import (
+from hypoevolve.memory.archive import ArchiveEntry
+from hypoevolve.core.config import LLMConfig
+from hypoevolve.data.dataset import ColumnSpec, DataFile, DatasetAccessor, DatasetSchema, IndexSpec
+from hypoevolve.skills.evaluation import (
     Evaluator as EvaluatorContract,
     REQUIRED_EVALUATION_KEYS,
 )
-from hypoevolve.evaluator import LLMEvaluator
-from hypoevolve.executor import ExecutionResult
-from hypoevolve.helper import build_evaluator_prompt_variables, build_evaluator_runtime_wrapper, build_steering_prompt_variables
+from hypoevolve.skills.evaluation import LLMEvaluator
+from hypoevolve.runtime.sandbox import ExecutionResult
+from hypoevolve.context.providers import build_evaluator_prompt_variables, build_evaluator_runtime_wrapper, build_steering_prompt_variables
 
 
 class FakeLLMClient:
@@ -42,7 +42,7 @@ class FakeExecutor:
 
 class TestHypoEvolveEvaluator(unittest.TestCase):
     def test_evaluator_module_re_exports_contract_protocol_and_required_keys(self):
-        from hypoevolve.evaluator import Evaluator
+        from hypoevolve.skills.evaluation import Evaluator
 
         self.assertIs(Evaluator, EvaluatorContract)
         self.assertEqual(LLMEvaluator.REQUIRED_KEYS, REQUIRED_EVALUATION_KEYS)
@@ -396,9 +396,9 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
         )
 
         with (
-            patch("hypoevolve.evaluator.load_prompt", return_value="system prompt") as load_prompt_mock,
-            patch("hypoevolve.evaluator.load_and_render_prompt", return_value="user prompt") as render_prompt_mock,
-            patch("hypoevolve.evaluator.build_evaluator_runtime_wrapper", return_value="wrapper code") as wrapper_mock,
+            patch("hypoevolve.skills.evaluation.load_prompt", return_value="system prompt") as load_prompt_mock,
+            patch("hypoevolve.skills.evaluation.load_and_render_prompt", return_value="user prompt") as render_prompt_mock,
+            patch("hypoevolve.skills.evaluation.build_evaluator_runtime_wrapper", return_value="wrapper code") as wrapper_mock,
         ):
             metrics = evaluator.evaluate(self.hypothesis)
 
