@@ -10,6 +10,7 @@ from typing import Callable
 
 from hypoevolve.memory.archive import ArchiveEntry, MAPElitesArchive
 from hypoevolve.memory.artifacts import RunArtifactRecorder
+from hypoevolve.memory.coulomb_archive import CoulombArchive
 from hypoevolve.core.config import HypoEvolveConfig
 from hypoevolve.core.events import HookBus
 from hypoevolve.data.dataset import load_dataset_schema
@@ -38,7 +39,7 @@ from hypoevolve.skills.seed_generation import generate_random_tree_pair_hypothes
 from hypoevolve.runtime.worker import WorkerTask
 from hypoevolve.runtime.worker import run_worker_task
 from hypoevolve.policies.protocols import SelectionPolicy
-from hypoevolve.policies.selection import UCBSelectionPolicy
+from hypoevolve.policies.selection import CoulombSelectionPolicy, UCBSelectionPolicy
 
 
 @dataclass(slots=True)
@@ -254,7 +255,7 @@ class HypoEvolveController:
         self.rng = random.Random(config.search.random_seed)
         self.executor_factory = executor_factory or ProcessPoolExecutor
         self.hooks = hooks or HookBus()
-        self.selection_policy = selection_policy or UCBSelectionPolicy()
+        self.selection_policy = selection_policy or _default_selection_policy(config)
 
     def _bootstrap_seed(
         self,
@@ -276,12 +277,7 @@ class HypoEvolveController:
         )
         log_info_event("seed.measurable", **summarize_hypothesis(hypothesis))
         seed_metadata = {"source": "seed"}
-        archive = MAPElitesArchive(
-            coverage_bins=self.config.archive.coverage_bins,
-            complexity_bins=self.config.archive.complexity_bins,
-            per_cell_top_k=self.config.archive.per_cell_top_k,
-            parent_sampling_mode=self.config.archive.parent_sampling_mode,
-        )
+        archive = _build_archive(self.config)
         seed_metrics = self.evaluator.evaluate(hypothesis)
         seed_evaluation_artifacts = dict(
             getattr(self.evaluator, "last_evaluation_artifacts", {}) or {}
@@ -715,3 +711,28 @@ class HypoEvolveController:
             seed_input_text=prepared.seed_input_text,
             seed_generated=prepared.seed_generated,
         )
+
+
+def _default_selection_policy(config: HypoEvolveConfig) -> SelectionPolicy:
+    """Return the default selection policy that matches ``config.archive.kind``."""
+    if config.archive.kind == "coulomb":
+        return CoulombSelectionPolicy()
+    return UCBSelectionPolicy()
+
+
+def _build_archive(
+    config: HypoEvolveConfig,
+) -> MAPElitesArchive | CoulombArchive:
+    """Instantiate the archive implementation selected by ``config.archive.kind``."""
+    if config.archive.kind == "coulomb":
+        return CoulombArchive(
+            capacity=config.archive.coulomb.capacity,
+            gamma=config.archive.coulomb.gamma,
+            eps=config.archive.coulomb.eps,
+        )
+    return MAPElitesArchive(
+        coverage_bins=config.archive.coverage_bins,
+        complexity_bins=config.archive.complexity_bins,
+        per_cell_top_k=config.archive.per_cell_top_k,
+        parent_sampling_mode=config.archive.parent_sampling_mode,
+    )

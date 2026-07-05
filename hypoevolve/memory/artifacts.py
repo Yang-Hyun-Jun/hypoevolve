@@ -9,6 +9,23 @@ from typing import Any, Dict
 
 from hypoevolve.elg import Hypothesis, fingerprint, render_pretty
 from hypoevolve.memory.archive import MAPElitesArchive
+
+
+def _descriptor_payload(descriptor: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the archive-specific descriptor sub-dict (map_elites or coulomb).
+
+    Both archive kinds emit a nested sub-dict under a kind-specific key. This
+    helper picks the first present one so downstream artifact writers can
+    write a consistent ``map_elites`` field without breaking when a Coulomb
+    archive is in use.
+    """
+    payload = descriptor.get("map_elites")
+    if payload is not None:
+        return dict(payload)
+    payload = descriptor.get("coulomb")
+    if payload is not None:
+        return dict(payload)
+    return {}
 from hypoevolve.skills.reporting import generate_run_report
 from hypoevolve.runtime import (
     write_artifact,
@@ -92,7 +109,7 @@ def build_history_entry(
         "worker_mode": bool(metadata.get("worker_mode", False)),
         "random_steering": bool(metadata.get("random_steering", False)),
         "complexity": descriptor.get("complexity", 0),
-        "cell": list(descriptor.get("cell", [])),
+        "cell": list(descriptor.get("cell") or []),
     }
 
 
@@ -186,7 +203,7 @@ class RunArtifactRecorder:
                 None,
                 hypothesis,
                 metrics,
-                {**metadata, "map_elites": descriptor["map_elites"]},
+                {**metadata, "map_elites": _descriptor_payload(descriptor)},
             ),
         )
         write_best(self.run_dir, archive.best.hypothesis, archive.best.metrics)
@@ -315,7 +332,7 @@ class RunArtifactRecorder:
                 parent_hypothesis,
                 child_hypothesis,
                 child_metrics,
-                {**metadata, "map_elites": descriptor["map_elites"]},
+                {**metadata, "map_elites": _descriptor_payload(descriptor)},
             ),
         )
         write_checkpoint(self.run_dir, self._checkpoint_payload(archive, iteration))
@@ -334,7 +351,7 @@ class RunArtifactRecorder:
                 "metrics": child_metrics,
                 "hypothesis": child_hypothesis.to_dict(),
                 "worker_mode": metadata.get("worker_mode", False),
-                "map_elites": descriptor["map_elites"],
+                "map_elites": _descriptor_payload(descriptor),
             },
         )
         self.score_history.append(

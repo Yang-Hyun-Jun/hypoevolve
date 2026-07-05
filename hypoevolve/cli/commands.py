@@ -247,16 +247,37 @@ def doctor(config: str | None) -> int:
     if config_path.exists():
         try:
             loaded = load_config(config_path)
+            archive_type_label = {
+                "map_elites": "MAP-Elites",
+                "coulomb": "Coulomb",
+            }.get(loaded.archive.kind, loaded.archive.kind)
             rows.extend(
                 [
                     ("Config ok", "true"),
-                    ("Archive type", "MAP-Elites"),
+                    ("Archive type", archive_type_label),
                     ("LLM model", loaded.llm.model),
                     ("LLM api base", loaded.llm.api_base),
                     ("LLM api key", "configured" if loaded.llm.api_key else "auto"),
-                    ("Coverage bins", str(loaded.archive.coverage_bins)),
-                    ("Complexity bins", str(loaded.archive.complexity_bins)),
-                    ("Parent sampling", loaded.archive.parent_sampling_mode),
+                ]
+            )
+            if loaded.archive.kind == "coulomb":
+                rows.extend(
+                    [
+                        ("Coulomb capacity", str(loaded.archive.coulomb.capacity)),
+                        ("Coulomb gamma", str(loaded.archive.coulomb.gamma)),
+                        ("Coulomb eps", str(loaded.archive.coulomb.eps)),
+                    ]
+                )
+            else:
+                rows.extend(
+                    [
+                        ("Coverage bins", str(loaded.archive.coverage_bins)),
+                        ("Complexity bins", str(loaded.archive.complexity_bins)),
+                        ("Parent sampling", loaded.archive.parent_sampling_mode),
+                    ]
+                )
+            rows.extend(
+                [
                     ("Iterations", str(loaded.search.iterations)),
                     ("Steering retries", str(loaded.search.steering_retries)),
                     ("Dataset schema", loaded.evaluator.dataset_schema_path),

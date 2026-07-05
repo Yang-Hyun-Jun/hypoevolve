@@ -56,13 +56,24 @@ class SearchConfig:
 
 
 @dataclass(slots=True)
+class CoulombArchiveConfig:
+    """Settings specific to the Coulomb (repulsive-field) archive."""
+
+    capacity: int = 64
+    gamma: float = 0.3
+    eps: float = 1e-2
+
+
+@dataclass(slots=True)
 class ArchiveConfig:
     """Settings for archive bucketing and per-cell elite retention."""
 
+    kind: str = "map_elites"
     coverage_bins: List[float] = field(default_factory=lambda: [0.05, 0.15, 0.30])
     complexity_bins: List[int] = field(default_factory=lambda: [3, 5, 8])
     per_cell_top_k: int = 10
     parent_sampling_mode: str = "map_elites_ucb"
+    coulomb: CoulombArchiveConfig = field(default_factory=CoulombArchiveConfig)
 
 
 @dataclass(slots=True)
@@ -176,16 +187,26 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
             },
         )
     )
+    archive_raw = dict(data.get("archive", {}) or {})
+    coulomb_raw = archive_raw.pop("coulomb", {}) or {}
+    coulomb_config = CoulombArchiveConfig(
+        **_filter_known(
+            coulomb_raw,
+            {"capacity", "gamma", "eps"},
+        )
+    )
     archive = ArchiveConfig(
         **_filter_known(
-            data.get("archive", {}),
+            archive_raw,
             {
+                "kind",
                 "coverage_bins",
                 "complexity_bins",
                 "per_cell_top_k",
                 "parent_sampling_mode",
             },
-        )
+        ),
+        coulomb=coulomb_config,
     )
     output = OutputConfig(
         **_filter_known(
@@ -210,13 +231,23 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
         raise ConfigError("workers.count must be >= 1")
     if not evaluator.dataset_schema_path:
         raise ConfigError("evaluator.dataset_schema_path is required")
-    _validate_archive_bins(archive.coverage_bins, archive.complexity_bins)
-    if archive.per_cell_top_k < 1:
-        raise ConfigError("archive.per_cell_top_k must be >= 1")
-    if archive.parent_sampling_mode not in {"map_elites_ucb", "random"}:
-        raise ConfigError(
-            "archive.parent_sampling_mode must be 'map_elites_ucb' or 'random'"
-        )
+    if archive.kind not in {"map_elites", "coulomb"}:
+        raise ConfigError("archive.kind must be 'map_elites' or 'coulomb'")
+    if archive.kind == "map_elites":
+        _validate_archive_bins(archive.coverage_bins, archive.complexity_bins)
+        if archive.per_cell_top_k < 1:
+            raise ConfigError("archive.per_cell_top_k must be >= 1")
+        if archive.parent_sampling_mode not in {"map_elites_ucb", "random"}:
+            raise ConfigError(
+                "archive.parent_sampling_mode must be 'map_elites_ucb' or 'random'"
+            )
+    else:
+        if archive.coulomb.capacity < 1:
+            raise ConfigError("archive.coulomb.capacity must be >= 1")
+        if archive.coulomb.gamma < 0.0:
+            raise ConfigError("archive.coulomb.gamma must be >= 0")
+        if archive.coulomb.eps <= 0.0:
+            raise ConfigError("archive.coulomb.eps must be > 0")
     if output.top_k_evaluator_code_artifacts < 1:
         raise ConfigError("output.top_k_evaluator_code_artifacts must be >= 1")
 

@@ -175,6 +175,48 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("Diagnostics", result.output)
         self.assertIn("Python", result.output)
 
+    def test_doctor_reports_archive_kind_from_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "hypoevolve.yaml"
+            config_path.write_text(
+                (
+                    "archive:\n"
+                    "  kind: coulomb\n"
+                    "  coulomb:\n"
+                    "    capacity: 16\n"
+                    "    gamma: 0.5\n"
+                    "    eps: 0.02\n"
+                    "evaluator:\n"
+                    "  dataset_schema_path: dataset.yaml\n"
+                ),
+                encoding="utf-8",
+            )
+            result = self.runner.invoke(
+                cli.app, ["doctor", "--config", str(config_path)]
+            )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Coulomb", result.output)
+        self.assertIn("Coulomb capacity", result.output)
+        self.assertIn("Coulomb gamma", result.output)
+        # Coulomb kind should NOT print the MAP-Elites-specific fields.
+        self.assertNotIn("Coverage bins", result.output)
+        self.assertNotIn("Complexity bins", result.output)
+
+    def test_doctor_still_reports_map_elites_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "hypoevolve.yaml"
+            config_path.write_text(
+                "evaluator:\n  dataset_schema_path: dataset.yaml\n",
+                encoding="utf-8",
+            )
+            result = self.runner.invoke(
+                cli.app, ["doctor", "--config", str(config_path)]
+            )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("MAP-Elites", result.output)
+        self.assertIn("Coverage bins", result.output)
+        self.assertIn("Complexity bins", result.output)
+
     def test_render_subcommand_tree_mode(self):
         with patch("hypoevolve.cli.commands.LLMClient"), patch(
             "hypoevolve.cli.commands.parse_hypothesis_text", return_value=SimpleNamespace()
