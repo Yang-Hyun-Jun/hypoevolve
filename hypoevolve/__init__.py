@@ -1,7 +1,11 @@
 """Public package exports for the HypoEvolve application layer."""
 
-from .memory.archive import ArchiveEntry, MAPElitesArchive
-from .memory.coulomb_archive import CoulombArchive, CoulombDescriptor
+from .memory.coulomb_archive import (
+    ArchiveEntry,
+    CoulombArchive,
+    CoulombDescriptor,
+    SamplingStats,
+)
 from .elg.kernel import (
     LAMBDA_NEG,
     LAMBDA_WRAP,
@@ -12,7 +16,6 @@ from .elg.kernel import (
 from .core.config import (
     ArchiveConfig,
     ConfigError,
-    CoulombArchiveConfig,
     EvaluatorConfig,
     HypoEvolveConfig,
     LLMConfig,
@@ -63,15 +66,15 @@ from .skills.protocols import (
     EvaluationSkill,
     ReportingSkill,
 )
-from .policies.selection import CoulombSelectionPolicy, UCBSelectionPolicy
+from .policies.selection import CoulombSelectionPolicy
 from .policies.stopping import IterationStoppingPolicy
 
 __all__ = [
+    "ArchiveConfig",
     "ArchiveEntry",
     "ColumnSpec",
     "ConfigError",
     "CoulombArchive",
-    "CoulombArchiveConfig",
     "CoulombDescriptor",
     "CoulombSelectionPolicy",
     "DataFile",
@@ -87,7 +90,7 @@ __all__ = [
     "LAMBDA_WRAP",
     "LLMClient",
     "LLMConfig",
-    "MAPElitesArchive",
+    "SamplingStats",
     "HypothesisGenerationError",
     "ParseError",
     "atomic_sim",
@@ -109,6 +112,5 @@ __all__ = [
     "MutationSkill",
     "EvaluationSkill",
     "ReportingSkill",
-    "UCBSelectionPolicy",
     "IterationStoppingPolicy",
 ]

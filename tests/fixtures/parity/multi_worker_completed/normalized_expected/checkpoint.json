@@ -1,10 +1,6 @@
 {
   "archive": [
     {
-      "cell": [
-        0,
-        0
-      ],
       "complexity": 3,
       "coverage": 0.0,
       "fingerprint": "bc20fd386097133cfad75283d9a1e385b393a85c23cea986a8029a42b29d2f51",
@@ -26,13 +22,12 @@
       },
       "iteration": 1,
       "metadata": {
-        "domain_reason": "Use a plausible local relation-type mutation.",
-        "map_elites": {
+        "coulomb": {
           "complexity": 3,
-          "complexity_bin": 0,
-          "coverage": 0.0,
-          "coverage_bin": 0
+          "potential": 0.0,
+          "quality": 0.6
         },
+        "domain_reason": "Use a plausible local relation-type mutation.",
         "mutation_summary": "Applied a change_relation_type-style local mutation.",
         "operation_score_rankings": {
           "change_relation_type": 1

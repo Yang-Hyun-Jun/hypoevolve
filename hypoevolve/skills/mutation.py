@@ -7,7 +7,7 @@ from typing import Mapping, Sequence
 
 from hypoevolve.context.providers import build_steering_prompt_variables
 from hypoevolve.elg import Hypothesis, hypothesis_from_dict, normalize_hypothesis
-from hypoevolve.memory.archive import ArchiveEntry
+from hypoevolve.memory.coulomb_archive import ArchiveEntry
 from hypoevolve.observability.logger import compact_text, log_info_event
 from hypoevolve.runtime.llm_client import LLMClient
 from hypoevolve.skills.elg_compile import JSON_RETRY_PROMPT, ParseError

@@ -247,35 +247,18 @@ def doctor(config: str | None) -> int:
     if config_path.exists():
         try:
             loaded = load_config(config_path)
-            archive_type_label = {
-                "map_elites": "MAP-Elites",
-                "coulomb": "Coulomb",
-            }.get(loaded.archive.kind, loaded.archive.kind)
             rows.extend(
                 [
                     ("Config ok", "true"),
-                    ("Archive type", archive_type_label),
+                    ("Archive type", "Coulomb"),
                     ("LLM model", loaded.llm.model),
                     ("LLM api base", loaded.llm.api_base),
                     ("LLM api key", "configured" if loaded.llm.api_key else "auto"),
+                    ("Coulomb capacity", str(loaded.archive.capacity)),
+                    ("Coulomb gamma", str(loaded.archive.gamma)),
+                    ("Coulomb eps", str(loaded.archive.eps)),
                 ]
             )
-            if loaded.archive.kind == "coulomb":
-                rows.extend(
-                    [
-                        ("Coulomb capacity", str(loaded.archive.coulomb.capacity)),
-                        ("Coulomb gamma", str(loaded.archive.coulomb.gamma)),
-                        ("Coulomb eps", str(loaded.archive.coulomb.eps)),
-                    ]
-                )
-            else:
-                rows.extend(
-                    [
-                        ("Coverage bins", str(loaded.archive.coverage_bins)),
-                        ("Complexity bins", str(loaded.archive.complexity_bins)),
-                        ("Parent sampling", loaded.archive.parent_sampling_mode),
-                    ]
-                )
             rows.extend(
                 [
                     ("Iterations", str(loaded.search.iterations)),

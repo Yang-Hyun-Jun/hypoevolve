@@ -20,14 +20,9 @@ search:
   random_steering_prob: 0.3
   random_seed: 42
 archive:
-  coverage_bins:
-    - 0.05
-    - 0.15
-    - 0.30
-  complexity_bins:
-    - 3
-    - 5
-    - 8
+  capacity: 64
+  gamma: 0.3
+  eps: 0.01
 output:
   base_dir: .hypoevolve/runs
   top_k_evaluator_code_artifacts: 3

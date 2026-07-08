@@ -3,10 +3,6 @@
     "baseline": 0.0,
     "best_score_after": 0.5,
     "best_updated": true,
-    "cell": [
-      0,
-      0
-    ],
     "complexity": 1,
     "coverage": 0.0,
     "domain_reason": "",

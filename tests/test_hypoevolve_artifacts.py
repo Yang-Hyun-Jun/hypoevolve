@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 
 from hypoevolve.elg import AtomicNode, Hypothesis
-from hypoevolve.memory.archive import MAPElitesArchive
+from hypoevolve.memory.coulomb_archive import CoulombArchive
 from hypoevolve.memory.artifacts import (
     build_checkpoint_payload,
     build_history_entry,
@@ -42,7 +42,7 @@ class TestRunArtifactRecorder(unittest.TestCase):
                 dataset_schema_path="dataset.yaml",
                 top_k_code_artifacts=1,
             )
-            archive = MAPElitesArchive()
+            archive = CoulombArchive()
 
             seed = Hypothesis(root=AtomicNode("A"))
             seed_metrics = {"combined_score": 0.1, "coverage": 0.2}
@@ -225,7 +225,7 @@ class TestRunArtifactRecorder(unittest.TestCase):
             workers_enabled=False,
             dataset_schema_path='dataset.yaml',
         )
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         parent = Hypothesis(root=AtomicNode('A'))
         child = Hypothesis(root=AtomicNode('B'))
         archive.add(child, {'combined_score': 0.4}, iteration=2, metadata={'mutation_summary': 'replace A with B'})
@@ -255,7 +255,6 @@ class TestRunArtifactRecorder(unittest.TestCase):
         self.assertEqual(history_entry['parent_fingerprint'], 'parent-fp')
         self.assertEqual(history_entry['hypothesis_nl'], 'B')
         self.assertTrue(history_entry['worker_mode'])
-        self.assertEqual(history_entry['cell'], list(descriptor['cell']))
         self.assertEqual(checkpoint, build_checkpoint_payload(archive, 2))
         self.assertEqual(
             trace_event,
@@ -292,7 +291,7 @@ class TestRunArtifactRecorder(unittest.TestCase):
                 dataset_schema_path='dataset.yaml',
                 top_k_code_artifacts=1,
             )
-            archive = MAPElitesArchive()
+            archive = CoulombArchive()
             best = Hypothesis(root=AtomicNode('BEST'))
             other = Hypothesis(root=AtomicNode('OTHER'))
             archive.add(best, {'combined_score': 0.9}, iteration=1)

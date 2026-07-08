@@ -3,10 +3,6 @@
     "baseline": 0.0,
     "best_score_after": 0.5,
     "best_updated": true,
-    "cell": [
-      0,
-      0
-    ],
     "complexity": 3,
     "coverage": 0.0,
     "domain_reason": "",
@@ -29,10 +25,6 @@
     "baseline": 0.0,
     "best_score_after": 0.5,
     "best_updated": false,
-    "cell": [
-      0,
-      0
-    ],
     "complexity": 3,
     "coverage": 0.0,
     "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",

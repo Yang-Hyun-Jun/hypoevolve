@@ -137,7 +137,6 @@ class TestCoulombArchiveDescribeAndSnapshot(unittest.TestCase):
         h = wrap(IMPLIES(A("a"), A("b")))
         descriptor = arc.describe(h, make_metrics(0.7, coverage=0.42))
         self.assertIn("coulomb", descriptor)
-        self.assertIsNone(descriptor["cell"])
         self.assertAlmostEqual(descriptor["coverage"], 0.42)
         coulomb = descriptor["coulomb"]
         self.assertIn("potential", coulomb)
@@ -154,7 +153,6 @@ class TestCoulombArchiveDescribeAndSnapshot(unittest.TestCase):
         for row in snap:
             self.assertIn("fingerprint", row)
             self.assertIn("hypothesis", row)
-            self.assertIsNone(row["cell"])
 
 
 class TestCoulombArchiveSampling(unittest.TestCase):

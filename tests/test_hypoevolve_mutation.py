@@ -1,7 +1,7 @@
 import unittest
 
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
-from hypoevolve.memory.archive import ArchiveEntry
+from hypoevolve.memory.coulomb_archive import ArchiveEntry
 from hypoevolve.core.config import LLMConfig
 from hypoevolve.skills.mutation import (
     MutationDecision,

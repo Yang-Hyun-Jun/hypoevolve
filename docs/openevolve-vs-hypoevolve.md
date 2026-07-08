@@ -36,7 +36,7 @@
 | LLM proposal integration | 강함 | parser / steering / evaluator에 실제 LLM 경로 존재 | **OpenEvolve 우위, 격차 축소** |
 | evaluator 성숙도 | 높음 | LLM-generated evaluator runtime + retry/repair 있음 | **OpenEvolve 우위, 격차 축소** |
 | archive/best tracking | 강함 | compact top-k archive | **OpenEvolve 우위** |
-| quality-diversity (MAP-Elites/islands) | 있음 | 없음 | **OpenEvolve 우위** |
+| quality-diversity (MAP-Elites/islands) | 있음 | Coulomb 반발장 archive (island 없음) | **OpenEvolve 우위** |
 | runtime persistence | checkpoint/trace/artifact 풍부 | checkpoint/trace/report/artifact 구현 있음 | **OpenEvolve 우위** |
 | CLI / UX | 있음 | MVP용 서브커맨드 있음 | **비슷, 목적 다름** |
 | 병렬화/worker | 있음 | worker mode 있음 | **OpenEvolve 우위** |
@@ -182,13 +182,13 @@ OpenEvolve는 단순 best tracking이 아니라:
 까지 있다. (`openevolve/openevolve/database.py`)
 
 ### HypoEvolve
-HypoEvolve는 MVP 기준으로 compact archive를 갖고 있다.
-- top-k=5
+HypoEvolve는 Coulomb 반발장 기반 archive를 갖고 있다.
+- capacity 상한 내에서 반발 포텐셜로 다양성 유지
 - fingerprint dedup
 - best tracking
-- weighted parent sampling
+- `P(h) ∝ score · exp(-γ · U)` 기반 parent sampling
 
-즉 최소한의 evolutionary memory는 있다. (`hypoevolve/archive.py`)
+즉 다양성을 능동적으로 유지하는 evolutionary memory가 있다. (`hypoevolve/memory/coulomb_archive.py`)
 
 ### 판단
 OpenEvolve가 더 풍부하지만, **HypoEvolve MVP는 최소 실행 가능한 archive를 이미 갖고 있다.**
@@ -208,9 +208,9 @@ OpenEvolve가 더 풍부하지만, **HypoEvolve MVP는 최소 실행 가능한 a
 즉 다양성을 적극적으로 보존하는 quality-diversity search다. (`openevolve/openevolve/database.py`, `openevolve/openevolve/config.py`)
 
 ### HypoEvolve
-현재는 없음.
-- top-k archive만 있음
-- MAP-Elites 없음
+descriptor-grid 방식의 MAP-Elites나 island model은 없다.
+대신 Coulomb 반발장 archive가 quality-diversity를 담당한다.
+- score × 반발 포텐셜로 exploration/exploitation 균형 유지
 - island model 없음
 - migration 없음
 
@@ -314,7 +314,7 @@ HypoEvolve는 더 작지만, 사용성은 MVP 기준으로 나쁘지 않다.
 ### OpenEvolve보다 아직 약한 것
 1. 실제 evaluator 성숙도  
 2. LLM mutation/proposal integration  
-3. quality-diversity search (MAP-Elites/islands/migration)  
+3. quality-diversity search (island model/migration; HypoEvolve has Coulomb archive but no MAP-Elites grid or islands)  
 4. 병렬화/worker runtime  
 5. 운영성(trace/export/checkpoint sophistication)
 

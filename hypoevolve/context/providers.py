@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
 from hypoevolve.data.dataset import DatasetAccessor, DatasetSchema
-from hypoevolve.memory.archive import ArchiveEntry
+from hypoevolve.memory.coulomb_archive import ArchiveEntry
 from hypoevolve.elg import Hypothesis, render_pretty
 
 

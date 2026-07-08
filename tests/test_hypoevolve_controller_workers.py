@@ -7,7 +7,7 @@ from threading import Timer
 from unittest.mock import Mock, patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis, fingerprint
-from hypoevolve.memory.archive import MAPElitesArchive
+from hypoevolve.memory.coulomb_archive import CoulombArchive
 from hypoevolve.memory.artifacts import RunArtifactRecorder
 from hypoevolve.core.config import HypoEvolveConfig
 from hypoevolve.core.orchestrator import HypoEvolveController
@@ -160,7 +160,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
                 evaluator=Mock(),
                 executor_factory=lambda max_workers: DelayedExecutor([0, 2]),
             )
-            archive = MAPElitesArchive()
+            archive = CoulombArchive()
             archive.add(seed, {"combined_score": 0.5}, iteration=0, metadata={"source": "seed"})
             known_fingerprints = {fingerprint(seed)}
             recorder = RunArtifactRecorder(
@@ -207,7 +207,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
         )
         controller.evaluator.evaluate.return_value = {"combined_score": 0.5}
         controller.evaluator.last_evaluation_artifacts = {}
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         archive.add(Hypothesis(root=AtomicNode("A")), {"combined_score": 0.5})
         recorder = Mock(duplicate_skips_solo=0, duplicate_skips_worker=0)
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,7 +244,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
         )
         controller.evaluator.evaluate.return_value = {"combined_score": 0.5}
         controller.evaluator.last_evaluation_artifacts = {}
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         archive.add(Hypothesis(root=AtomicNode("A")), {"combined_score": 0.5})
         recorder = Mock(duplicate_skips_solo=0, duplicate_skips_worker=0)
         with tempfile.TemporaryDirectory() as tmp:
@@ -287,7 +287,7 @@ class TestHypoEvolveControllerWorkers(unittest.TestCase):
         )
         controller.evaluator.evaluate.return_value = {"combined_score": 0.5}
         controller.evaluator.last_evaluation_artifacts = {}
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         archive.add(Hypothesis(root=AtomicNode("A")), {"combined_score": 0.5})
         recorder = Mock(duplicate_skips_solo=0, duplicate_skips_worker=0)
         call_order: list[tuple[str, int | None]] = []

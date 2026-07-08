@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis, fingerprint
-from hypoevolve.memory.archive import MAPElitesArchive
+from hypoevolve.memory.coulomb_archive import CoulombArchive
 from hypoevolve.memory.artifacts import RunArtifactRecorder
 from hypoevolve.core.config import HypoEvolveConfig
 from hypoevolve.core.orchestrator import (
@@ -20,10 +20,6 @@ from hypoevolve.skills.elg_compile import ParseError
 class TestHypoEvolveController(unittest.TestCase):
     def test_bootstrap_seed_preserves_seed_archive_contract(self):
         config = HypoEvolveConfig()
-        config.archive.coverage_bins = [0.1, 0.5, 0.9]
-        config.archive.complexity_bins = [1, 3, 5]
-        config.archive.per_cell_top_k = 4
-        config.archive.parent_sampling_mode = "random"
         controller = HypoEvolveController(
             config,
             evaluator=type(
@@ -51,10 +47,7 @@ class TestHypoEvolveController(unittest.TestCase):
         self.assertEqual(seed_state.hypothesis, seed)
         self.assertEqual(seed_state.known_fingerprints, {seed_state.archive.best.fingerprint})
         self.assertEqual(len(seed_state.known_fingerprints), 1)
-        self.assertEqual(seed_state.archive.coverage_bins, [0.1, 0.5, 0.9])
-        self.assertEqual(seed_state.archive.complexity_bins, [1, 3, 5])
-        self.assertEqual(seed_state.archive.per_cell_top_k, 4)
-        self.assertEqual(seed_state.archive.parent_sampling_mode, "random")
+        self.assertIsInstance(seed_state.archive, CoulombArchive)
         recorder.record_seed.assert_called_once()
 
     def test_choose_mutation_uses_recent_history_tail_and_top_archive_entries(self):
@@ -65,7 +58,7 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=Mock(),
             llm_client=object(),
         )
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         for index, score in enumerate((0.9, 0.8, 0.7, 0.6), start=1):
             archive.add(
                 Hypothesis(root=AtomicNode(f"A{index}")),
@@ -124,7 +117,7 @@ class TestHypoEvolveController(unittest.TestCase):
         )
         controller.evaluator.evaluate.return_value = {"combined_score": 0.8}
         controller.evaluator.last_evaluation_artifacts = {"attempt": 1}
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         archive.add(seed, {"combined_score": 0.5}, iteration=0, metadata={"source": "seed"})
         parent_entry = archive.best
         known_fingerprints = {parent_entry.fingerprint}
@@ -223,7 +216,7 @@ class TestHypoEvolveController(unittest.TestCase):
     def test_record_completed_child_reuses_common_postprocessing_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
-            archive = MAPElitesArchive()
+            archive = CoulombArchive()
             parent = Hypothesis(root=AtomicNode("A"))
             child = Hypothesis(root=AtomicNode("B"))
             archive.add(parent, {"combined_score": 0.5}, iteration=0, metadata={"source": "seed"})
@@ -286,7 +279,7 @@ class TestHypoEvolveController(unittest.TestCase):
     def test_record_skip_reuses_common_skip_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
-            archive = MAPElitesArchive()
+            archive = CoulombArchive()
             parent = Hypothesis(root=AtomicNode("A"))
             archive.add(parent, {"combined_score": 0.5}, iteration=0, metadata={"source": "seed"})
             parent_entry = archive.best
@@ -335,7 +328,7 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=Mock(),
             llm_client=object(),
         )
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         best = archive.add(
             Hypothesis(root=AtomicNode("A")),
             {"combined_score": 0.5},
@@ -431,7 +424,7 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=Mock(),
             llm_client=object(),
         )
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         seed = Hypothesis(root=AtomicNode("A"))
         archive.add(seed, {"combined_score": 0.5}, iteration=0, metadata={"source": "seed"})
         seed_state = type(
@@ -534,7 +527,7 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=Mock(),
             llm_client=object(),
         )
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
         seed = Hypothesis(root=AtomicNode("A"))
         archive.add(seed, {"combined_score": 0.5}, iteration=0, metadata={"source": "seed"})
         seed_state = type(
@@ -857,10 +850,6 @@ class TestHypoEvolveController(unittest.TestCase):
 
     def test_run_seed_bootstrap_uses_configured_archive_bins_and_sampling_mode(self):
         config = HypoEvolveConfig()
-        config.archive.coverage_bins = [0.1, 0.5, 0.9]
-        config.archive.complexity_bins = [1, 3, 5]
-        config.archive.per_cell_top_k = 4
-        config.archive.parent_sampling_mode = "random"
         controller = HypoEvolveController(
             config,
             evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {"combined_score": 0.5}, "last_evaluation_artifacts": {}})(),
@@ -878,10 +867,7 @@ class TestHypoEvolveController(unittest.TestCase):
                 controller.run("if A then B")
 
         archive = record_seed.call_args.kwargs["archive"]
-        self.assertEqual(archive.coverage_bins, [0.1, 0.5, 0.9])
-        self.assertEqual(archive.complexity_bins, [1, 3, 5])
-        self.assertEqual(archive.per_cell_top_k, 4)
-        self.assertEqual(archive.parent_sampling_mode, "random")
+        self.assertIsInstance(archive, CoulombArchive)
 
     def test_archive_best_fields_use_stable_empty_defaults_before_first_archive_entry(self):
         controller = HypoEvolveController(
@@ -889,11 +875,9 @@ class TestHypoEvolveController(unittest.TestCase):
             evaluator=type("FakeEvaluator", (), {"evaluate": lambda self, hypothesis: {}})(),
             llm_client=object(),
         )
-        archive = MAPElitesArchive()
+        archive = CoulombArchive()
 
         self.assertEqual(archive.best.score if archive.best else 0.0, 0.0)
-        self.assertIsNone(archive.best.cell if archive.best else None)
 
         archive.add(Hypothesis(root=AtomicNode("A")), {"combined_score": 0.7})
         self.assertEqual(archive.best.score if archive.best else 0.0, 0.7)
-        self.assertEqual(archive.best.cell if archive.best else None, archive.best.cell)

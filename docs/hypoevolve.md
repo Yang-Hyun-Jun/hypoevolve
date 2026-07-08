@@ -15,7 +15,7 @@
 HypoEvolve는 **자연어 가설을 ELG(Executable Logic Graph)라는 구조적 중간표현으로 변환하고**,
 LLM이 **구조적으로 근접한 새 가설을 제안**하고,
 또 다른 LLM이 **평가용 Python 코드를 생성/실행**해 점수를 매긴 뒤,
-그 결과를 **MAP-Elites 스타일 아카이브 + 런 아티팩트 + 리포트**로 축적하는 시스템이다.
+그 결과를 **Coulomb 반발장 아카이브 + 런 아티팩트 + 리포트**로 축적하는 시스템이다.
 
 즉 이 프로젝트의 본질은:
 
@@ -239,6 +239,199 @@ Optional seed generation path
 
 ---
 
+## 4.5 알고리즘 (현재 코드 기준)
+
+이 절은 **현재 리포지토리 코드에서 실제로 수행되는 검색 알고리즘**을 형식화한다.
+관용어("MAP-Elites 스타일" 등)나 이상론이 아니라 코드가 실제로 하는 일을 기술한다.
+참조 위치는 `hypoevolve/` 하위의 실제 경로다.
+
+### 4.5.1 데이터 타입
+
+- `Hypothesis` — 하나의 ELG 트리 (`hypoevolve/elg/ir.py`).
+  루트는 관행상 `RelationNode` (§17.1 참조).
+- `ArchiveEntry` — 아카이브에 저장되는 한 개의 후보
+  (`hypoevolve/memory/coulomb_archive.py:34-62`).
+  필드: `hypothesis`, `metrics`, `fingerprint`, `iteration`, `metadata`, `coverage`, `complexity`.
+  `score`는 property로 `metrics["combined_score"]` 을 우선 사용하고 없으면 수치 metric 평균.
+- `CoulombArchive` — 반발장 아카이브 자체
+  (`hypoevolve/memory/coulomb_archive.py:96-386`).
+- `ArchiveConfig` — 아카이브 파라미터
+  (`hypoevolve/core/config.py:59-64`). 필드는 `capacity`, `gamma`, `eps` 세 개뿐.
+
+### 4.5.2 외부 루프 (`HypoEvolveController.run`)
+
+`hypoevolve/core/orchestrator.py`의 `HypoEvolveController.run()` 이 전체를 조립한다.
+개념적 의사코드:
+
+```text
+def run(seed_input_text):
+    1) prepared = _prepare_run(seed_input_text)        # run dir + seed 결정
+    2) seed_state = _bootstrap_seed(prepared)          # seed parse → measurable → eval → archive
+    3) if workers.enabled:
+           _run_worker_iterations(...)                 # 병렬 경로
+       else:
+           _run_single_process_iterations(...)         # 단일 프로세스 경로
+    4) return _finalize_run_result(...)                # 리포트/요약 작성
+```
+
+각 단계의 세부는 §6 에서 코드 경로로 다시 설명한다. 여기서는 알고리즘 관점만 정리한다.
+
+### 4.5.3 Seed 합성
+
+Seed hypothesis 는 두 가지 경로 중 하나로 얻는다 (`orchestrator.py:_resolve_seed_input_text`):
+
+- 사용자가 `run <text>` 로 직접 자연어 가설을 주면 그 텍스트를 사용.
+- 안 주면 `generate_random_tree_pair_hypothesis()` 로 자동 합성
+  (`hypoevolve/skills/seed_generation/hypothesis.py`).
+
+자동 합성 과정:
+
+1. `HypoTreeGenerator` 가 데이터셋 스키마의 컬럼과 30여 개의 테크니컬 노드를 이용해
+   **입출력 타입이 맞물리는 랜덤 트리 2개** 를 생성 (`skills/seed_generation/tree/generator.py`).
+   각 트리는 "데이터에서의 한 가지 변화 관점" 을 나타낸다 (README 의 **Lens** 개념).
+2. 두 트리와 노드 설명을 `prompts/hypo` 템플릿에 채워 LLM 에 전달.
+3. LLM 이 두 트리 사이의 통계적 관계를 해석하는 자연어 가설을 반환.
+4. `TreePairHypothesis(tree_a, tree_b, hypothesis_text)` 로 묶여 seed 로 쓰인다.
+
+이 자연어 텍스트는 이후 다음 두 단계를 거쳐 ELG 로 변환된다:
+
+1. `parse_hypothesis_text` — 자연어 → ELG 구조
+   (`skills/elg_compile.py`, `prompts/parser`).
+2. `llm_make_hypothesis_measurable` — ELG 의 atomic node 를
+   측정 가능한 형태로 재작성 (`prompts/measurable`).
+
+### 4.5.4 Coulomb Archive 의 수학
+
+Archive `A = {h_1, …, h_n}` 에서 각 원소는 score `s(h)` 를 가진다.
+
+**Potential (반발 포텐셜).** 후보 `h` 에 대해:
+
+```
+U(h; A) = Σ_{h' ∈ A, h' ≠ h}  s(h') / ( d(h, h')^2 + eps )
+```
+
+거리 `d` 는 기본으로 ELG tree-kernel 기반
+(`hypoevolve/elg/kernel.py::tree_distance`,
+`coulomb_archive.py:82` 에서 `distance_fn` 으로 주입). `[0, 1]` 로 클램프.
+
+**Delta.** 아카이브 기여도 척도:
+
+```
+Δ(h; A) = s(h)  -  γ · U(h; A)
+```
+
+`γ` 는 config `archive.gamma`. 높을수록 다양성 쪽으로 편향.
+
+**추가 규칙 (`CoulombArchive.add`).**
+`coulomb_archive.py:171-217`:
+
+1. 후보의 fingerprint 가 이미 존재하면 → 점수 더 높은 쪽만 남긴다 (dedup).
+2. 아카이브에 여유 공간이 있으면 (`|A| < capacity`) → 무조건 삽입.
+3. 가득 찼으면 → 가장 약한 슬롯 `w = argmin_k Δ(h_k; A)` 를 찾고
+   후보로 그 자리를 대체했을 때의 `Δ(h; A \ {h_w})` 를 계산.
+   후보의 Δ 가 더 크면 교체, 아니면 기각.
+
+**부모 샘플링 (`CoulombArchive.sample_parent`).**
+`coulomb_archive.py:224-249`:
+
+```
+P(parent = h) ∝ s(h) · exp( -γ · U(h; A) )
+```
+
+구현상으로는 안정성 때문에 log-space 에서 계산한다
+(`_log_sampling_weight`, `coulomb_archive.py:284-290`):
+`log w(h) = log max(s(h), 1e-9) - γ · U(h; A)`.
+이후 max-subtract → exp → normalize → 누적분포에서 샘플.
+
+### 4.5.5 하나의 iteration
+
+`_run_single_process_iterations` (`orchestrator.py:398-486`) 의 한 사이클:
+
+```text
+for i in 1..search.iterations:
+    parent = selection_policy.select(archive, rng)        # = archive.sample_parent(rng)
+
+    try:
+        child, steering_meta = _choose_mutation(parent, recent_history, archive)
+    except ParseError:
+        _record_skip(status="skipped_steering_error"); continue
+
+    if fingerprint(child) in known_fingerprints:
+        _record_skip(status="skipped_duplicate"); continue
+
+    metrics = evaluator.evaluate(child)                   # LLM 코드 생성 → sandbox 실행 → metric 회수
+    archive.add(child, metrics, iteration=i, metadata=…)  # Coulomb Δ 규칙
+    known_fingerprints.add(fingerprint(child))
+    recent_history.append(history_entry)
+```
+
+**Steering (`_choose_mutation`, `orchestrator.py:373-396`).**
+
+- `random_steering_prob` 확률로 **random steering mode** 진입:
+  방향 제시 없이 LLM 에 부모+top-k+최근 이력만 넘겨서 자유롭게 mutate.
+- 그 외에는 **guided mode**:
+  현재 metric 이 알려주는 취약점(예: precision 낮음, coverage 낮음)에 대한
+  방향 힌트를 프롬프트에 담아 mutate.
+- 두 경우 모두 `steer_mutation` (`skills/mutation.py`) 이 실제 LLM 호출과
+  파서 재시도(`steering_retries`) 를 담당한다. 실패하면 `ParseError` 를 던지고
+  위 루프에서 `skipped_steering_error` 로 기록된다.
+
+**Evaluator (`skills/evaluation/*`).**
+LLM 이 hypothesis 를 실행 가능한 Python 코드로 재작성하고, 그 코드를
+`hypoevolve/runtime/sandbox` 에서 실행하여 `combined_score`, `precision`,
+`baseline`, `coverage`, `uplift`, `support_count`, `total_count` 등의 metric 을
+반환한다 (§11).
+
+### 4.5.6 병렬 워커 경로
+
+`workers.enabled: true` 이고 `workers.count > 1` 일 때
+`_run_worker_iterations` (`orchestrator.py:488-`) 가 대신 사용된다.
+
+- **Leader** — parent 선택, archive 유지, fingerprint dedup, 결과 병합, 로그/아티팩트 기록.
+- **Worker** — 하나의 `WorkerTask` (parent + top-k + seen fp) 를 받아
+  steering + parse + evaluate 를 수행하고 `WorkerResult` 를 반환.
+- Leader 는 `ProcessPoolExecutor` (혹은 주입된 `executor_factory`) 에 태스크를
+  올려두고 `FIRST_COMPLETED` 로 회수한 뒤, worker 결과의 fingerprint 가 이미
+  known 이면 `skipped_duplicate`, 아니면 archive.add.
+
+즉 **아카이브/샘플링/dedup 은 언제나 leader 단일 스레드에서 일어난다.**
+Worker 는 순수한 stateless mutation+evaluation 유닛이다 (§12 도 참조).
+
+### 4.5.7 종료 조건과 마무리
+
+현재 종료 조건은 단순히 `search.iterations` 만큼 반복한 뒤 멈추는 것뿐이다.
+Adaptive stopping 은 `IterationStoppingPolicy` 로 프로토콜만 뚫려 있고
+기본 정책은 iteration count 소진.
+
+마무리(`_finalize_run_result`)에서는:
+
+- `write_score_history`, `write_run_summary`, `write_best`, `write_checkpoint`
+- `generate_run_report` (`skills/reporting`) 로 마크다운 리포트 생성
+- top-k 후보의 evaluator 코드를 `artifacts/top_evaluators/` 밑에 물질화
+  (`RunArtifactRecorder._materialize_top_k_evaluator_artifacts`)
+
+### 4.5.8 알고리즘의 핵심 성질 (현재 코드가 실제로 갖는 것)
+
+- **다양성 유지는 명시적 격자가 아니라 반발장이 담당한다.**
+  MAP-Elites 처럼 coverage/complexity 축을 사람이 그어서 셀을 나누지 않는다.
+  대신 두 후보 간 tree-kernel 거리와 서로의 score 로 정의되는 pairwise repulsion 이
+  삽입/샘플링을 동시에 지배한다.
+- **하나의 하이퍼파라미터 `γ` 가 다양성-품질 트레이드오프를 조율한다.**
+  `γ = 0` 이면 순수 score-proportional (elitist), `γ → ∞` 이면 순수 repulsion.
+- **Fingerprint dedup 은 archive 내부(같은 fp면 강한 쪽만)와 iteration 루프 외부
+  (이미 본 fp 는 evaluator 호출 자체를 스킵)의 두 층으로 동작한다.**
+- **Score 는 `combined_score` 우선.** 없으면 metric 중 numeric 값의 평균으로
+  fallback (`ArchiveEntry.score`).
+- **Distance 는 tree-kernel 기반이지만 injectable 하다.**
+  테스트나 실험에서 `distance_fn` 을 다른 함수로 갈아끼울 수 있다
+  (`CoulombArchive.__init__(distance_fn=...)`).
+- **Selection policy 도 injectable.**
+  `HypoEvolveController(selection_policy=…)` 로 주입 가능하지만,
+  기본은 `CoulombSelectionPolicy` 이고 그 구현은 그냥
+  `archive.sample_parent(rng)` 위임이다.
+
+---
+
 ## 5. 코드베이스 디렉토리별 역할
 
 ## 5.1 `hypoevolve/elg/`
@@ -386,12 +579,11 @@ Optional seed generation path
 
 ## 6.7 archive 초기화
 
-`MAPElitesArchive`
+`CoulombArchive`
 
-- coverage bin
-- complexity bin
-- per-cell top-k
-- parent sampling mode
+- capacity (최대 보유 entry 수)
+- gamma (반발장 감쇠 계수)
+- eps (수치 안정화용 소수값)
 
 seed 가 iteration 0 으로 archive 에 들어간다.
 
@@ -494,54 +686,37 @@ worker mode:
 
 ## 8. Archive 계층의 정확한 의미
 
-현재 archive 는 이름 그대로 완전한 MAP-Elites 구현은 아니고,
+현재 archive 는 **Coulomb 반발장(repulsive-field) 기반 archive** 다.
 
-> **“MAP-Elites 느낌의 descriptor-binned top-k archive”**
+MAP-Elites 처럼 descriptor grid를 binning하는 방식이 아니라,
+각 entry 사이의 반발 포텐셜(Coulomb potential)을 이용해 다양성을 유지한다.
 
-에 가깝다.
+### 8.1 유지 정책 (weakest-Δ replacement)
 
-### 8.1 descriptor 축
+archive 가 꽉 찬 상태에서 새 entry 가 들어오면:
 
-- coverage
-- complexity = `count_nodes(hypothesis)`
+- 기존 entry 중 “제거해도 전체 포텐셜 변화(Δ)가 가장 작은” entry 를 교체
+- 즉 다른 entry 들과 가장 가까이 있는(중복성이 가장 높은) entry 가 밀려남
 
-### 8.2 binning 규칙
+### 8.2 parent sampling
 
-- coverage: `bisect_right`
-- complexity: `bisect_left`
+sampling 확률은:
 
-즉 경계 처리 방식이 서로 다르다.
+> **`P(h) ∝ score(h) · exp(-γ · U(h))`**
 
-예:
+- `U(h)`: h 에 걸린 Coulomb 포텐셜 (주변 entry 들이 밀어내는 힘의 합)
+- `γ`: 감쇠 계수 (config 의 `gamma`)
+- score 가 높을수록, 주변이 비어 있을수록(U가 낮을수록) 선택 확률이 높아짐
 
-- coverage `0.05` 는 다음 bin 으로 간다.
-- complexity `3` 은 현재 bin 에 남는다.
+즉 exploitation(좋은 점수)과 exploration(밀집되지 않은 영역)을 동시에 추구한다.
 
-이 경계 의미는 유지해야 한다.
+### 8.3 fingerprint dedup
 
-### 8.3 per-cell top-k
+동일 fingerprint 가 다시 들어오면:
 
-각 cell 마다 상위 `k` 개 elite 를 유지한다.
+- 새 점수가 더 높으면 교체, 아니면 무시
 
-### 8.4 fingerprint dedup
-
-같은 cell 내부에서 동일 fingerprint 가 다시 들어오면:
-
-- 기존 점수가 더 높으면 유지
-- 새 점수가 더 높으면 교체
-
-### 8.5 parent sampling
-
-두 모드가 있다.
-
-- `random`: 전체 retained entry 중 uniform
-- `map_elites_ucb`:
-  - occupied cell 을 uniform 하게 고른 뒤
-  - 그 cell 안에서 UCB 로 parent 선택
-
-즉 UCB 가 global archive 전체가 아니라 **cell 내부** 에만 걸린다.
-
-### 8.6 reward 의미
+### 8.4 reward 의미
 
 `record_parent_outcome()` 에 들어가는 reward 는 대체로:
 
@@ -549,15 +724,11 @@ worker mode:
 
 즉 “그 parent 를 뽑았을 때 개선이 있었는가” 를 추적한다.
 
-### 8.7 중요한 숨은 사실
+### 8.5 중요한 숨은 사실
 
-`len(archive)` 는 **entries 수가 아니라 occupied cells 수** 다.
+`len(archive)` 는 **현재 보유 중인 entry 수** 다 (capacity 상한 이하).
 
-따라서 현재 `archive_size` 라는 이름으로 저장/출력되는 값은 실제로는
-“retained hypothesis 총수”가 아니라 **occupied cell count** 에 더 가깝다.
-
-이건 재구현 시 함부로 의미를 바꾸면 안 되는 부분이다.
-이름이 어색해도 **현재 행동** 은 보존해야 한다.
+따라서 `archive_size` 는 retained hypothesis 총수를 의미한다.
 
 ---
 

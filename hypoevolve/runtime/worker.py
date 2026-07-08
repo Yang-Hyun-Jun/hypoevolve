@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from hypoevolve.core.config import LLMConfig
 from hypoevolve.data.dataset import load_dataset_schema
 from hypoevolve.elg import fingerprint, hypothesis_from_dict
-from hypoevolve.memory.archive import ArchiveEntry
+from hypoevolve.memory.coulomb_archive import ArchiveEntry
 from hypoevolve.observability.logger import (
     compact_text,
     log_error_event,

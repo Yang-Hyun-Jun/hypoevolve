@@ -7,7 +7,6 @@ from hypoevolve.core.config import (
     HypoEvolveConfig,
     _ensure_mapping,
     _filter_known,
-    _validate_archive_bins,
     load_config,
     load_runtime_config,
     resolve_config_path,
@@ -21,8 +20,9 @@ class TestHypoEvolveConfig(unittest.TestCase):
         self.assertIsInstance(config, HypoEvolveConfig)
         self.assertEqual(config.llm.model, "DeepSeek-R1-Distill-Qwen-14B")
         self.assertEqual(config.llm.api_base, "http://127.0.0.1:8000/v1")
-        self.assertEqual(config.archive.coverage_bins, [0.05, 0.15, 0.30])
-        self.assertEqual(config.archive.complexity_bins, [3, 5, 8])
+        self.assertEqual(config.archive.capacity, 64)
+        self.assertAlmostEqual(config.archive.gamma, 0.3)
+        self.assertAlmostEqual(config.archive.eps, 1e-2)
 
     def test_load_minimal_yaml(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -30,7 +30,7 @@ class TestHypoEvolveConfig(unittest.TestCase):
             path.write_text("search:\n  iterations: 3\n", encoding="utf-8")
             config = load_config(path)
             self.assertEqual(config.search.iterations, 3)
-            self.assertEqual(config.archive.coverage_bins, [0.05, 0.15, 0.30])
+            self.assertEqual(config.archive.capacity, 64)
             self.assertEqual(config.output.top_k_evaluator_code_artifacts, 5)
 
     def test_resolve_config_path_uses_explicit_or_default_location(self):
@@ -96,60 +96,39 @@ class TestHypoEvolveConfig(unittest.TestCase):
             with self.assertRaises(ConfigError):
                 load_config(path)
 
-    def test_archive_bins_load_from_yaml(self):
+    def test_archive_settings_load_from_yaml(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "hypoevolve.yaml"
             path.write_text(
                 "archive:\n"
-                "  coverage_bins:\n"
-                "    - 0.02\n"
-                "    - 0.10\n"
-                "    - 0.25\n"
-                "  complexity_bins:\n"
-                "    - 2\n"
-                "    - 4\n"
-                "    - 7\n",
+                "  capacity: 32\n"
+                "  gamma: 0.5\n"
+                "  eps: 0.001\n",
                 encoding="utf-8",
             )
             config = load_config(path)
-            self.assertEqual(config.archive.coverage_bins, [0.02, 0.10, 0.25])
-            self.assertEqual(config.archive.complexity_bins, [2, 4, 7])
+            self.assertEqual(config.archive.capacity, 32)
+            self.assertAlmostEqual(config.archive.gamma, 0.5)
+            self.assertAlmostEqual(config.archive.eps, 0.001)
 
-    def test_archive_per_cell_top_k_loads_and_validates(self):
+    def test_archive_capacity_must_be_positive(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "hypoevolve.yaml"
-            path.write_text(
-                "archive:\n"
-                "  per_cell_top_k: 7\n",
-                encoding="utf-8",
-            )
-            config = load_config(path)
-            self.assertEqual(config.archive.per_cell_top_k, 7)
-
-            path.write_text(
-                "archive:\n"
-                "  per_cell_top_k: 0\n",
-                encoding="utf-8",
-            )
+            path.write_text("archive:\n  capacity: 0\n", encoding="utf-8")
             with self.assertRaises(ConfigError):
                 load_config(path)
 
-    def test_archive_parent_sampling_mode_loads_and_validates(self):
+    def test_archive_gamma_must_be_non_negative(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "hypoevolve.yaml"
-            path.write_text(
-                "archive:\n"
-                "  parent_sampling_mode: random\n",
-                encoding="utf-8",
-            )
-            config = load_config(path)
-            self.assertEqual(config.archive.parent_sampling_mode, "random")
+            path.write_text("archive:\n  gamma: -0.1\n", encoding="utf-8")
+            with self.assertRaises(ConfigError):
+                load_config(path)
 
-            path.write_text(
-                "archive:\n"
-                "  parent_sampling_mode: weighted\n",
-                encoding="utf-8",
-            )
+    def test_archive_eps_must_be_positive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "hypoevolve.yaml"
+            path.write_text("archive:\n  eps: 0\n", encoding="utf-8")
             with self.assertRaises(ConfigError):
                 load_config(path)
 
@@ -212,29 +191,6 @@ class TestHypoEvolveConfig(unittest.TestCase):
             with self.assertRaises(ConfigError):
                 load_config(path)
 
-    def test_invalid_archive_bins_fail(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "hypoevolve.yaml"
-            path.write_text(
-                "archive:\n"
-                "  coverage_bins:\n"
-                "    - 0.20\n"
-                "    - 0.10\n",
-                encoding="utf-8",
-            )
-            with self.assertRaises(ConfigError):
-                load_config(path)
-
-            path.write_text(
-                "archive:\n"
-                "  complexity_bins:\n"
-                "    - 3\n"
-                "    - 0\n",
-                encoding="utf-8",
-            )
-            with self.assertRaises(ConfigError):
-                load_config(path)
-
     def test_unknown_archive_keys_fail(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "hypoevolve.yaml"
@@ -242,22 +198,11 @@ class TestHypoEvolveConfig(unittest.TestCase):
             with self.assertRaises(ConfigError):
                 load_config(path)
 
-
     def test_filter_known_accepts_none_and_rejects_unknown_keys(self):
         self.assertEqual(_filter_known(None, {"a"}), {})
         self.assertEqual(_filter_known({"a": 1}, {"a"}), {"a": 1})
         with self.assertRaises(ConfigError):
             _filter_known({"b": 2}, {"a"})
-
-    def test_validate_archive_bins_rejects_invalid_values(self):
-        with self.assertRaises(ConfigError):
-            _validate_archive_bins([], [1, 2])
-        with self.assertRaises(ConfigError):
-            _validate_archive_bins([0.2, 0.1], [1, 2])
-        with self.assertRaises(ConfigError):
-            _validate_archive_bins([1.2], [1, 2])
-        with self.assertRaises(ConfigError):
-            _validate_archive_bins([0.2], [1.5])
 
     def test_ensure_mapping_wraps_yaml_error_as_config_error(self):
         _ensure_mapping({}, "root")

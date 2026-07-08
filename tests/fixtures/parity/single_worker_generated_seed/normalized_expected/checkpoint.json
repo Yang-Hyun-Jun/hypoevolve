@@ -1,10 +1,6 @@
 {
   "archive": [
     {
-      "cell": [
-        0,
-        0
-      ],
       "complexity": 1,
       "coverage": 0.0,
       "fingerprint": "d8240f708d9f80c2a4394f80bf7ec9f27d2ed7d3a6dfd4a272d3e6ff6c6926f7",
@@ -16,11 +12,10 @@
       },
       "iteration": 0,
       "metadata": {
-        "map_elites": {
+        "coulomb": {
           "complexity": 1,
-          "complexity_bin": 0,
-          "coverage": 0.0,
-          "coverage_bin": 0
+          "potential": 0.0,
+          "quality": 0.5
         },
         "source": "seed"
       },
@@ -29,10 +24,6 @@
       }
     },
     {
-      "cell": [
-        0,
-        0
-      ],
       "complexity": 1,
       "coverage": 0.0,
       "fingerprint": "19ddee656473804aee4c65d5b361ae905904e4f0bfea94458f483c5e46277a3d",
@@ -44,13 +35,12 @@
       },
       "iteration": 1,
       "metadata": {
-        "domain_reason": "Generated-seed local mutation.",
-        "map_elites": {
+        "coulomb": {
           "complexity": 1,
-          "complexity_bin": 0,
-          "coverage": 0.0,
-          "coverage_bin": 0
+          "potential": 0.49504950495049505,
+          "quality": 0.5
         },
+        "domain_reason": "Generated-seed local mutation.",
         "mutation_summary": "Applied a replace_atomic-style local mutation.",
         "operation_score_rankings": {
           "replace_atomic_feature": 1
@@ -66,7 +56,7 @@
       }
     }
   ],
-  "archive_size": 1,
+  "archive_size": 2,
   "best_hypothesis": {
     "root": {
       "kind": "atomic",

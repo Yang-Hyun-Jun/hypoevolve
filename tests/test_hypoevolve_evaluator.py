@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode
-from hypoevolve.memory.archive import ArchiveEntry
+from hypoevolve.memory.coulomb_archive import ArchiveEntry
 from hypoevolve.core.config import LLMConfig
 from hypoevolve.data.dataset import ColumnSpec, DataFile, DatasetAccessor, DatasetSchema, IndexSpec
 from hypoevolve.skills.evaluation import (
@@ -558,7 +558,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
                 metrics={'combined_score': 0.9},
                 fingerprint='best-fp',
                 iteration=3,
-                metadata={'map_elites': {'coverage_bin': 0}},
+                metadata={'coulomb': {'quality': 0.0, 'potential': 0.0, 'complexity': 0}},
             )
         ]
         variables = build_steering_prompt_variables(
@@ -568,7 +568,7 @@ class TestHypoEvolveEvaluator(unittest.TestCase):
             top_hypotheses=top_hypotheses,
         )
         self.assertIn('replace', variables['RECENT_HISTORY'])
-        self.assertIn('coverage_bin', variables['TOP_HYPOTHESES'])
+        self.assertIn('coulomb', variables['TOP_HYPOTHESES'])
         self.assertNotIn('hypothesis_nl', variables['TOP_HYPOTHESES'])
 
 

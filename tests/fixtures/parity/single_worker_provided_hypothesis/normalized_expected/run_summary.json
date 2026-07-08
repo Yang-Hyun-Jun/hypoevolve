@@ -1,5 +1,6 @@
 {
-  "archive_size": 1,
+  "archive_capacity": 64,
+  "archive_size": 2,
   "best_fingerprint": "bc20fd386097133cfad75283d9a1e385b393a85c23cea986a8029a42b29d2f51",
   "best_hypothesis_nl": "If A then B.",
   "best_iteration": 0,
@@ -10,8 +11,9 @@
   "duplicate_skips_worker": 0,
   "iterations_requested": 1,
   "known_fingerprint_count": 2,
-  "occupancy_summary": "cells=1 cov=[1,0,0,0] cmp=[1,0,0,0]",
-  "occupied_cells": 1,
+  "mean_pairwise_distance": 0.5,
+  "mean_quality": 0.5,
+  "occupancy_summary": "coulomb size=2/64 meanQ=0.500 meanD=0.500",
   "seed_input_text": "if A then B",
   "worker_count": 1,
   "workers_enabled": false

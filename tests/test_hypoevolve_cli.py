@@ -181,11 +181,9 @@ class TestHypoEvolveCLI(unittest.TestCase):
             config_path.write_text(
                 (
                     "archive:\n"
-                    "  kind: coulomb\n"
-                    "  coulomb:\n"
-                    "    capacity: 16\n"
-                    "    gamma: 0.5\n"
-                    "    eps: 0.02\n"
+                    "  capacity: 16\n"
+                    "  gamma: 0.5\n"
+                    "  eps: 0.02\n"
                     "evaluator:\n"
                     "  dataset_schema_path: dataset.yaml\n"
                 ),
@@ -198,11 +196,8 @@ class TestHypoEvolveCLI(unittest.TestCase):
         self.assertIn("Coulomb", result.output)
         self.assertIn("Coulomb capacity", result.output)
         self.assertIn("Coulomb gamma", result.output)
-        # Coulomb kind should NOT print the MAP-Elites-specific fields.
-        self.assertNotIn("Coverage bins", result.output)
-        self.assertNotIn("Complexity bins", result.output)
 
-    def test_doctor_still_reports_map_elites_defaults(self):
+    def test_doctor_reports_coulomb_defaults(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "hypoevolve.yaml"
             config_path.write_text(
@@ -213,9 +208,9 @@ class TestHypoEvolveCLI(unittest.TestCase):
                 cli.app, ["doctor", "--config", str(config_path)]
             )
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("MAP-Elites", result.output)
-        self.assertIn("Coverage bins", result.output)
-        self.assertIn("Complexity bins", result.output)
+        self.assertIn("Coulomb", result.output)
+        self.assertIn("Coulomb capacity", result.output)
+        self.assertIn("Coulomb gamma", result.output)
 
     def test_render_subcommand_tree_mode(self):
         with patch("hypoevolve.cli.commands.LLMClient"), patch(

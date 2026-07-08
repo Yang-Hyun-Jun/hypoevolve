@@ -1,5 +1,6 @@
 {
-  "archive_size": 1,
+  "archive_capacity": 64,
+  "archive_size": 2,
   "best_fingerprint": "d8240f708d9f80c2a4394f80bf7ec9f27d2ed7d3a6dfd4a272d3e6ff6c6926f7",
   "best_hypothesis_nl": "A",
   "best_iteration": 0,
@@ -10,8 +11,9 @@
   "duplicate_skips_worker": 0,
   "iterations_requested": 1,
   "known_fingerprint_count": 2,
-  "occupancy_summary": "cells=1 cov=[1,0,0,0] cmp=[1,0,0,0]",
-  "occupied_cells": 1,
+  "mean_pairwise_distance": 1.0,
+  "mean_quality": 0.5,
+  "occupancy_summary": "coulomb size=2/64 meanQ=0.500 meanD=1.000",
   "seed_input_text": "Generated seed hypothesis.",
   "worker_count": 1,
   "workers_enabled": false

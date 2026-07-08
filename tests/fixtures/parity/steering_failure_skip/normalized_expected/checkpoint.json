@@ -1,10 +1,6 @@
 {
   "archive": [
     {
-      "cell": [
-        0,
-        0
-      ],
       "complexity": 1,
       "coverage": 0.0,
       "fingerprint": "d8240f708d9f80c2a4394f80bf7ec9f27d2ed7d3a6dfd4a272d3e6ff6c6926f7",
@@ -16,11 +12,10 @@
       },
       "iteration": 0,
       "metadata": {
-        "map_elites": {
+        "coulomb": {
           "complexity": 1,
-          "complexity_bin": 0,
-          "coverage": 0.0,
-          "coverage_bin": 0
+          "potential": 0.0,
+          "quality": 0.5
         },
         "source": "seed"
       },

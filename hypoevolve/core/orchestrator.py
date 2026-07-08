@@ -8,9 +8,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 
-from hypoevolve.memory.archive import ArchiveEntry, MAPElitesArchive
 from hypoevolve.memory.artifacts import RunArtifactRecorder
-from hypoevolve.memory.coulomb_archive import CoulombArchive
+from hypoevolve.memory.coulomb_archive import ArchiveEntry, CoulombArchive
 from hypoevolve.core.config import HypoEvolveConfig
 from hypoevolve.core.events import HookBus
 from hypoevolve.data.dataset import load_dataset_schema
@@ -39,7 +38,7 @@ from hypoevolve.skills.seed_generation import generate_random_tree_pair_hypothes
 from hypoevolve.runtime.worker import WorkerTask
 from hypoevolve.runtime.worker import run_worker_task
 from hypoevolve.policies.protocols import SelectionPolicy
-from hypoevolve.policies.selection import CoulombSelectionPolicy, UCBSelectionPolicy
+from hypoevolve.policies.selection import CoulombSelectionPolicy
 
 
 @dataclass(slots=True)
@@ -69,7 +68,7 @@ class _SeedBootstrapState:
     """Carry the initialized seed state for a controller run."""
 
     hypothesis: Hypothesis
-    archive: MAPElitesArchive
+    archive: CoulombArchive
     known_fingerprints: set[str]
 
 
@@ -103,7 +102,7 @@ def _build_steering_metadata(
 
 def _record_skip(
     *,
-    archive: MAPElitesArchive,
+    archive: CoulombArchive,
     recorder: RunArtifactRecorder,
     iteration: int,
     parent_entry: ArchiveEntry,
@@ -136,7 +135,7 @@ def _record_skip(
 
 def _record_completed_child(
     *,
-    archive: MAPElitesArchive,
+    archive: CoulombArchive,
     recorder: RunArtifactRecorder,
     iteration: int,
     parent_entry: ArchiveEntry,
@@ -169,7 +168,6 @@ def _record_completed_child(
         "archive.add",
         i=iteration,
         archive_size=len(archive),
-        child_cell=descriptor["cell"],
         occupancy=archive.occupancy_summary(),
         **summarize_metrics(child_metrics),
     )
@@ -255,7 +253,7 @@ class HypoEvolveController:
         self.rng = random.Random(config.search.random_seed)
         self.executor_factory = executor_factory or ProcessPoolExecutor
         self.hooks = hooks or HookBus()
-        self.selection_policy = selection_policy or _default_selection_policy(config)
+        self.selection_policy = selection_policy or _default_selection_policy()
 
     def _bootstrap_seed(
         self,
@@ -295,7 +293,6 @@ class HypoEvolveController:
             "seed.archive",
             archive_size=len(archive),
             best_score=best.score if best else 0.0,
-            best_cell=best.cell if best else None,
             occupancy=archive.occupancy_summary(),
         )
         recorder.record_seed(
@@ -315,7 +312,7 @@ class HypoEvolveController:
     def _finalize_run_result(
         self,
         *,
-        archive: MAPElitesArchive,
+        archive: CoulombArchive,
         recorder: RunArtifactRecorder,
         known_fingerprint_count: int,
         run_dir: Path,
@@ -378,7 +375,7 @@ class HypoEvolveController:
         *,
         parent_entry: ArchiveEntry,
         recent_history: list[dict[str, object]],
-        archive: MAPElitesArchive,
+        archive: CoulombArchive,
     ) -> tuple[Hypothesis, dict[str, object]]:
         """Choose one steered mutation for the solo execution path."""
         use_random_steering = (
@@ -401,7 +398,7 @@ class HypoEvolveController:
     def _run_single_process_iterations(
         self,
         *,
-        archive: MAPElitesArchive,
+        archive: CoulombArchive,
         recorder: RunArtifactRecorder,
         known_fingerprints: set[str],
     ) -> None:
@@ -416,7 +413,6 @@ class HypoEvolveController:
                 i=iteration,
                 parent_score=parent_entry.score,
                 parent_fp=parent_entry.fingerprint[:12],
-                parent_cell=parent_entry.cell,
                 **parent_summary,
             )
             try:
@@ -492,7 +488,7 @@ class HypoEvolveController:
     def _run_worker_iterations(
         self,
         *,
-        archive: MAPElitesArchive,
+        archive: CoulombArchive,
         recorder: RunArtifactRecorder,
         known_fingerprints: set[str],
     ) -> int:
@@ -532,7 +528,6 @@ class HypoEvolveController:
                     "worker.submit",
                     i=submitted,
                     parent_score=archive.best.score if archive.best else 0.0,
-                    parent_cell=parent_entry.cell,
                     parent_fp=parent_entry.fingerprint[:12],
                 )
                 future = executor.submit(run_worker_task, task)
@@ -713,26 +708,15 @@ class HypoEvolveController:
         )
 
 
-def _default_selection_policy(config: HypoEvolveConfig) -> SelectionPolicy:
-    """Return the default selection policy that matches ``config.archive.kind``."""
-    if config.archive.kind == "coulomb":
-        return CoulombSelectionPolicy()
-    return UCBSelectionPolicy()
+def _default_selection_policy() -> SelectionPolicy:
+    """Return the default selection policy for the Coulomb archive."""
+    return CoulombSelectionPolicy()
 
 
-def _build_archive(
-    config: HypoEvolveConfig,
-) -> MAPElitesArchive | CoulombArchive:
-    """Instantiate the archive implementation selected by ``config.archive.kind``."""
-    if config.archive.kind == "coulomb":
-        return CoulombArchive(
-            capacity=config.archive.coulomb.capacity,
-            gamma=config.archive.coulomb.gamma,
-            eps=config.archive.coulomb.eps,
-        )
-    return MAPElitesArchive(
-        coverage_bins=config.archive.coverage_bins,
-        complexity_bins=config.archive.complexity_bins,
-        per_cell_top_k=config.archive.per_cell_top_k,
-        parent_sampling_mode=config.archive.parent_sampling_mode,
+def _build_archive(config: HypoEvolveConfig) -> CoulombArchive:
+    """Instantiate the Coulomb archive from configuration."""
+    return CoulombArchive(
+        capacity=config.archive.capacity,
+        gamma=config.archive.gamma,
+        eps=config.archive.eps,
     )

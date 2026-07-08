@@ -18,11 +18,10 @@
     },
     "iteration": 0,
     "metadata": {
-      "map_elites": {
+      "coulomb": {
         "complexity": 3,
-        "complexity_bin": 0,
-        "coverage": 0.0,
-        "coverage_bin": 0
+        "potential": 0.0,
+        "quality": 0.5
       },
       "source": "seed"
     },
@@ -50,13 +49,12 @@
     },
     "iteration": 1,
     "metadata": {
-      "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
-      "map_elites": {
+      "coulomb": {
         "complexity": 3,
-        "complexity_bin": 0,
-        "coverage": 0.0,
-        "coverage_bin": 0
+        "potential": 1.923076923076923,
+        "quality": 0.5
       },
+      "domain_reason": "Tightening the stress condition is plausible from a crypto downside-regime perspective.",
       "mutation_summary": "Applied a replace_atomic-style change in the condition side while keeping the overall relation structure.",
       "operation_score_rankings": {},
       "parent_score": 0.5,

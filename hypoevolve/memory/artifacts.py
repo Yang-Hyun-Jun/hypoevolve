@@ -8,24 +8,17 @@ from pathlib import Path
 from typing import Any, Dict
 
 from hypoevolve.elg import Hypothesis, fingerprint, render_pretty
-from hypoevolve.memory.archive import MAPElitesArchive
+from hypoevolve.memory.coulomb_archive import CoulombArchive
 
 
 def _descriptor_payload(descriptor: Dict[str, Any]) -> Dict[str, Any]:
-    """Return the archive-specific descriptor sub-dict (map_elites or coulomb).
-
-    Both archive kinds emit a nested sub-dict under a kind-specific key. This
-    helper picks the first present one so downstream artifact writers can
-    write a consistent ``map_elites`` field without breaking when a Coulomb
-    archive is in use.
-    """
-    payload = descriptor.get("map_elites")
-    if payload is not None:
-        return dict(payload)
+    """Return the Coulomb descriptor sub-dict from an archive descriptor."""
     payload = descriptor.get("coulomb")
     if payload is not None:
         return dict(payload)
     return {}
+
+
 from hypoevolve.skills.reporting import generate_run_report
 from hypoevolve.runtime import (
     write_artifact,
@@ -43,7 +36,7 @@ from hypoevolve.runtime import (
 
 
 def build_checkpoint_payload(
-    archive: MAPElitesArchive,
+    archive: CoulombArchive,
     iteration: int,
 ) -> dict[str, object]:
     """Build the persisted checkpoint payload for the current archive state."""
@@ -109,13 +102,12 @@ def build_history_entry(
         "worker_mode": bool(metadata.get("worker_mode", False)),
         "random_steering": bool(metadata.get("random_steering", False)),
         "complexity": descriptor.get("complexity", 0),
-        "cell": list(descriptor.get("cell") or []),
     }
 
 
 def build_run_summary_payload(
     *,
-    archive: MAPElitesArchive,
+    archive: CoulombArchive,
     seed_input_text: str,
     iterations_requested: int,
     worker_count: int,
@@ -136,7 +128,9 @@ def build_run_summary_payload(
         "workers_enabled": workers_enabled,
         "dataset_schema_path": dataset_schema_path,
         "archive_size": len(archive),
-        "occupied_cells": occupancy["occupied_cells"],
+        "archive_capacity": occupancy["capacity"],
+        "mean_quality": occupancy["mean_quality"],
+        "mean_pairwise_distance": occupancy["mean_pairwise_distance"],
         "occupancy_summary": archive.occupancy_summary(),
         "duplicate_skips_total": duplicate_skips_solo + duplicate_skips_worker,
         "duplicate_skips_solo": duplicate_skips_solo,
@@ -177,7 +171,7 @@ class RunArtifactRecorder:
     def record_seed(
         self,
         *,
-        archive: MAPElitesArchive,
+        archive: CoulombArchive,
         hypothesis: Hypothesis,
         metrics: Dict[str, object],
         metadata: Dict[str, object],
@@ -203,7 +197,7 @@ class RunArtifactRecorder:
                 None,
                 hypothesis,
                 metrics,
-                {**metadata, "map_elites": _descriptor_payload(descriptor)},
+                {**metadata, "coulomb": _descriptor_payload(descriptor)},
             ),
         )
         write_best(self.run_dir, archive.best.hypothesis, archive.best.metrics)
@@ -298,7 +292,7 @@ class RunArtifactRecorder:
     def record_iteration_result(
         self,
         *,
-        archive: MAPElitesArchive,
+        archive: CoulombArchive,
         iteration: int,
         parent_hypothesis: Hypothesis,
         parent_fingerprint: str,
@@ -332,7 +326,7 @@ class RunArtifactRecorder:
                 parent_hypothesis,
                 child_hypothesis,
                 child_metrics,
-                {**metadata, "map_elites": _descriptor_payload(descriptor)},
+                {**metadata, "coulomb": _descriptor_payload(descriptor)},
             ),
         )
         write_checkpoint(self.run_dir, self._checkpoint_payload(archive, iteration))
@@ -351,7 +345,7 @@ class RunArtifactRecorder:
                 "metrics": child_metrics,
                 "hypothesis": child_hypothesis.to_dict(),
                 "worker_mode": metadata.get("worker_mode", False),
-                "map_elites": _descriptor_payload(descriptor),
+                "coulomb": _descriptor_payload(descriptor),
             },
         )
         self.score_history.append(
@@ -371,7 +365,7 @@ class RunArtifactRecorder:
     def finalize(
         self,
         *,
-        archive: MAPElitesArchive,
+        archive: CoulombArchive,
         iterations_requested: int,
         known_fingerprint_count: int,
         best_hypothesis_nl: str,
@@ -423,7 +417,7 @@ class RunArtifactRecorder:
 
     def _materialize_top_k_evaluator_artifacts(
         self,
-        archive: MAPElitesArchive,
+        archive: CoulombArchive,
     ) -> None:
         """Copy evaluator code for the top-ranked archive entries into one folder."""
         top_entries = archive.entries[: self.top_k_code_artifacts]
@@ -482,7 +476,7 @@ class RunArtifactRecorder:
         )
 
     def _checkpoint_payload(
-        self, archive: MAPElitesArchive, iteration: int
+        self, archive: CoulombArchive, iteration: int
     ) -> Dict[str, object]:
         return build_checkpoint_payload(archive, iteration)
 

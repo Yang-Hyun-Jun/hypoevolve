@@ -1,7 +1,7 @@
 import hashlib
 import unittest
 
-from hypoevolve.memory.archive import ArchiveEntry
+from hypoevolve.memory.coulomb_archive import ArchiveEntry
 from hypoevolve.context.providers import build_steering_prompt_variables
 from hypoevolve.prompts import load_and_render_prompt, load_prompt
 from hypoevolve.elg import AtomicNode, Hypothesis, LogicalNode, RelationNode

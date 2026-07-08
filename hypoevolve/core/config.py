@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from hypoevolve.data.yaml_parser import SimpleYAMLError, ensure_mapping, parse_simple_yaml
 
@@ -56,24 +56,12 @@ class SearchConfig:
 
 
 @dataclass(slots=True)
-class CoulombArchiveConfig:
-    """Settings specific to the Coulomb (repulsive-field) archive."""
+class ArchiveConfig:
+    """Settings for the Coulomb (repulsive-field) archive."""
 
     capacity: int = 64
     gamma: float = 0.3
     eps: float = 1e-2
-
-
-@dataclass(slots=True)
-class ArchiveConfig:
-    """Settings for archive bucketing and per-cell elite retention."""
-
-    kind: str = "map_elites"
-    coverage_bins: List[float] = field(default_factory=lambda: [0.05, 0.15, 0.30])
-    complexity_bins: List[int] = field(default_factory=lambda: [3, 5, 8])
-    per_cell_top_k: int = 10
-    parent_sampling_mode: str = "map_elites_ucb"
-    coulomb: CoulombArchiveConfig = field(default_factory=CoulombArchiveConfig)
 
 
 @dataclass(slots=True)
@@ -187,26 +175,11 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
             },
         )
     )
-    archive_raw = dict(data.get("archive", {}) or {})
-    coulomb_raw = archive_raw.pop("coulomb", {}) or {}
-    coulomb_config = CoulombArchiveConfig(
-        **_filter_known(
-            coulomb_raw,
-            {"capacity", "gamma", "eps"},
-        )
-    )
     archive = ArchiveConfig(
         **_filter_known(
-            archive_raw,
-            {
-                "kind",
-                "coverage_bins",
-                "complexity_bins",
-                "per_cell_top_k",
-                "parent_sampling_mode",
-            },
-        ),
-        coulomb=coulomb_config,
+            data.get("archive", {}),
+            {"capacity", "gamma", "eps"},
+        )
     )
     output = OutputConfig(
         **_filter_known(
@@ -231,23 +204,12 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
         raise ConfigError("workers.count must be >= 1")
     if not evaluator.dataset_schema_path:
         raise ConfigError("evaluator.dataset_schema_path is required")
-    if archive.kind not in {"map_elites", "coulomb"}:
-        raise ConfigError("archive.kind must be 'map_elites' or 'coulomb'")
-    if archive.kind == "map_elites":
-        _validate_archive_bins(archive.coverage_bins, archive.complexity_bins)
-        if archive.per_cell_top_k < 1:
-            raise ConfigError("archive.per_cell_top_k must be >= 1")
-        if archive.parent_sampling_mode not in {"map_elites_ucb", "random"}:
-            raise ConfigError(
-                "archive.parent_sampling_mode must be 'map_elites_ucb' or 'random'"
-            )
-    else:
-        if archive.coulomb.capacity < 1:
-            raise ConfigError("archive.coulomb.capacity must be >= 1")
-        if archive.coulomb.gamma < 0.0:
-            raise ConfigError("archive.coulomb.gamma must be >= 0")
-        if archive.coulomb.eps <= 0.0:
-            raise ConfigError("archive.coulomb.eps must be > 0")
+    if archive.capacity < 1:
+        raise ConfigError("archive.capacity must be >= 1")
+    if archive.gamma < 0.0:
+        raise ConfigError("archive.gamma must be >= 0")
+    if archive.eps <= 0.0:
+        raise ConfigError("archive.eps must be > 0")
     if output.top_k_evaluator_code_artifacts < 1:
         raise ConfigError("output.top_k_evaluator_code_artifacts must be >= 1")
 
@@ -261,28 +223,6 @@ def _config_from_dict(data: Dict[str, Any]) -> HypoEvolveConfig:
         logging=logging,
         workers=workers,
     )
-
-
-def _validate_archive_bins(
-    coverage_bins: List[float],
-    complexity_bins: List[int],
-) -> None:
-    if not coverage_bins:
-        raise ConfigError("archive.coverage_bins must not be empty")
-    if not complexity_bins:
-        raise ConfigError("archive.complexity_bins must not be empty")
-    if coverage_bins != sorted(coverage_bins):
-        raise ConfigError("archive.coverage_bins must be sorted ascending")
-    if complexity_bins != sorted(complexity_bins):
-        raise ConfigError("archive.complexity_bins must be sorted ascending")
-    if any(not isinstance(value, (int, float)) for value in coverage_bins):
-        raise ConfigError("archive.coverage_bins must contain only numeric values")
-    if any(not 0.0 < float(value) < 1.0 for value in coverage_bins):
-        raise ConfigError("archive.coverage_bins values must be between 0.0 and 1.0")
-    if any(int(value) != value for value in complexity_bins):
-        raise ConfigError("archive.complexity_bins must contain only integers")
-    if any(int(value) <= 0 for value in complexity_bins):
-        raise ConfigError("archive.complexity_bins values must be > 0")
 
 
 def _filter_known(data: Any, allowed: set[str]) -> Dict[str, Any]:

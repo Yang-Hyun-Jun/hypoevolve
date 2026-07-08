@@ -8,11 +8,10 @@
     },
     "iteration": 0,
     "metadata": {
-      "map_elites": {
+      "coulomb": {
         "complexity": 1,
-        "complexity_bin": 0,
-        "coverage": 0.0,
-        "coverage_bin": 0
+        "potential": 0.0,
+        "quality": 0.5
       },
       "source": "seed"
     },

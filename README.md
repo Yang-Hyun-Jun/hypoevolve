@@ -4,7 +4,7 @@ An experimental framework for **evolving hypotheses instead of code**.
 
 HypoEvolve starts from a natural-language hypothesis, converts it into a structured intermediate representation called **ELG (Executable Logic Graph)**, mutates that structure, evaluates candidates, and keeps the best-scoring hypotheses over time.
 
-> Current status: layered architecture with ELG core, MAP-Elites archive, protocol-based skill system, CLI, runtime persistence, and parallel worker support.
+> Current status: layered architecture with ELG core, Coulomb archive, protocol-based skill system, CLI, runtime persistence, and parallel worker support.
 
 ---
 
@@ -26,6 +26,22 @@ The long-term goal is a data-driven hypothesis search system where LLMs can help
 
 ---
 
+## Lenses: How HypoEvolve Bootstraps Hypotheses
+
+Every HypoEvolve run starts from a **seed hypothesis**. When you do not supply one, HypoEvolve generates one from scratch through a concept we call a **Lens**.
+
+A **Lens** is one way of expressing change in the data — a small computation that turns raw signals into a specific view (e.g. *"z-score of signal A over 20 bars crossing above its own moving average"*). On its own it means nothing; it is just a **microscope**, a chosen perspective on the data.
+
+The seed generator draws **two random lenses** and checks whether their outputs co-move in a statistically significant way. If they do, the co-movement itself is the signal that something worth explaining is there. An LLM then attaches a narrative that could plausibly account for the co-movement, and that narrative becomes the seed hypothesis the evolutionary loop starts from.
+
+- **Lens** — a way of expressing change in the data
+- **Two co-moving lenses** — an anomaly worth explaining
+- **Narrative over a lens pair** — a candidate hypothesis (the seed)
+
+> A lens is implemented as a tree of nodes, so `tree` still appears in code (`HypoTree`, `tree_a/b`). **Lens** is the conceptual name for what that tree represents.
+
+---
+
 ## Current Features
 
 ### ELG core (`hypoevolve/elg/`)
@@ -42,14 +58,14 @@ The long-term goal is a data-driven hypothesis search system where LLMs can help
 - mutation skill with structural operators
 - pluggable evaluation skill interface
 - reporting skill for run summaries
-- seed generation subsystem for random hypothesis bootstrapping
+- lens-based seed generation: random lens-pair sampling with LLM narrative synthesis
 
 ### Policies (`hypoevolve/policies/`)
-- UCB-based parent selection within MAP-Elites cells
+- Coulomb repulsive-field parent sampling
 - protocol-based selection and stopping policies
 
 ### Memory & Archive (`hypoevolve/memory/`)
-- MAP-Elites archive with fingerprint dedup and coverage/complexity binning
+- Coulomb archive: repulsive-field maintenance and sampling with tree-kernel distance
 - artifact persistence (trace, checkpoint, best-result)
 
 ### Runtime (`hypoevolve/runtime/`)
@@ -72,10 +88,10 @@ hypoevolve/
   core/           # orchestrator, config, HookBus event system
   elg/            # ELG representation, mutation, rendering, codecs
   skills/         # protocols, ELG compile, mutation, evaluation, reporting
-    seed_generation/  # random seed-hypothesis generation subsystem
-  policies/       # protocols, UCB selection, stopping policies
+    seed_generation/  # lens-pair seed hypothesis generation (trees + LLM synthesis)
+  policies/       # protocols, Coulomb selection, stopping policies
   context/        # protocols, prompt variable providers
-  memory/         # MAP-Elites archive, artifact persistence
+  memory/         # Coulomb archive, artifact persistence
   runtime/        # LLM client, sandbox executor, checkpoint, workers
   data/           # dataset loader, YAML parser
   observability/  # structured logger
@@ -132,15 +148,9 @@ search:
   random_steering_prob: 0.3
   random_seed: 42
 archive:
-  coverage_bins:
-    - 0.05
-    - 0.15
-    - 0.30
-  complexity_bins:
-    - 3
-    - 5
-    - 8
-  parent_sampling_mode: map_elites_ucb
+  capacity: 64
+  gamma: 0.3
+  eps: 0.01
 output:
   base_dir: .hypoevolve/runs
   top_k_evaluator_code_artifacts: 3
@@ -359,7 +369,7 @@ HypoEvolve is currently at:
 
 - **ELG core** ✅
 - **Layered architecture with protocol abstractions** ✅
-- **MAP-Elites archive with UCB selection** ✅
+- **Coulomb archive with repulsive-field selection** ✅
 - **HookBus event system** ✅
 - **Parallel worker support** ✅
 - **CLI with runs management** ✅

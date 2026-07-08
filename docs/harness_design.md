@@ -47,7 +47,7 @@
 | Mutation | candidate transformation skill |
 | LLM Eval | semantic evaluator / critic |
 | Score | objective feedback |
-| MAP-Elites Archive | memory + diversity-preserving archive |
+| Coulomb Archive | repulsive-field diversity-preserving archive |
 | UCB-based Parent Sampling | selection policy |
 | Controller | orchestrator |
 | Worker 1..K | executor pool |
@@ -125,7 +125,7 @@ Next Iteration
                     ↓
 ┌──────────────────────────────────────────────┐
 │ Memory Plane                                 │
-│ - MAP-Elites Archive                         │
+│ - Coulomb Archive                            │
 │ - Candidate Store                            │
 │ - Evaluation Store                           │
 │ - Failure Memory                             │
@@ -1008,32 +1008,22 @@ class SelectionPolicy:
 
 | Policy | 설명 |
 |---|---|
-| UCBSelectionPolicy | 평균 score와 불확실성을 함께 고려 |
+| CoulombSelectionPolicy | Coulomb archive 자체의 반발 샘플러에 parent 선택을 위임 |
 | NoveltySelectionPolicy | 기존 후보와 다른 후보를 우선 탐색 |
 | ParetoFrontSelectionPolicy | score, robustness, novelty, simplicity의 Pareto front 선택 |
 | DiversityAwareSelectionPolicy | archive coverage가 낮은 영역 우선 선택 |
 | BestFirstSelectionPolicy | 현재까지 가장 좋은 후보 주변 exploitation |
 | FailureAwareSelectionPolicy | 실패율이 낮은 영역을 우선 선택 |
 
-### 13.4 UCB 예시
+### 13.4 CoulombSelectionPolicy 예시
 
 ```python
-import math
-
-class UCBSelectionPolicy:
-    def __init__(self, exploration_weight: float = 0.01):
-        self.exploration_weight = exploration_weight
-
-    def score(self, record, total_trials: int) -> float:
-        mean_score = record.mean_score
-        n = max(record.num_trials, 1)
-        exploration = math.sqrt(math.log(total_trials + 1) / n)
-        return mean_score + self.exploration_weight * exploration
+class CoulombSelectionPolicy:
+    """Delegate parent selection to a Coulomb archive's own repulsive sampler."""
 
     def select(self, archive, state):
-        total_trials = state.iteration + 1
-        candidates = archive.get_parent_candidates()
-        return max(candidates, key=lambda r: self.score(r, total_trials))
+        rng = state.rng
+        return archive.sample_parent(rng)
 ```
 
 ---
@@ -1496,7 +1486,7 @@ before_publish
 구현 항목:
 
 ```text
-MAP-Elites Archive 정리
+Coulomb Archive 정리
 Failure Memory 추가
 Lineage Graph 추가
 Multi-objective ranking

@@ -20,15 +20,61 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 from hypoevolve.elg import Hypothesis, count_nodes, fingerprint
 from hypoevolve.elg.kernel import tree_distance
-from hypoevolve.memory.archive import ArchiveEntry, SamplingStats
 
 
 DistanceFn = Callable[[Hypothesis, Hypothesis], float]
+
+
+@dataclass(slots=True)
+class ArchiveEntry:
+    """Store one hypothesis candidate and its archive metadata."""
+
+    hypothesis: Hypothesis
+    metrics: Dict[str, object]
+    fingerprint: str
+    iteration: int = 0
+    metadata: Dict[str, object] = field(default_factory=dict)
+    coverage: float = 0.0
+    complexity: int = 0
+
+    @property
+    def score(self) -> float:
+        """Return one stable numeric score for archive ranking."""
+        if "combined_score" in self.metrics and isinstance(
+            self.metrics["combined_score"], (int, float)
+        ):
+            score = float(self.metrics["combined_score"])
+            return score if math.isfinite(score) else 0.0
+        numeric = [
+            v
+            for v in self.metrics.values()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        ]
+        if not numeric:
+            return 0.0
+        score = float(sum(numeric) / len(numeric))
+        return score if math.isfinite(score) else 0.0
+
+
+@dataclass(slots=True)
+class SamplingStats:
+    """Track parent-selection outcomes for repulsive-field sampling."""
+
+    pulls: int = 0
+    total_reward: float = 0.0
+    last_reward: float = 0.0
+
+    @property
+    def mean_reward(self) -> float:
+        """Return the average observed reward for one sampled parent."""
+        if self.pulls < 1:
+            return 0.0
+        return self.total_reward / self.pulls
 
 
 @dataclass(slots=True)
@@ -86,7 +132,7 @@ class CoulombArchive:
         self._sampling_stats: Dict[str, SamplingStats] = {}
 
     # ------------------------------------------------------------------
-    # Public API — mirrors MAPElitesArchive
+    # Public API
     # ------------------------------------------------------------------
 
     def __len__(self) -> int:
@@ -126,7 +172,6 @@ class CoulombArchive:
         return {
             "coverage": _coverage_from_metrics(metrics),
             "complexity": complexity,
-            "cell": None,
             "coulomb": descriptor.to_dict(),
         }
 
@@ -156,7 +201,6 @@ class CoulombArchive:
             metadata=entry_metadata,
             coverage=float(descriptor["coverage"]),
             complexity=int(descriptor["complexity"]),
-            cell=None,
         )
 
         existing_index = self._index_of_fingerprint(candidate_fp)
@@ -229,7 +273,6 @@ class CoulombArchive:
         n = len(self._entries)
         if n == 0:
             return {
-                "occupied_cells": 0,
                 "size": 0,
                 "capacity": self.capacity,
                 "mean_quality": 0.0,
@@ -238,7 +281,6 @@ class CoulombArchive:
         scores = [entry.score for entry in self._entries]
         mean_pairwise = self._mean_pairwise_distance()
         return {
-            "occupied_cells": n,
             "size": n,
             "capacity": self.capacity,
             "mean_quality": sum(scores) / n,
@@ -265,7 +307,6 @@ class CoulombArchive:
                 "metadata": dict(entry.metadata),
                 "coverage": entry.coverage,
                 "complexity": entry.complexity,
-                "cell": None,
             }
             for entry in self.entries
         ]
@@ -278,7 +319,6 @@ class CoulombArchive:
         entry = self._entries[slot]
         potential = self._potential_at_slot(slot)
         score = entry.score
-        # log(score) with a small offset so score = 0 remains valid (log 1e-9)
         base = math.log(max(score, 1e-9))
         return base - self.gamma * potential
 
@@ -368,7 +408,6 @@ class CoulombArchive:
     def _replace_at(self, slot: int, entry: ArchiveEntry) -> None:
         old = self._entries[slot]
         self._entries[slot] = entry
-        # Cache invalidation for the replaced fingerprint keeps the map lean.
         old_fp = old.fingerprint
         stale_keys = [key for key in self._distances if old_fp in key]
         for key in stale_keys:
@@ -413,4 +452,9 @@ def _sampling_stats_dict(stats: SamplingStats) -> Dict[str, float | int]:
     }
 
 
-__all__ = ["CoulombArchive", "CoulombDescriptor"]
+__all__ = [
+    "ArchiveEntry",
+    "SamplingStats",
+    "CoulombArchive",
+    "CoulombDescriptor",
+]

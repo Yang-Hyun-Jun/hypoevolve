@@ -20,11 +20,11 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
         self.assertEqual(
             hypoevolve.__all__,
             [
+                "ArchiveConfig",
                 "ArchiveEntry",
                 "ColumnSpec",
                 "ConfigError",
                 "CoulombArchive",
-                "CoulombArchiveConfig",
                 "CoulombDescriptor",
                 "CoulombSelectionPolicy",
                 "DataFile",
@@ -40,7 +40,7 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
                 "LAMBDA_WRAP",
                 "LLMClient",
                 "LLMConfig",
-                "MAPElitesArchive",
+                "SamplingStats",
                 "HypothesisGenerationError",
                 "ParseError",
                 "atomic_sim",
@@ -62,7 +62,6 @@ class TestHypoEvolvePublicAPI(unittest.TestCase):
                 "MutationSkill",
                 "EvaluationSkill",
                 "ReportingSkill",
-                "UCBSelectionPolicy",
                 "IterationStoppingPolicy",
             ],
         )

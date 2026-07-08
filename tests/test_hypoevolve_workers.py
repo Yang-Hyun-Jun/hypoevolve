@@ -169,7 +169,7 @@ class TestHypoEvolveWorkers(unittest.TestCase):
                     'metrics': {'combined_score': 0.9},
                     'fingerprint': 'top-fp',
                     'iteration': 3,
-                    'metadata': {'map_elites': {'coverage_bin': 0}},
+                    'metadata': {'coulomb': {'quality': 0.0, 'potential': 0.0, 'complexity': 0}},
                 }
             ],
         )
@@ -193,7 +193,7 @@ class TestHypoEvolveWorkers(unittest.TestCase):
         self.assertEqual(len(top_hypotheses), 1)
         self.assertEqual(top_hypotheses[0].fingerprint, 'top-fp')
         self.assertEqual(top_hypotheses[0].iteration, 3)
-        self.assertEqual(top_hypotheses[0].metadata['map_elites']['coverage_bin'], 0)
+        self.assertEqual(top_hypotheses[0].metadata['coulomb']['quality'], 0.0)
         self.assertEqual(top_hypotheses[0].hypothesis.root.name, 'TOP')
 
     def test_run_worker_task_includes_last_evaluation_artifacts_and_reasons_in_returned_worker_result(self):
