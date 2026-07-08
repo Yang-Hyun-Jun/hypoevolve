@@ -278,20 +278,53 @@ def run(seed_input_text):
 
 ### 4.5.3 Seed 합성
 
+#### 4.5.3.a 왜 "Lens" 인가 — 초기 가설 트리의 정체성
+
+HypoEvolve 에서 초기 가설을 만들어내는 트리는 코드상 `HypoTree` / `tree_a` / `tree_b`
+로 남아 있지만, 개념적으로는 이것을 **Lens (렌즈)** 라고 부른다. 트리는 단순한 자료구조가
+아니라 **데이터의 어떤 변화 형태를 표현하는 수식** 이기 때문이다. 예를 들어
+`z-score(signal_A, window=20) crosses above moving_average(signal_A, window=20)` 같은
+합성 표현은 원시 시계열에서 "특정 관점의 변화" 를 뽑아내는 관측 도구다. 즉 트리 자체는
+가설이 아니고, 데이터를 **들여다보는 방식** 이다. 그래서 "seed" 나 "feature tree" 대신
+**Lens** 라는 이름이 이 시스템의 철학을 더 정확히 반영한다.
+
+Lens 하나만으로는 어떤 주장을 담을 수 없다. 그러나 두 Lens 를 나란히 놓고 각 Lens 가
+뽑아낸 두 변화가 **통계적으로 유의한 공행/역행 관계** 를 보인다면, 그 공행 자체가
+"설명할 가치가 있는 무언가" 라는 신호가 된다. 이 시점에서 시스템은 아직 문맥 (원인,
+메커니즘, 서사) 이 없는 상태이므로, LLM 에게 **두 Lens 사이의 통계적 관계를 그럴듯하게
+설명하는 자연어 서사** 를 요청해 그것을 seed hypothesis 로 삼는다.
+
+이 흐름을 세 층으로 정리하면 다음과 같다:
+
+| 층 | 의미 | 코드 식별자 |
+|---|---|---|
+| Lens (렌즈) | 데이터의 한 변화 관점을 정의하는 트리 수식 | `HypoTree`, `tree_a`, `tree_b` |
+| Lens pair 의 통계적 공행 | "설명이 필요한 이상" 의 후보 | `generate_random_tree_pair_hypothesis()` 내부 |
+| Lens pair 위에 붙인 서사 | seed hypothesis (진화 루프의 출발점) | `TreePairHypothesis.hypothesis`, `seed_input_text` |
+
+바꿔 말하면 seed 는 **Lens pair 라는 관측 장치가 먼저 있고, 그 위에 서사를 얹어 만들어진
+가설** 이다. 진화 루프는 이 서사를 ELG 로 컴파일한 뒤 mutation/evaluation 을 반복한다.
+
+#### 4.5.3.b 합성 경로
+
 Seed hypothesis 는 두 가지 경로 중 하나로 얻는다 (`orchestrator.py:_resolve_seed_input_text`):
 
-- 사용자가 `run <text>` 로 직접 자연어 가설을 주면 그 텍스트를 사용.
+- 사용자가 `run <text>` 로 직접 자연어 가설을 주면 그 텍스트를 사용
+  (사람이 이미 Lens pair + 서사를 머릿속에서 완성해 넘긴 경우로 볼 수 있다).
 - 안 주면 `generate_random_tree_pair_hypothesis()` 로 자동 합성
-  (`hypoevolve/skills/seed_generation/hypothesis.py`).
+  (`hypoevolve/skills/seed_generation/hypothesis.py`) — 아래 4단계로 Lens 를 뽑아 서사를 붙인다.
 
 자동 합성 과정:
 
 1. `HypoTreeGenerator` 가 데이터셋 스키마의 컬럼과 30여 개의 테크니컬 노드를 이용해
-   **입출력 타입이 맞물리는 랜덤 트리 2개** 를 생성 (`skills/seed_generation/tree/generator.py`).
-   각 트리는 "데이터에서의 한 가지 변화 관점" 을 나타낸다 (README 의 **Lens** 개념).
-2. 두 트리와 노드 설명을 `prompts/hypo` 템플릿에 채워 LLM 에 전달.
-3. LLM 이 두 트리 사이의 통계적 관계를 해석하는 자연어 가설을 반환.
+   **입출력 타입이 맞물리는 랜덤 Lens 2개** 를 생성
+   (`skills/seed_generation/tree/generator.py`). 각 Lens 는 데이터를 바라보는 한 가지
+   관점 (변화 수식) 이다.
+2. 두 Lens 트리와 각 노드 설명을 `prompts/hypo` 템플릿에 채워 LLM 에 전달.
+3. LLM 은 두 Lens 가 뽑아낸 변화 사이의 통계적 관계를 해석하는 **자연어 서사** 를 반환한다.
+   이 서사가 컨텍스트가 비어 있던 자리를 채우는 역할을 한다.
 4. `TreePairHypothesis(tree_a, tree_b, hypothesis_text)` 로 묶여 seed 로 쓰인다.
+   `tree_a`, `tree_b` 는 Lens pair, `hypothesis_text` 는 그 위에 얹힌 서사다.
 
 이 자연어 텍스트는 이후 다음 두 단계를 거쳐 ELG 로 변환된다:
 
@@ -958,7 +991,9 @@ worker 는 archive 를 직접 갱신하지 않는다.
 
 ## 13. Seed generation subsystem (`hypoevolve.seedgen`) 의 위치
 
-이 부분은 메인 ELG 시스템과 철학이 다소 다르다.
+이 부분은 메인 ELG 시스템과 철학이 다소 다르다. ELG 는 이미 서사가 붙은 가설을
+mutation 으로 진화시키는 반면, 여기는 **아직 서사가 없는 Lens 를 먼저 만들고 그 위에
+서사를 얹는** 층이다 (§4.5.3.a 참고).
 
 ### 13.1 내부 모델
 
@@ -968,29 +1003,32 @@ worker 는 archive 를 직접 갱신하지 않는다.
 - transform/operator 노드
 - 랜덤 트리 generator
 
-를 사용해 feature tree 를 만든다.
+를 사용해 **Lens (데이터의 한 변화 관점을 표현하는 트리 수식)** 를 만든다. 코드상
+`HypoTree` / `tree_a` / `tree_b` 로 남아 있으나 개념적 이름은 Lens 이다.
 
 그리고 `hypoevolve/prompts/hypo/*` 를 사용해:
 
-- 두 feature tree 간의 관계를 설명하는 자연어 hypothesis
+- 두 Lens 가 뽑아낸 변화 사이의 통계적 관계를 해석하는 자연어 서사 (= seed hypothesis)
 
-를 만든다.
+를 만든다. 즉 이 서브시스템의 산출물은 **Lens pair + 그 위에 얹힌 서사** 다.
 
 ### 13.2 현재 역할
 
-이 subsystem 은 **seed 문장 생성기** 역할이다.
+이 subsystem 은 **Lens 기반 seed 문장 생성기** 역할이다.
 
 즉:
 
 - ELG core 의 일부 아님
 - mutation loop 의 일부 아님
-- hypothesis search 의 bootstrapper
+- 데이터 관측 층 (Lens) 과 진화 루프 (ELG mutation) 사이를 잇는 **hypothesis bootstrapper**
 
 에 가깝다.
 
 ### 13.3 재구현 시 판단
 
-이건 메인 런타임과 분리된 bounded context 로 다루는 것이 좋다.
+이건 메인 런타임과 분리된 bounded context 로 다루는 것이 좋다. Lens 정의/샘플링과
+Lens pair 서사화는 ELG mutation 과 다른 어휘를 쓰므로, 인터페이스만 `TreePairHypothesis`
+로 고정하고 내부는 독립적으로 진화시킬 수 있다.
 
 ---
 
