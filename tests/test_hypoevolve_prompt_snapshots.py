@@ -13,8 +13,8 @@ class TestHypoEvolvePromptSnapshots(unittest.TestCase):
             "parser/system.md": "481612b0115d3fc1e53bfa4a00e4183390ccea1b6060a991651ae98a9b74d4ce",
             "measurable/system.md": "1506f70d8ec791e12f8225b06df58fdfdec17de065e9eae62c0a5b1f89b3919b",
             "nl/system.md": "04f4baba75010b536d3bce8ac47a83d69011d43847b6ca8a2dba5e571e81e033",
-            "steering/system.md": "f27b57c16d5dc39c228ed1c17e5b6f147950eef02752b555647ae2390781fd5c",
-            "steering-random/system.md": "21172a30b67e1cff8500b72ba89c060fbbbd8a74a3cc5ce83e87bf0cfc48d5f1",
+            "steering/system.md": "664e5e178c6b0a1eec3c765b15c557dce2311619b17b1458dea4087a52f4a112",
+            "steering-random/system.md": "7a74f8f7da6509bef045919e37c827a0e013dc5a862f79c3d21b94960efe9092",
             "evaluator/system.md": "77ff769b47adc813475bd5618dcda08ab3719bb3a9d099454ac944c224090d50",
             "evaluator/user.md": "6e59c4cda8aa686c1f6ae2c4aad9992a00b49553f202c83a07ca6ad947271e70",
         }

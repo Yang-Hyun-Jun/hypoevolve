@@ -85,13 +85,20 @@ You must return a full child ELG root node JSON object.
 
 # Mutation Guidance
 
-- Freely mutate the ELG, subject to the ELG schema contract.
+- Freely mutate the condition side of the ELG, subject to the ELG schema contract.
 - Parameter choices such as thresholds, windows, and horizons are handled by the evaluator.
+
+# Dataset Columns
+
+{{DATASET_COLUMNS}}
+
+- Every condition-side atomic proposition must be built from the columns listed above, spelled exactly as listed. Do not invent, rename, or derive new column names; transformations (thresholds, windows, comparisons) of listed columns are allowed.
 
 # Mutation Constraint
 
 - `remove_atomic` cannot be applied to the conclusion / target side.
 - The conclusion / target side must remain present after mutation.
+- The conclusion / target side is fixed: copy the parent's target-side node unchanged. It must remain the domain target; mutation operators apply to the condition side only.
 - Do not use a conclusion / target atomic proposition that is identical to any atomic proposition already used on the condition side.
 
 # Measurable Atomic Guidance
@@ -154,3 +161,5 @@ The `mutation_summary` must describe the mutation in diff-style terms.
   }
 }
 ```
+
+- Never reference the target/outcome variable itself inside the condition side; conditions must be measurable from feature columns only.

@@ -11,7 +11,7 @@ from hypoevolve.memory.coulomb_archive import ArchiveEntry
 from hypoevolve.observability.logger import compact_text, log_info_event
 from hypoevolve.runtime.llm_client import LLMClient
 from hypoevolve.skills.elg_compile import JSON_RETRY_PROMPT, ParseError
-from hypoevolve.prompts import load_and_render_prompt, load_prompt
+from hypoevolve.prompts import load_and_render_prompt, load_prompt, render_prompt
 
 
 @dataclass(slots=True)
@@ -27,6 +27,10 @@ class MutationDecision:
 
 STEERING_SYSTEM_PROMPT = load_prompt("steering", "system.md")
 STEERING_RANDOM_SYSTEM_PROMPT = load_prompt("steering-random", "system.md")
+NO_DATASET_COLUMNS_TEXT = (
+    "(no column list provided; reuse only column names that already appear in "
+    "the parent hypothesis or the top archive hypotheses)"
+)
 
 
 def steer_mutation(
@@ -37,11 +41,17 @@ def steer_mutation(
     top_hypotheses: Sequence[ArchiveEntry] | None = None,
     use_random_steering: bool = False,
     retries: int = 2,
+    dataset_columns: str | None = None,
 ) -> MutationDecision:
-    """Ask the LLM for a locally mutated child hypothesis and rationale."""
+    """Ask the LLM for a locally mutated child hypothesis and rationale.
+
+    ``dataset_columns`` is the schema column list (one ``- name (type): description``
+    line per column) rendered into the system prompt's Dataset Columns section.
+    """
     prompt_dir = "steering-random" if use_random_steering else "steering"
-    system_prompt_template = (
-        STEERING_RANDOM_SYSTEM_PROMPT if use_random_steering else STEERING_SYSTEM_PROMPT
+    system_prompt_template = render_prompt(
+        STEERING_RANDOM_SYSTEM_PROMPT if use_random_steering else STEERING_SYSTEM_PROMPT,
+        {"DATASET_COLUMNS": (dataset_columns or "").strip() or NO_DATASET_COLUMNS_TEXT},
     )
     base_user_prompt = load_and_render_prompt(
         prompt_dir,

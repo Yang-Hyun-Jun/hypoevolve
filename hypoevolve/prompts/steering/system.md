@@ -95,8 +95,8 @@ However, the child should behave like the result of a mutation applied to the pa
 
 Your child hypothesis must be the result of applying one or more of the following mutation operators from the following mutation family:
 
-- `replace_atomic_feature`: replace the condition atomic or target atomic with a different measurable feature or signal
-- `replace_atomic_reformulate`: replace the condition atomic or target atomic with a fully new and different measurable proposition
+- `replace_atomic_feature`: replace a condition-side atomic with a different measurable feature or signal
+- `replace_atomic_reformulate`: replace a condition-side atomic with a fully new and different measurable proposition
 - `append_atomic`: add one child atomic proposition to an `AND` node
 - `remove_atomic`: remove one child atomic proposition from an `AND` node
 - `change_relation_type`: change the relation type
@@ -108,10 +108,17 @@ Important mutation rules:
 - Do not treat parameters (thresholds, windows) as the primary mutation target.
 - Review the Recent Mutation History to avoid repeating mistakes made in previous mutations.
 
+# Dataset Columns
+
+{{DATASET_COLUMNS}}
+
+- Every condition-side atomic proposition must be built from the columns listed above, spelled exactly as listed. Do not invent, rename, or derive new column names; transformations (thresholds, windows, comparisons) of listed columns are allowed.
+
 # Mutation Constraint
 
 - `remove_atomic` cannot be applied to the conclusion / target side.
 - The conclusion / target side must remain present after mutation.
+- The conclusion / target side is fixed: copy the parent's target-side node unchanged. It must remain the domain target; mutation operators apply to the condition side only.
 - Do not use a conclusion / target atomic proposition that is identical to any atomic proposition already used on the condition side.
 
 # Measurable Atomic Guidance
@@ -228,3 +235,5 @@ The `mutation_summary` must describe the mutation in diff-style terms.
   "mutation_summary": "..."
 }
 ```
+
+- Never reference the target/outcome variable itself inside the condition side; conditions must be measurable from feature columns only.

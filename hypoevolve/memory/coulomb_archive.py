@@ -11,6 +11,10 @@ Two rules define the entire policy:
   weakest-``Δ`` member when the archive is at capacity, and is rejected
   otherwise.
 
+The charge each member contributes to ``U`` is ``max(score, 0)``: quality
+scores such as WRAcc can be negative, and a negative charge would attract
+rather than repel.
+
 Distance defaults to the ELG tree-kernel distance so the archive can be dropped
 into HypoEvolve unchanged; a custom callable can be injected for testing or for
 alternative similarity metrics.
@@ -342,7 +346,7 @@ class CoulombArchive:
             if slot == replaced_slot:
                 continue
             distance = self._pair_distance(candidate, other)
-            potential += other.score / (distance * distance + self.eps)
+            potential += _charge(other.score) / (distance * distance + self.eps)
         return candidate.score - self.gamma * potential
 
     def _potential_at_slot(self, slot: int) -> float:
@@ -352,7 +356,7 @@ class CoulombArchive:
             if other_slot == slot:
                 continue
             distance = self._pair_distance(entry, other)
-            total += other.score / (distance * distance + self.eps)
+            total += _charge(other.score) / (distance * distance + self.eps)
         return total
 
     def _potential_for_hypothesis(
@@ -365,7 +369,7 @@ class CoulombArchive:
             if exclude_fingerprint is not None and other.fingerprint == exclude_fingerprint:
                 continue
             distance = self._distance_between(hypothesis, other.hypothesis)
-            total += other.score / (distance * distance + self.eps)
+            total += _charge(other.score) / (distance * distance + self.eps)
         return total
 
     def _pair_distance(self, a: ArchiveEntry, b: ArchiveEntry) -> float:
@@ -423,6 +427,11 @@ class CoulombArchive:
 
     def _stats_for(self, fingerprint_value: str) -> SamplingStats:
         return self._sampling_stats.setdefault(fingerprint_value, SamplingStats())
+
+
+def _charge(score: float) -> float:
+    """Non-negative charge of an archived member (see module docstring)."""
+    return max(score, 0.0)
 
 
 def _score_from_metrics(metrics: Dict[str, object]) -> float:

@@ -241,6 +241,17 @@ class TestCoulombNumericalStability(unittest.TestCase):
         for slot in range(len(arc)):
             self.assertTrue(math.isfinite(arc._potential_at_slot(slot)))
 
+    def test_negative_scores_carry_no_charge(self):
+        # WRAcc can be negative; a negative charge must not attract (U < 0).
+        arc = CoulombArchive(capacity=3, gamma=0.3)
+        arc.add(wrap(IMPLIES(A("alpha"), A("beta"))), make_metrics(-0.4))
+        arc.add(wrap(IMPLIES(A("gamma"), A("delta"))), make_metrics(-0.2))
+        for slot in range(len(arc)):
+            self.assertEqual(arc._potential_at_slot(slot), 0.0)
+        arc.add(wrap(IMPLIES(A("epsilon"), A("zeta"))), make_metrics(0.5))
+        for slot in range(len(arc)):
+            self.assertGreaterEqual(arc._potential_at_slot(slot), 0.0)
+
     def test_empty_archive_summary_and_snapshot_are_safe(self):
         arc = CoulombArchive(capacity=5, gamma=0.3)
         self.assertIn("size=0/5", arc.occupancy_summary())

@@ -232,5 +232,33 @@ class TestHypoEvolveMutation(unittest.TestCase):
         self.assertEqual(decision.mutation_summary, 'Applied random mutation.')
 
 
+    def test_steer_mutation_renders_dataset_columns_into_system_prompt(self):
+        payload = {
+            "child_hypothesis": {
+                "kind": "relation", "name": "IMPLIES",
+                "inputs": [{"kind": "atomic", "name": "age > {T}"},
+                           {"kind": "atomic", "name": "target == 1"}],
+            },
+            "mutation_summary": "Replaced one condition atomic.",
+        }
+        columns = "- age (int64): age in years\n- sex (object): Male/Female"
+        for random_mode in (False, True):
+            full = dict(payload, domain_reason="d", score_reason="s",
+                        operation_score_rankings={"replace_atomic_feature": 1})
+            llm = FakeLLM([payload if random_mode else full])
+            steer_mutation(parent_hypothesis=self.hypothesis,
+                           current_metrics={"combined_score": 0.1}, llm=llm,
+                           use_random_steering=random_mode, dataset_columns=columns)
+            system = llm.calls[0]["system"]
+            self.assertIn("# Dataset Columns", system)
+            self.assertIn("- age (int64): age in years", system)
+            self.assertNotIn("{{DATASET_COLUMNS}}", system)
+        llm = FakeLLM([payload])
+        steer_mutation(parent_hypothesis=self.hypothesis, current_metrics={}, llm=llm,
+                       use_random_steering=True)
+        self.assertIn("no column list provided", llm.calls[0]["system"])
+        self.assertNotIn("{{DATASET_COLUMNS}}", llm.calls[0]["system"])
+
+
 if __name__ == '__main__':
     unittest.main()
